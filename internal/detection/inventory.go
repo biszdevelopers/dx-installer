@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -44,6 +46,14 @@ type Tool struct {
 	Category  string
 	State     State
 	Instances []Instance
+	Packages  []PackageOwnership
+}
+
+type PackageOwnership struct {
+	Manager tool.PackageManager
+	ID      string
+	Version string
+	Source  string
 }
 
 type Inventory struct {
@@ -56,6 +66,7 @@ type Inventory struct {
 type scanResult struct {
 	manifest  tool.Manifest
 	instances []Instance
+	packages  []PackageOwnership
 	state     State
 }
 
@@ -68,6 +79,8 @@ func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (I
 		inventory.Warnings = append(inventory.Warnings, "could not refresh the process PATH after installation: "+err.Error())
 	}
 	inventory.Managers = packagemanager.Detect(machine.OS, machine.Distribution)
+	packageInventory := packagemanager.QueryInstalled(ctx, inventory.Managers)
+	inventory.Warnings = append(inventory.Warnings, packageInventory.Warnings...)
 	manifests := items.Tools()
 	if len(manifests) == 0 {
 		return inventory, fmt.Errorf("catalog contains no tools")
@@ -81,8 +94,8 @@ func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (I
 		go func() {
 			defer workers.Done()
 			for manifest := range jobs {
-				instances, state := scanTool(ctx, manifest, machine)
-				results <- scanResult{manifest: manifest, instances: instances, state: state}
+				instances, packages, state := scanTool(ctx, manifest, machine, inventory.Managers, packageInventory.Packages)
+				results <- scanResult{manifest: manifest, instances: instances, packages: packages, state: state}
 			}
 		}()
 	}
@@ -107,6 +120,7 @@ func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (I
 			Category:  result.manifest.Category,
 			State:     result.state,
 			Instances: result.instances,
+			Packages:  result.packages,
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -115,23 +129,22 @@ func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (I
 	return inventory, nil
 }
 
-func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info) ([]Instance, State) {
+func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info, managers []packagemanager.Detected, installedPackages []packagemanager.InstalledPackage) ([]Instance, []PackageOwnership, State) {
 	if !manifest.Supports(machine.OS, machine.Architecture) {
-		return nil, Unsupported
+		return nil, nil, Unsupported
 	}
+	packages := installedPackagesFor(manifest, machine.OS, managers, installedPackages)
 	paths := make(map[string]string)
 	for _, executable := range manifest.Executables {
-		path, err := exec.LookPath(executable)
-		if err != nil {
-			continue
+		for _, path := range findExecutables(executable) {
+			paths[path] = executable
 		}
-		if cleanPath, pathErr := filepath.Abs(path); pathErr == nil {
-			path = cleanPath
-		}
-		paths[path] = executable
 	}
 	if len(paths) == 0 {
-		return nil, Missing
+		if len(packages) > 0 {
+			return nil, packages, Unknown
+		}
+		return nil, nil, Missing
 	}
 	instances := make([]Instance, 0, len(paths))
 	for path, executable := range paths {
@@ -149,21 +162,106 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 		}
 	}
 	if ctx.Err() != nil {
-		return instances, Unknown
+		return instances, packages, Unknown
 	}
 	if healthyCount == len(instances) {
-		return instances, Healthy
+		return instances, packages, Healthy
 	}
 	if healthyCount > 0 {
-		return instances, Partial
+		return instances, packages, Partial
 	}
 	if unknownCount == len(instances) {
-		return instances, Unknown
+		return instances, packages, Unknown
 	}
 	if unknownCount > 0 {
-		return instances, Partial
+		return instances, packages, Partial
 	}
-	return instances, Broken
+	return instances, packages, Broken
+}
+
+func findExecutables(name string) []string {
+	searchPath := filepath.SplitList(os.Getenv("PATH"))
+	if len(searchPath) == 0 {
+		return nil
+	}
+	candidates := []string{name}
+	if runtime.GOOS == "windows" {
+		switch strings.ToLower(filepath.Ext(name)) {
+		case ".exe", ".com":
+		default:
+			candidates = []string{name + ".exe", name + ".com"}
+		}
+	}
+	found := make(map[string]string)
+	for _, directory := range searchPath {
+		directory = strings.Trim(directory, `"`)
+		if directory == "" {
+			continue
+		}
+		for _, candidate := range candidates {
+			path := filepath.Join(directory, candidate)
+			info, err := os.Stat(path)
+			if err != nil || !info.Mode().IsRegular() {
+				continue
+			}
+			if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+				continue
+			}
+			absolute, err := filepath.Abs(path)
+			if err != nil {
+				continue
+			}
+			key, err := filepath.EvalSymlinks(absolute)
+			if err != nil {
+				key = absolute
+			}
+			if runtime.GOOS == "windows" {
+				key = strings.ToLower(key)
+			}
+			found[key] = absolute
+		}
+	}
+	paths := make([]string, 0, len(found))
+	for _, path := range found {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func installedPackagesFor(manifest tool.Manifest, operatingSystem tool.OperatingSystem, managers []packagemanager.Detected, installed []packagemanager.InstalledPackage) []PackageOwnership {
+	available := make(map[tool.PackageManager]bool, len(managers))
+	for _, manager := range managers {
+		available[manager.Manager] = true
+	}
+	packages := make([]PackageOwnership, 0)
+	seen := make(map[string]bool)
+	for _, installer := range manifest.Installers {
+		if installer.Platform != operatingSystem || !available[installer.Manager] {
+			continue
+		}
+		for _, current := range installed {
+			if current.Manager != installer.Manager || !strings.EqualFold(current.ID, installer.PackageID) {
+				continue
+			}
+			key := strings.Join([]string{string(current.Manager), strings.ToLower(current.ID), current.Version}, "\x00")
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			packages = append(packages, PackageOwnership{Manager: current.Manager, ID: current.ID, Version: current.Version, Source: installer.Source})
+		}
+	}
+	sort.Slice(packages, func(i, j int) bool {
+		if packages[i].Manager != packages[j].Manager {
+			return packages[i].Manager < packages[j].Manager
+		}
+		if packages[i].ID != packages[j].ID {
+			return packages[i].ID < packages[j].ID
+		}
+		return packages[i].Version < packages[j].Version
+	})
+	return packages
 }
 
 func inspectVersion(parent context.Context, path, executable string, args []string) Instance {
