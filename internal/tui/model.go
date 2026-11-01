@@ -101,17 +101,7 @@ func (m *Model) SetPreferredManager(manager tool.PackageManager) {
 }
 
 func (m *Model) managerOrder() []tool.PackageManager {
-	managers := m.inventory.ManagerOrder()
-	for index, manager := range managers {
-		if manager == m.preferredManager {
-			ordered := make([]tool.PackageManager, 0, len(managers))
-			ordered = append(ordered, manager)
-			ordered = append(ordered, managers[:index]...)
-			ordered = append(ordered, managers[index+1:]...)
-			return ordered
-		}
-	}
-	return managers
+	return planning.PreferredManagerOrder(m.inventory.ManagerOrder(), m.preferredManager)
 }
 
 func (m *Model) Init() tea.Cmd { return nil }
