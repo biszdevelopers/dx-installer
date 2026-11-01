@@ -1,0 +1,27 @@
+schema_version: 1
+id: clojure
+name: Clojure CLI
+category: clojure.runtime
+description: Official Clojure command-line tools for dependency and project management.
+tags: [clojure, jvm, package-management]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [clojure]
+version_args: [-Sdescribe]
+dependencies: [openjdk-27]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: clojure
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: clojure
+    scope: user
+    source: homebrew-core
