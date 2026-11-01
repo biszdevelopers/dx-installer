@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -49,6 +50,54 @@ func TestCreateAndLoadSignedPlatformBundle(t *testing.T) {
 	}
 	if got, err := os.ReadFile(source); err != nil || string(got) != string(contents) {
 		t.Fatalf("bundle creation changed the source archive: %q, %v", got, err)
+	}
+}
+
+func TestSignedBundlePreservesAnExecutableBootstrapPayload(t *testing.T) {
+	contents := []byte("verified sample archive")
+	digest := sha256.Sum256(contents)
+	checksum := hex.EncodeToString(digest[:])
+	items := testBundleCatalog(t, checksum)
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	archive := filepath.Join(root, "sample.zip")
+	bootstrap := filepath.Join(root, "bootstrap.exe")
+	if err := os.WriteFile(archive, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bootstrap, []byte("verified bootstrap"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bootstrapDigest := sha256.Sum256([]byte("verified bootstrap"))
+	output := filepath.Join(root, "bundle")
+	manifest := Manifest{
+		SchemaVersion: 1,
+		Platform:      tool.Windows,
+		Architecture:  tool.AMD64,
+		Artifacts:     []Payload{{ToolID: "sample", Version: "1.0.0", File: "sample.zip", SHA256: checksum}},
+		Bootstrap:     &Payload{File: "bootstrap.exe", SHA256: hex.EncodeToString(bootstrapDigest[:]), Executable: true},
+	}
+	if err := CreateBundle(output, manifest, map[string]string{"sample.zip": archive, "bootstrap.exe": bootstrap}, platform.Info{OS: tool.Windows, Architecture: tool.AMD64}, privateKey); err != nil {
+		t.Fatal(err)
+	}
+	verified, err := LoadBundle(output, items, platform.Info{OS: tool.Windows, Architecture: tool.AMD64}, publicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verified.Bootstrap != filepath.Join(output, "bootstrap.exe") {
+		t.Fatalf("verified bootstrap path = %q", verified.Bootstrap)
+	}
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(verified.Bootstrap)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm()&0o100 == 0 {
+			t.Fatalf("bundled bootstrap is not executable: %v", info.Mode().Perm())
+		}
 	}
 }
 
@@ -114,6 +163,14 @@ func TestBundleCreationRefusesExistingOutputAndUnverifiedSource(t *testing.T) {
 	manifest.Artifacts[0].File = "../outside.zip"
 	if err := CreateBundle(output, manifest, map[string]string{"../outside.zip": source}, platform.Info{OS: tool.Windows, Architecture: tool.AMD64}, privateKey); err == nil {
 		t.Fatal("unsafe bundle filename was accepted")
+	}
+	manifest.Artifacts[0].File = "sample.zip"
+	manifest.Artifacts[0].SHA256 = strings.Repeat("0", 64)
+	if err := CreateBundle(output, manifest, map[string]string{"sample.zip": source}, platform.Info{OS: tool.Windows, Architecture: tool.AMD64}, privateKey); err == nil {
+		t.Fatal("unverified source was accepted")
+	}
+	if _, err := os.Lstat(output); !os.IsNotExist(err) {
+		t.Fatalf("failed bundle generation left a partial output directory: %v", err)
 	}
 }
 
