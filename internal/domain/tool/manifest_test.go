@@ -1,6 +1,9 @@
 package tool
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestManifestAcceptsTypedWindowsInstaller(t *testing.T) {
 	manifest := validManifest()
@@ -45,6 +48,58 @@ func TestManifestRequiresInstallerPlatformToBeDeclared(t *testing.T) {
 	manifest.Installers[0].Platform = MacOS
 	if err := manifest.Validate(); err == nil {
 		t.Fatal("installer for an undeclared platform was accepted")
+	}
+}
+
+func TestManifestAcceptsVerifiedArchiveInstallersAndLooksUpExactPlatform(t *testing.T) {
+	manifest := validManifest()
+	manifest.Artifacts = []Artifact{{
+		Platform: Windows, Architecture: AMD64, Version: "1.2.3",
+		URL: "https://downloads.example/sample.zip", SHA256: "4c5a4f9afca56f9c04b1f6c93a7f70947aa41a279c1d128f0136f726c1ddaf4d",
+		Size: 128, Format: Zip, ArchiveRoot: "sample",
+		AllowedRedirectHosts: []string{"cdn.example"},
+	}}
+	if err := manifest.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	got, exists := manifest.ArtifactFor(Windows, AMD64)
+	if !exists || got.Version != "1.2.3" {
+		t.Fatalf("artifact lookup = %#v, %v", got, exists)
+	}
+	if _, exists := manifest.ArtifactFor(Windows, ARM64); exists {
+		t.Fatal("artifact was returned for an undeclared architecture")
+	}
+}
+
+func TestManifestRejectsUnsafeArchiveSources(t *testing.T) {
+	base := Artifact{
+		Platform: Windows, Architecture: AMD64, Version: "1.2.3",
+		URL: "https://downloads.example/sample.zip", SHA256: "4c5a4f9afca56f9c04b1f6c93a7f70947aa41a279c1d128f0136f726c1ddaf4d",
+		Size: 128, Format: Zip, ArchiveRoot: "sample",
+	}
+	for _, testCase := range []struct {
+		name   string
+		change func(*Artifact)
+	}{
+		{"plaintext URL", func(item *Artifact) { item.URL = "http://downloads.example/sample.zip" }},
+		{"URL credentials", func(item *Artifact) { item.URL = "https://user:pass@downloads.example/sample.zip" }},
+		{"missing checksum", func(item *Artifact) { item.SHA256 = "" }},
+		{"malformed checksum", func(item *Artifact) { item.SHA256 = strings.Repeat("z", 64) }},
+		{"negative size", func(item *Artifact) { item.Size = -1 }},
+		{"unsafe archive root", func(item *Artifact) { item.ArchiveRoot = "../outside" }},
+		{"unsupported archive", func(item *Artifact) { item.Format = "exe" }},
+		{"invalid redirect host", func(item *Artifact) { item.AllowedRedirectHosts = []string{"*.example"} }},
+		{"regional URL is plaintext", func(item *Artifact) { item.RegionalURL = "http://mirror.example/sample.zip" }},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			manifest := validManifest()
+			artifact := base
+			testCase.change(&artifact)
+			manifest.Artifacts = []Artifact{artifact}
+			if err := manifest.Validate(); err == nil {
+				t.Fatal("unsafe archive source was accepted")
+			}
+		})
 	}
 }
 
