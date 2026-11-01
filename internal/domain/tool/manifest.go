@@ -81,26 +81,44 @@ type Artifact struct {
 	AllowedRedirectHosts []string        `yaml:"allowed_redirect_hosts,omitempty"`
 }
 
+type RegistryEcosystem string
+
+const (
+	NPMRegistry      RegistryEcosystem = "npm"
+	PyPIRegistry     RegistryEcosystem = "pypi"
+	GoModuleRegistry RegistryEcosystem = "go-modules"
+)
+
+type RegistryInstaller struct {
+	Platform  OperatingSystem   `yaml:"platform"`
+	Ecosystem RegistryEcosystem `yaml:"ecosystem"`
+	PackageID string            `yaml:"package_id"`
+	Version   string            `yaml:"version"`
+	Scope     Scope             `yaml:"scope"`
+	Source    string            `yaml:"source"`
+}
+
 type VersionPolicy struct {
 	Channel       string `yaml:"channel"`
 	UpgradePolicy string `yaml:"upgrade_policy"`
 }
 
 type Manifest struct {
-	SchemaVersion int                                `yaml:"schema_version"`
-	ID            string                             `yaml:"id"`
-	Name          string                             `yaml:"name"`
-	Category      string                             `yaml:"category"`
-	Description   string                             `yaml:"description"`
-	Tags          []string                           `yaml:"tags"`
-	Version       VersionPolicy                      `yaml:"version"`
-	Executables   []string                           `yaml:"executables"`
-	VersionArgs   []string                           `yaml:"version_args"`
-	Dependencies  []string                           `yaml:"dependencies"`
-	Conflicts     []string                           `yaml:"conflicts"`
-	Platforms     map[OperatingSystem][]Architecture `yaml:"platforms"`
-	Installers    []Installer                        `yaml:"installers"`
-	Artifacts     []Artifact                         `yaml:"artifacts,omitempty"`
+	SchemaVersion      int                                `yaml:"schema_version"`
+	ID                 string                             `yaml:"id"`
+	Name               string                             `yaml:"name"`
+	Category           string                             `yaml:"category"`
+	Description        string                             `yaml:"description"`
+	Tags               []string                           `yaml:"tags"`
+	Version            VersionPolicy                      `yaml:"version"`
+	Executables        []string                           `yaml:"executables"`
+	VersionArgs        []string                           `yaml:"version_args"`
+	Dependencies       []string                           `yaml:"dependencies"`
+	Conflicts          []string                           `yaml:"conflicts"`
+	Platforms          map[OperatingSystem][]Architecture `yaml:"platforms"`
+	Installers         []Installer                        `yaml:"installers"`
+	RegistryInstallers []RegistryInstaller                `yaml:"registry_installers,omitempty"`
+	Artifacts          []Artifact                         `yaml:"artifacts,omitempty"`
 }
 
 type Profile struct {
@@ -115,6 +133,7 @@ var (
 	identifierPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 	executablePattern = regexp.MustCompile(`^[A-Za-z0-9_.+-]+$`)
 	packageIDPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$`)
+	versionArgPattern = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._=:+/-]*$`)
 )
 
 func (m Manifest) Supports(os OperatingSystem, architecture Architecture) bool {
@@ -148,6 +167,15 @@ func (m Manifest) ArtifactFor(os OperatingSystem, architecture Architecture) (Ar
 	return Artifact{}, false
 }
 
+func (m Manifest) RegistryInstallerFor(os OperatingSystem, ecosystem RegistryEcosystem) (RegistryInstaller, bool) {
+	for _, installer := range m.RegistryInstallers {
+		if installer.Platform == os && installer.Ecosystem == ecosystem {
+			return installer, true
+		}
+	}
+	return RegistryInstaller{}, false
+}
+
 func (m Manifest) Validate() error {
 	if m.SchemaVersion != 1 {
 		return fmt.Errorf("schema_version must be 1, got %d", m.SchemaVersion)
@@ -170,7 +198,7 @@ func (m Manifest) Validate() error {
 		}
 	}
 	for _, arg := range m.VersionArgs {
-		if arg == "" || dangerousVersionArgument(arg) {
+		if !versionArgPattern.MatchString(arg) || dangerousVersionArgument(arg) {
 			return fmt.Errorf("version argument %q is empty or can execute code", arg)
 		}
 	}
@@ -219,7 +247,35 @@ func (m Manifest) Validate() error {
 		seenInstallers[key] = true
 	}
 	if len(m.Installers) == 0 && len(m.Artifacts) == 0 {
-		return fmt.Errorf("at least one package-manager installer or verified archive source is required")
+		if len(m.RegistryInstallers) == 0 {
+			return fmt.Errorf("at least one package-manager installer, registry installer, or verified archive source is required")
+		}
+	}
+	seenRegistryInstallers := make(map[string]bool, len(m.RegistryInstallers))
+	for _, installer := range m.RegistryInstallers {
+		if !validPlatform(installer.Platform) || !hasPlatform(m.Platforms, installer.Platform) {
+			return fmt.Errorf("registry installer platform %q is invalid or not declared", installer.Platform)
+		}
+		if installer.Scope != UserScope {
+			return fmt.Errorf("registry installer %q must use user scope", installer.Ecosystem)
+		}
+		if !validRegistryEcosystem(installer.Ecosystem) {
+			return fmt.Errorf("registry installer has unsupported ecosystem %q", installer.Ecosystem)
+		}
+		if !packageIDPattern.MatchString(installer.PackageID) || strings.Contains(installer.PackageID, "@") {
+			return fmt.Errorf("registry installer package identifier %q is invalid", installer.PackageID)
+		}
+		if !artifactVersionPattern.MatchString(installer.Version) {
+			return fmt.Errorf("registry installer for %q must declare a safe exact version", installer.PackageID)
+		}
+		if err := validateHTTPSURL(installer.Source); err != nil {
+			return fmt.Errorf("registry installer for %q has an invalid source: %w", installer.PackageID, err)
+		}
+		key := string(installer.Platform) + "/" + string(installer.Ecosystem)
+		if seenRegistryInstallers[key] {
+			return fmt.Errorf("duplicate registry installer for %s", key)
+		}
+		seenRegistryInstallers[key] = true
 	}
 	seenArtifacts := make(map[string]bool, len(m.Artifacts))
 	for _, artifact := range m.Artifacts {
@@ -274,6 +330,28 @@ func (m Manifest) Validate() error {
 		}
 	}
 	return nil
+}
+
+func validRegistryEcosystem(ecosystem RegistryEcosystem) bool {
+	switch ecosystem {
+	case NPMRegistry, PyPIRegistry, GoModuleRegistry:
+		return true
+	default:
+		return false
+	}
+}
+
+func RegistryRuntimeTool(ecosystem RegistryEcosystem) string {
+	switch ecosystem {
+	case NPMRegistry:
+		return "nodejs-lts"
+	case PyPIRegistry:
+		return "uv"
+	case GoModuleRegistry:
+		return "go"
+	default:
+		return ""
+	}
 }
 
 var artifactVersionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$`)
