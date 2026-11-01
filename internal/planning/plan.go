@@ -5,13 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"developers-club-dx/internal/adapters/packagemanager"
 	"developers-club-dx/internal/artifacts"
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/domain/tool"
+	"developers-club-dx/internal/pathconfig"
 )
 
 type Action string
@@ -52,7 +52,7 @@ type Item struct {
 	Version           string
 	ApproximateSize   int64
 	InstallPath       string
-	PathAdditions     []string
+	PathChanges       []pathconfig.Change
 	RegionalFallback  bool
 }
 
@@ -184,12 +184,14 @@ func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool
 		return
 	}
 	manifestCopy := artifact
-	pathAdditions := make([]string, 0, len(artifact.PathEntries))
+	pathDirectories := make([]string, 0, len(artifact.PathEntries))
 	for _, relative := range artifact.PathEntries {
-		candidate := filepath.Join(installPath, filepath.FromSlash(relative))
-		if !pathContains(os.Getenv("PATH"), candidate, current.Platform.OS) {
-			pathAdditions = append(pathAdditions, candidate)
-		}
+		pathDirectories = append(pathDirectories, filepath.Join(installPath, filepath.FromSlash(relative)))
+	}
+	pathChanges, err := pathconfig.Plan(current.Platform, home, pathDirectories, os.Getenv("PATH"))
+	if err != nil {
+		p.add(Blocking, id, "could not safely plan PATH updates: "+err.Error())
+		return
 	}
 	p.Items = append(p.Items, Item{
 		ToolID:           id,
@@ -202,30 +204,9 @@ func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool
 		Version:          artifact.Version,
 		ApproximateSize:  artifact.ApproximateSize,
 		InstallPath:      installPath,
-		PathAdditions:    pathAdditions,
+		PathChanges:      pathChanges,
 		RegionalFallback: allowRegionalFallback && artifact.RegionalURL != "",
 	})
-}
-
-func pathContains(pathValue, candidate string, operatingSystem tool.OperatingSystem) bool {
-	separator := ":"
-	if operatingSystem == tool.Windows {
-		separator = ";"
-	}
-	normalizedCandidate := filepath.Clean(candidate)
-	for _, existing := range strings.Split(pathValue, separator) {
-		if existing == "" {
-			continue
-		}
-		if operatingSystem == tool.Windows {
-			if strings.EqualFold(filepath.Clean(existing), normalizedCandidate) {
-				return true
-			}
-		} else if filepath.Clean(existing) == normalizedCandidate {
-			return true
-		}
-	}
-	return false
 }
 
 func PreferredManagerOrder(managers []tool.PackageManager, preferred tool.PackageManager) []tool.PackageManager {
