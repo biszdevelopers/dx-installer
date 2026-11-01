@@ -1,0 +1,18 @@
+schema_version: 1
+id: pip
+name: pip
+category: python.package-manager
+description: Python package installer supplied by a compatible Python runtime.
+tags: [python, package-management]
+version:
+  channel: bundled-with-python
+  upgrade_policy: never_automatically
+executables: [pip, pip3]
+version_args: [--version]
+dependencies: [python]
+provided_by: python
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
