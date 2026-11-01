@@ -1,0 +1,21 @@
+schema_version: 1
+id: typescript
+name: TypeScript
+category: javascript.compiler
+description: Typed superset of JavaScript with the TypeScript compiler and language tools.
+tags: [javascript, typescript, compiler]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [tsc]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: typescript
+    scope: user
+    source: homebrew-core
