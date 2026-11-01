@@ -1,16 +1,16 @@
 # Embedded tool catalog
 
-The current catalog is intentionally small: 17 tools and 10 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
+The current catalog is intentionally small: 21 tools and 10 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
 
 | Category | Tools |
 | --- | --- |
 | Version control | Git, Git LFS, GitHub CLI |
 | JavaScript | Bun, Node.js LTS |
 | Python | Python 3, uv |
-| Java | Eclipse Temurin JDK 25 |
+| Java | Eclipse Temurin JDK 25, Maven, Gradle |
 | Go | Go |
 | Rust | Rustup |
-| C/C++ | GCC, Clang, CMake, Ninja |
+| C/C++ | GCC, Clang, CMake, Ninja, GDB, LLDB |
 | .NET | .NET SDK 10 |
 | Shell | PowerShell |
 | Database | SQLite CLI |
