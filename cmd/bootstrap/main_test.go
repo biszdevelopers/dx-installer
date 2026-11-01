@@ -12,6 +12,13 @@ func TestNonTerminalInstallStopsBeforeInventoryOrExecution(t *testing.T) {
 	}
 }
 
+func TestNonInteractiveApprovalRequiresExplicitTools(t *testing.T) {
+	err := run([]string{"install", "--yes"})
+	if err == nil || !strings.Contains(err.Error(), "--yes requires --tools") {
+		t.Fatalf("--yes without a selected tool list was not refused: %v", err)
+	}
+}
+
 func TestParseIDsDeduplicatesAndSorts(t *testing.T) {
 	ids := parseIDs("go, git go\tuv")
 	want := []string{"git", "go", "uv"}
