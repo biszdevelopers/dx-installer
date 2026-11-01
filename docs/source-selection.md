@@ -6,7 +6,7 @@ No manager is installed, no repository is added, and no package-manager configur
 
 WinGet install commands pass the manifest's declared source name with `--source` so an identically named package from another configured source cannot be selected silently. This pins the source name, not its configured URL or publisher; DX does not currently verify a user's WinGet source configuration.
 
-On Windows, inventory asks WinGet to export installed package IDs and versions into a unique temporary file. WinGet may consult the configured sources while matching installed applications. DX disables prompts and does not accept source agreements; if WinGet cannot complete the export, inventory reports a warning and preserves the affected tools as unknown. The temporary export is removed when the query ends. See Microsoft's [WinGet export documentation](https://learn.microsoft.com/en-us/windows/package-manager/winget/export).
+On Windows, inventory asks WinGet to export installed package IDs and versions into a unique temporary file. WinGet may consult the configured sources while matching installed applications. DX disables prompts, requests English diagnostics, and does not accept source agreements; export warnings or errors make the inventory incomplete and preserve affected tools as unknown. The temporary export is removed when the query ends. See Microsoft's [WinGet export documentation](https://learn.microsoft.com/en-us/windows/package-manager/winget/export) and [global output options](https://github.com/microsoft/winget-cli/blob/master/doc/windows/package-manager/winget/index.md).
 
 ## Current limits
 
