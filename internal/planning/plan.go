@@ -47,10 +47,11 @@ type Item struct {
 }
 
 type Plan struct {
-	Selected []string
-	Items    []Item
-	Issues   []Issue
-	Blocked  bool
+	Selected              []string
+	Items                 []Item
+	Issues                []Issue
+	Blocked               bool
+	TransactionDisclosure string `json:"transaction_disclosure,omitempty"`
 }
 
 const TransactionDisclosure = "DX has not resolved a candidate package version or simulated the package-manager transaction. Dependencies or other affected packages may be added; review any manager confirmation before accepting."
@@ -136,6 +137,12 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 			})
 		default:
 			plan.add(Blocking, id, fmt.Sprintf("installation state %q is not safe to modify", entry.State))
+		}
+	}
+	for _, item := range plan.Items {
+		if item.Action == Install {
+			plan.TransactionDisclosure = TransactionDisclosure
+			break
 		}
 	}
 	return plan, nil
