@@ -9,9 +9,9 @@ The default release target matrix is:
 | Windows | amd64, arm64 | winget, Scoop, Chocolatey |
 | macOS | amd64, arm64 | Homebrew, MacPorts |
 | Linux | amd64, arm64 | APT, DNF, Pacman, Zypper, APK |
-| BSD | Not included by default | FreeBSD `pkg` adapter exists in source |
+| FreeBSD | amd64 | FreeBSD `pkg` |
 
-The CI workflow is configured for native Go tests and native builds on all six Windows/macOS/Linux architecture pairs. That configuration does not prove a future run passed, and it does not test installing packages through live package managers. Confirm the CI run is green before publishing a release. The repository has no BSD CI runner; do not advertise BSD downloads until it has a native integration environment and passing tests.
+The CI workflow runs native Go tests and native builds on the six Windows/macOS/Linux architecture pairs. A separate job runs the FreeBSD amd64 executable and installs Ninja in a real FreeBSD 15.1 VM through `pkg`; five Linux managers are tested in disposable containers. Release publication waits for both the platform matrix and integration workflow. Confirm both are green before publishing. Other BSD families and Windows/macOS package-manager installation pairs are not integration-tested.
 
 Tool support is per manifest. A tool is installable only if its declared platform/architecture matches and a compatible already-installed package manager is found. Unsupported selections block the whole plan. The engine does not install managers, change repositories, or substitute another architecture.
 
