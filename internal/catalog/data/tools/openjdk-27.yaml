@@ -1,0 +1,27 @@
+schema_version: 1
+id: openjdk-27
+name: OpenJDK 27
+category: java.runtime
+description: OpenJDK 27 development kit, installed alongside existing Java versions.
+tags: [java, jdk, openjdk]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [java, javac]
+version_args: [-version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: openjdk
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: openjdk
+    scope: user
+    source: homebrew-core
