@@ -148,6 +148,20 @@ func TestReleaseConfigurationRequiresPlainHTTPSHostnameAndSemanticVersion(t *tes
 	}
 }
 
+func TestPowerShellBootstrapRejectsRedirectsBeforeExecutingDownloadedBinary(t *testing.T) {
+	script, err := renderTemplate("templates/install.ps1.tmpl", map[string]string{
+		"@@VERSION@@":            "v1.2.3",
+		"@@ORIGIN@@":             "https://dx.example.invalid",
+		"@@POWERSHELL_TARGETS@@": "    'windows-amd64' = @{ Name = 'dx-bootstrap-windows-amd64.exe'; SHA256 = '" + strings.Repeat("0", 64) + "' }",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(script, "-MaximumRedirection 0") || strings.Contains(script, "ResponseUri") {
+		t.Fatal("PowerShell bootstrap must reject redirects without relying on a response object returned by OutFile")
+	}
+}
+
 func TestTargetEnvironmentDisablesUserGoBuildOverrides(t *testing.T) {
 	t.Setenv("GOFLAGS", "-race -overlay=unsafe.json")
 	t.Setenv("GOENV", "C:\\unexpected\\go.env")
