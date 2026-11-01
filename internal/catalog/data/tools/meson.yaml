@@ -1,0 +1,27 @@
+schema_version: 1
+id: meson
+name: Meson
+category: cpp.build-system
+description: Fast build system for C, C++, and other native projects.
+tags: [c, cpp, build]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [meson]
+version_args: [--version]
+dependencies: [ninja, python]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: meson
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: meson
+    scope: user
+    source: homebrew-core
