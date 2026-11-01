@@ -65,6 +65,26 @@ func TestLineFallbackRequiresExplicitApproval(t *testing.T) {
 	}
 }
 
+func TestLineFallbackDisplaysPackageOwnedUnknownTool(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
+		Tools: map[string]detection.Tool{
+			"git": {ID: "git", Name: "Git", State: detection.Unknown, Packages: []detection.PackageOwnership{{Manager: tool.Winget, ID: "Git.Git", Version: "2.47.1", Source: "winget"}}},
+		},
+	}, []string{"git"})
+	var output bytes.Buffer
+	if err := RunLineFallback(context.Background(), model, strings.NewReader(""), &output); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "package: winget / Git.Git 2.47.1") || !strings.Contains(output.String(), "PRESERVE Git (unknown)") {
+		t.Fatalf("line fallback omitted package ownership: %s", output.String())
+	}
+}
+
 func TestEnvironmentShowsPackageOwnershipWithoutClaimingExecutableHealth(t *testing.T) {
 	model := NewModel(context.Background(), nil, detection.Inventory{
 		Tools: map[string]detection.Tool{
