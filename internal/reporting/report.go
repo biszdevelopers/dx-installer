@@ -42,10 +42,11 @@ type ToolState struct {
 var (
 	secretAssignment = regexp.MustCompile(`(?i)(token|secret|password|passwd|api[_-]?key|authorization|credential)(["']?\s*[:=]\s*["']?)[^\s,"']+`)
 	bearerToken      = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`)
-	uriCredentials   = regexp.MustCompile(`(?i)(https?://[^:/\s@]+:)[^@\s/]+@`)
+	uriCredentials   = regexp.MustCompile(`(?i)(https?://)[^/@\s]+@`)
 	querySecret      = regexp.MustCompile(`(?i)([?&](?:token|secret|password|api[_-]?key|access_token|authorization)=)[^&\s]+`)
-	windowsUserPath  = regexp.MustCompile(`(?i)[a-z]:\\Users\\[^\\\s]+`)
-	unixUserPath     = regexp.MustCompile(`(?:/home|/Users)/[^/\s]+`)
+	windowsUserPath  = regexp.MustCompile(`(?i)[a-z]:\\Users\\[^\r\n]+`)
+	unixUserPath     = regexp.MustCompile(`(?i)(?:/home|/Users)/[^\r\n]+`)
+	userHomePath     = regexp.MustCompile(`USER_HOME_MARKER[^\r\n]*`)
 )
 
 func New(machine platform.Info, selected []string, warnings []string, results []installation.Result) Document {
@@ -95,14 +96,15 @@ func sanitize(value string) string {
 	}
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		expression := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(home))
-		value = expression.ReplaceAllString(value, "$$HOME")
+		value = expression.ReplaceAllString(value, "USER_HOME_MARKER")
 	}
-	value = windowsUserPath.ReplaceAllString(value, `%USERPROFILE%`)
-	value = unixUserPath.ReplaceAllString(value, "$$HOME")
+	value = windowsUserPath.ReplaceAllString(value, "USER_HOME_MARKER")
+	value = unixUserPath.ReplaceAllString(value, "USER_HOME_MARKER")
+	value = userHomePath.ReplaceAllString(value, "%USERPROFILE%")
+	value = bearerToken.ReplaceAllString(value, "Bearer [REDACTED]")
 	value = uriCredentials.ReplaceAllString(value, `${1}[REDACTED]@`)
 	value = querySecret.ReplaceAllString(value, `${1}[REDACTED]`)
 	value = secretAssignment.ReplaceAllString(value, `${1}${2}[REDACTED]`)
-	value = bearerToken.ReplaceAllString(value, "Bearer [REDACTED]")
 	if len(value) > 4096 {
 		value = string([]rune(value)[:4096]) + "…"
 	}
