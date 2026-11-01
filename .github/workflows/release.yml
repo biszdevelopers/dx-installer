@@ -1,0 +1,159 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Immutable semantic version, for example v1.2.3
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dx-production-release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Platform verification (${{ matrix.platform }} / ${{ matrix.architecture }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            platform: windows
+            architecture: amd64
+          - runner: windows-11-arm
+            platform: windows
+            architecture: arm64
+          - runner: macos-15-intel
+            platform: macos
+            architecture: amd64
+          - runner: macos-15
+            platform: macos
+            architecture: arm64
+          - runner: ubuntu-24.04
+            platform: linux
+            architecture: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            architecture: arm64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+      - run: go vet ./...
+      - run: go run ./cmd/catalog-check
+      - name: Build native bootstrap
+        shell: bash
+        run: |
+          executable="$RUNNER_TEMP/dx-bootstrap"
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            executable="$executable.exe"
+          fi
+          go build -trimpath -buildvcs=false -o "$executable" ./cmd/bootstrap
+          "$executable" catalog --json > "$RUNNER_TEMP/catalog.json"
+          test -s "$RUNNER_TEMP/catalog.json"
+
+  publish:
+    name: Build, sign, and publish immutable release
+    needs: verify
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 45
+    env:
+      DX_PUBLIC_ORIGIN: ${{ vars.DX_PUBLIC_ORIGIN }}
+      DX_DEPLOY_HOST: ${{ secrets.DX_DEPLOY_HOST }}
+      DX_DEPLOY_ROOT: ${{ vars.DX_DEPLOY_ROOT }}
+      DX_SIGNING_PRIVATE_KEY: ${{ secrets.DX_SIGNING_PRIVATE_KEY }}
+      DX_SSH_PRIVATE_KEY: ${{ secrets.DX_SSH_PRIVATE_KEY }}
+      DX_SSH_KNOWN_HOSTS: ${{ secrets.DX_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Validate release configuration
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]
+          [[ "$GITHUB_REF" == "refs/tags/$RELEASE_VERSION" ]] || {
+            printf 'Dispatch this workflow from the immutable tag matching the requested version.\n' >&2
+            exit 1
+          }
+          [[ "$DX_PUBLIC_ORIGIN" == https://* ]]
+          [[ -n "$DX_DEPLOY_HOST" && -n "$DX_SIGNING_PRIVATE_KEY" && -n "$DX_SSH_PRIVATE_KEY" && -n "$DX_SSH_KNOWN_HOSTS" ]]
+
+      - name: Run release checks
+        run: |
+          go test ./...
+          go vet ./...
+          go run ./cmd/catalog-check
+
+      - name: Configure authenticated SSH deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DX_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/dx-deploy-key"
+          chmod 600 "$RUNNER_TEMP/dx-deploy-key"
+          printf '%s\n' "$DX_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          eval "$(ssh-agent -s)"
+          printf 'SSH_AUTH_SOCK=%s\n' "$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          printf 'SSH_AGENT_PID=%s\n' "$SSH_AGENT_PID" >> "$GITHUB_ENV"
+          ssh-add "$RUNNER_TEMP/dx-deploy-key"
+          printf 'Host *\n  BatchMode yes\n  StrictHostKeyChecking yes\n' > "$HOME/.ssh/config"
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Build and sign release
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          key_file="$RUNNER_TEMP/dx-signing-key"
+          printf '%s' "$DX_SIGNING_PRIVATE_KEY" > "$key_file"
+          chmod 600 "$key_file"
+          go run ./cmd/release \
+            --version "$RELEASE_VERSION" \
+            --origin "$DX_PUBLIC_ORIGIN" \
+            --output-dir "$RUNNER_TEMP/dx-distribution" \
+            --signing-key "$key_file"
+          rm -f "$key_file"
+
+      - name: Publish immutable artifacts and switch stable entry points
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          release_directory="$RUNNER_TEMP/dx-distribution/releases/$RELEASE_VERSION"
+          public_key=$(tr -d '\r\n' < "$release_directory/SHA256SUMS.pub")
+          deployment_root=${DX_DEPLOY_ROOT:-/srv/www/developers-club-dx}
+          deployment/scripts/publish-release.sh \
+            "$DX_DEPLOY_HOST" "$release_directory" "$RELEASE_VERSION" \
+            "$DX_PUBLIC_ORIGIN" "$public_key" "$deployment_root"
+          deployment/scripts/check-published-release.sh "$DX_PUBLIC_ORIGIN" "$RELEASE_VERSION"
+
+      - name: Remove temporary credentials
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$RUNNER_TEMP/dx-deploy-key" "$RUNNER_TEMP/dx-signing-key"
+          if [[ -n "${SSH_AGENT_PID:-}" ]]; then
+            ssh-agent -k >/dev/null 2>&1 || true
+          fi
