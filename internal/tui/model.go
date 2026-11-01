@@ -15,6 +15,7 @@ import (
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/installation"
 	"developers-club-dx/internal/planning"
+	"developers-club-dx/internal/reporting"
 )
 
 type Screen int
@@ -263,6 +264,12 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.pathInput = ""
 			m.status = "Enter the selection JSON file path, then press Enter."
 		}
+	case "d":
+		if m.screen == ResultsScreen {
+			m.pathMode = "diagnostic"
+			m.pathInput = ""
+			m.status = "Enter a new JSON report path. The file will contain redacted diagnostics and will not overwrite an existing file."
+		}
 	}
 	m.clampCursor()
 	return m, nil
@@ -354,15 +361,20 @@ func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
 			return
 		}
 		var err error
-		if m.pathMode == "export" {
+		switch m.pathMode {
+		case "export":
 			err = m.writeSelection(path)
-		} else {
+		case "import":
 			err = m.readSelection(path)
+		case "diagnostic":
+			err = m.writeDiagnostic(path)
 		}
 		if err != nil {
 			m.status = err.Error()
 		} else if m.pathMode == "export" {
 			m.status = "Selection exported to " + path + "."
+		} else if m.pathMode == "diagnostic" {
+			m.status = "Redacted diagnostic report saved to " + path + "."
 		} else {
 			m.status = "Selection imported. Review the catalog before planning."
 			m.screen = CatalogScreen
@@ -418,6 +430,28 @@ func (m *Model) readSelection(path string) error {
 		m.selected[id] = true
 	}
 	m.invalidatePlan("Selection imported. Review the catalog before planning.")
+	return nil
+}
+
+func (m *Model) writeDiagnostic(path string) error {
+	document := reporting.New(m.inventory.Platform, m.selectedIDs(), m.inventory.Warnings, m.SessionReport())
+	data, err := reporting.Encode(document)
+	if err != nil {
+		return fmt.Errorf("encode diagnostic report: %w", err)
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("create diagnostic report: %w", err)
+	}
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
+		return fmt.Errorf("write diagnostic report: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(path)
+		return fmt.Errorf("close diagnostic report: %w", err)
+	}
 	return nil
 }
 
