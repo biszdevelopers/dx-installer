@@ -1,0 +1,43 @@
+schema_version: 1
+id: opentofu
+name: OpenTofu
+category: devops.infrastructure
+description: Open-source infrastructure-as-code CLI; does not initialize projects, apply plans, or authenticate.
+tags: [infrastructure, devops, opentofu]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [tofu]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: OpenTofu.Tofu
+    scope: user
+    source: winget
+  - platform: windows
+    manager: scoop
+    package_id: opentofu
+    scope: user
+    source: scoop-main
+  - platform: macos
+    manager: homebrew
+    package_id: opentofu
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: opentofu
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: dnf
+    package_id: opentofu
+    scope: system
+    source: configured-dnf-repositories
