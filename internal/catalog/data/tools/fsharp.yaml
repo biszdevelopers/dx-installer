@@ -1,0 +1,18 @@
+schema_version: 1
+id: fsharp
+name: F#
+category: dotnet.language
+description: F# compiler and interactive shell supplied by the .NET SDK.
+tags: [dotnet, fsharp, compiler]
+version:
+  channel: provided-by-runtime
+  upgrade_policy: never_automatically
+executables: [dotnet]
+version_args: [fsi, --version]
+dependencies: [dotnet-sdk-10]
+provided_by: dotnet-sdk-10
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
