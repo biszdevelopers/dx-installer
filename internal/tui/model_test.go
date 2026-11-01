@@ -11,6 +11,7 @@ import (
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/domain/tool"
+	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/platform"
 )
 
@@ -61,6 +62,48 @@ func TestLineFallbackRequiresExplicitApproval(t *testing.T) {
 	}
 	if model.session != nil || !strings.Contains(output.String(), "Plan cancelled. No commands were run.") {
 		t.Fatalf("fallback did not honor explicit decline: session=%v output=%q", model.session, output.String())
+	}
+}
+
+func TestEnvironmentShowsPackageOwnershipWithoutClaimingExecutableHealth(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{
+		Tools: map[string]detection.Tool{
+			"cmake": {
+				ID:    "cmake",
+				Name:  "CMake",
+				State: detection.Unknown,
+				Packages: []detection.PackageOwnership{{
+					Manager: tool.APT,
+					ID:      "cmake",
+					Version: "3.30.0-1",
+					Source:  "configured-apt-repositories",
+				}},
+			},
+		},
+	}, nil)
+	output := strings.Join(model.renderEnvironment(10), "\n")
+	if !strings.Contains(output, "Package: apt / cmake 3.30.0-1") || !strings.Contains(output, "executable was not found on PATH") {
+		t.Fatalf("environment screen omitted package ownership or PATH limitation: %s", output)
+	}
+}
+
+func TestPlanSignatureIncludesPreservedPackageOwnership(t *testing.T) {
+	base := planning.Plan{Items: []planning.Item{{
+		ToolID:        "git",
+		Action:        planning.Preserve,
+		ExistingState: detection.Unknown,
+		ExistingPackages: []detection.PackageOwnership{{
+			Manager: tool.APT,
+			ID:      "git",
+			Version: "2.47.0",
+		}},
+	}}}
+	changed := base
+	changed.Items = append([]planning.Item(nil), base.Items...)
+	changed.Items[0].ExistingPackages = append([]detection.PackageOwnership(nil), base.Items[0].ExistingPackages...)
+	changed.Items[0].ExistingPackages[0].Version = "2.48.0"
+	if planSignature(base) == planSignature(changed) {
+		t.Fatal("package ownership changes should invalidate the approval signature")
 	}
 }
 
