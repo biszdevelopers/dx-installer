@@ -122,8 +122,11 @@ func (s *Session) Record(item planning.Item, commandErr error, actual detection.
 		Command: item.Command.Display(),
 	}
 	result.Verification = string(actual.State)
-	if len(actual.Instances) > 0 {
-		result.Verification = actual.Instances[0].Version
+	for _, instance := range actual.Instances {
+		if instance.State == detection.Healthy && instance.Version != "" {
+			result.Verification = instance.Version
+			break
+		}
 	}
 	if actual.State == detection.Healthy {
 		result.State = InstalledVerified
@@ -176,6 +179,25 @@ func (s *Session) Complete() bool {
 	return true
 }
 
+func (s *Session) Cancel() {
+	for _, item := range s.items {
+		if item.Action != planning.Install {
+			continue
+		}
+		if _, exists := s.results[item.ToolID]; exists {
+			continue
+		}
+		s.results[item.ToolID] = Result{
+			ToolID:       item.ToolID,
+			Name:         item.Name,
+			State:        Skipped,
+			Verification: "not run",
+			Diagnostic:   "installation cancelled by the user",
+		}
+	}
+	s.running = ""
+}
+
 func (s *Session) Report() []Result {
 	report := make([]Result, 0, len(s.results))
 	for _, id := range s.order {
@@ -184,6 +206,11 @@ func (s *Session) Report() []Result {
 		}
 	}
 	return report
+}
+
+func (s *Session) Result(toolID string) (Result, bool) {
+	result, exists := s.results[toolID]
+	return result, exists
 }
 
 type Scanner func(context.Context) (detection.Inventory, error)
