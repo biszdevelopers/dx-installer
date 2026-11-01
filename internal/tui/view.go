@@ -376,7 +376,7 @@ func (m *Model) renderSources(maxRows int) []string {
 	for _, signal := range m.regionDetection.Signals {
 		lines = append(lines, fmt.Sprintf("  %s: %s (%s)", signal.Source, signal.Value, signal.Region))
 	}
-	for _, ecosystem := range []tool.RegistryEcosystem{tool.NPMRegistry, tool.PyPIRegistry, tool.GoModuleRegistry} {
+	for _, ecosystem := range []tool.RegistryEcosystem{tool.NPMRegistry, tool.PyPIRegistry, tool.GoModuleRegistry, tool.CargoRegistry} {
 		if source := m.registrySources[ecosystem]; source != "" {
 			lines = append(lines, "Registry override "+string(ecosystem)+": "+source)
 		}
