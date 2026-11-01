@@ -1,0 +1,16 @@
+schema_version: 1
+id: swift-package-manager
+name: Swift Package Manager
+category: swift.package-manager
+description: Swift package and dependency manager supplied by the Swift toolchain.
+tags: [swift, package-management]
+version:
+  channel: provided-by-runtime
+  upgrade_policy: never_automatically
+executables: [swift]
+version_args: [package, --version]
+dependencies: [swift]
+provided_by: swift
+conflicts: []
+platforms:
+  macos: [arm64]
