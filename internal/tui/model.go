@@ -32,32 +32,32 @@ const (
 )
 
 type Model struct {
-	ctx              context.Context
-	catalog          *catalog.Catalog
-	inventory        detection.Inventory
-	screen           Screen
-	selected         map[string]bool
-	selectedProfiles map[string]bool
-	preferredManager tool.PackageManager
-	plan             planning.Plan
-	planReady        bool
-	approval         bool
-	preflighting     bool
-	searching        bool
+	ctx                  context.Context
+	catalog              *catalog.Catalog
+	inventory            detection.Inventory
+	screen               Screen
+	selected             map[string]bool
+	selectedProfiles     map[string]bool
+	preferredManager     tool.PackageManager
+	plan                 planning.Plan
+	planReady            bool
+	approval             bool
+	preflighting         bool
+	searching            bool
 	environmentSearching bool
-	pathMode         string
-	pathInput        string
-	help             bool
-	filter           string
-	environmentFilter string
-	categoryFilter   string
-	stateFilter      string
-	status           string
-	width            int
-	height           int
-	cursor           int
-	session          *installation.Session
-	activeItem       planning.Item
+	pathMode             string
+	pathInput            string
+	help                 bool
+	filter               string
+	environmentFilter    string
+	categoryFilter       string
+	stateFilter          string
+	status               string
+	width                int
+	height               int
+	cursor               int
+	session              *installation.Session
+	activeItem           planning.Item
 }
 
 type preflightMsg struct {
