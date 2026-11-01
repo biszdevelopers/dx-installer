@@ -39,6 +39,41 @@ func TestPlanAddsDependenciesInInstallOrderAndPreservesExistingTools(t *testing.
 	}
 }
 
+func TestPlanUsesExplicitGoModuleRegistryWithAnExactCatalogVersion(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "LocalAppData"))
+	t.Setenv("PATH", "")
+	current := windowsInventory(
+		[]packagemanager.Detected{{Manager: tool.Winget, Path: `C:\Windows\winget.exe`}},
+		detection.Tool{ID: "go", Name: "Go", State: detection.Missing},
+		detection.Tool{ID: "govulncheck", Name: "govulncheck", State: detection.Missing},
+	)
+	plan, err := BuildWithOptions(items, current, []string{"govulncheck"}, Options{
+		RegistrySources: map[tool.RegistryEcosystem]string{tool.GoModuleRegistry: "https://proxy.example/goproxy"},
+	})
+	if err != nil || plan.Blocked || len(plan.Items) != 2 {
+		t.Fatalf("registry installation plan = %#v, %v", plan, err)
+	}
+	item := plan.Items[1]
+	if item.ToolID != "govulncheck" || item.RegistryInstaller == nil || item.Version != "v1.9.0" || item.Source != "https://proxy.example/goproxy" {
+		t.Fatalf("registry selection omitted its pinned identity or source: %#v", item)
+	}
+	if item.Command.Executable != "go" || strings.Join(item.Command.Arguments, " ") != "install golang.org/x/vuln/cmd/govulncheck@v1.9.0" {
+		t.Fatalf("registry operation is not a typed, exact-version Go command: %#v", item.Command)
+	}
+	if item.Command.Environment["GOPROXY"] != item.Source || item.Command.Environment["GOSUMDB"] != "sum.golang.org" {
+		t.Fatalf("registry command did not preserve Go checksum database verification: %#v", item.Command.Environment)
+	}
+	if item.InstallPath == "" || len(item.PathChanges) != 1 || item.PathChanges[0].Directory != filepath.Join(item.InstallPath, "bin") {
+		t.Fatalf("registry install target or PATH changes are missing: %#v", item)
+	}
+}
+
 func TestPlanPrefersTheRequestedDetectedManager(t *testing.T) {
 	items, err := catalog.LoadEmbedded()
 	if err != nil {
