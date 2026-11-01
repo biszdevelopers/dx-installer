@@ -2,7 +2,7 @@
 
 ## No tools or package managers are detected
 
-DX currently inventories command names on the process `PATH`. Open a new terminal after installing a tool, then run `go run ./cmd/bootstrap inventory`. A tool installed only in a nonstandard directory or package database may not appear. DX does not scan arbitrary disks or query every manager's package database.
+DX inventories command names on the process `PATH` and supported local package databases. Open a new terminal after installing a tool, then run `go run ./cmd/bootstrap inventory`. Package records without visible executables are shown as unknown and preserved. A tool installed only in a nonstandard directory or a Windows package database may not appear. DX does not scan arbitrary disks or query every manager's package database.
 
 ## A tool is unsupported or the plan is blocked
 
