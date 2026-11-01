@@ -85,7 +85,7 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 	}
 	managerOrder := current.ManagerOrder()
 	if options.PreferredManager != "" {
-		managerOrder = preferManager(managerOrder, options.PreferredManager)
+		managerOrder = PreferredManagerOrder(managerOrder, options.PreferredManager)
 	}
 	plan.checkConflicts(items, current, closure, closureSet)
 	for _, id := range closure {
@@ -139,17 +139,21 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 	return plan, nil
 }
 
-func preferManager(managers []tool.PackageManager, preferred tool.PackageManager) []tool.PackageManager {
-	for index, manager := range managers {
+func PreferredManagerOrder(managers []tool.PackageManager, preferred tool.PackageManager) []tool.PackageManager {
+	ordered := append([]tool.PackageManager(nil), managers...)
+	if preferred == "" {
+		return ordered
+	}
+	for index, manager := range ordered {
 		if manager == preferred {
-			ordered := make([]tool.PackageManager, 0, len(managers))
-			ordered = append(ordered, preferred)
-			ordered = append(ordered, managers[:index]...)
-			ordered = append(ordered, managers[index+1:]...)
-			return ordered
+			prioritized := make([]tool.PackageManager, 0, len(ordered))
+			prioritized = append(prioritized, preferred)
+			prioritized = append(prioritized, ordered[:index]...)
+			prioritized = append(prioritized, ordered[index+1:]...)
+			return prioritized
 		}
 	}
-	return managers
+	return ordered
 }
 
 func dependencyOrder(items *catalog.Catalog, selected map[string]bool) ([]string, error) {
