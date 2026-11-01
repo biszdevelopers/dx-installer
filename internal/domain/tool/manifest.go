@@ -101,8 +101,8 @@ func (m Manifest) Supports(os OperatingSystem, architecture Architecture) bool {
 }
 
 func (m Manifest) InstallerFor(os OperatingSystem, managers []PackageManager) (Installer, bool) {
-	for _, preferredScope := range []Scope{UserScope, SystemScope} {
-		for _, manager := range managers {
+	for _, manager := range managers {
+		for _, preferredScope := range []Scope{UserScope, SystemScope} {
 			for _, installer := range m.Installers {
 				if installer.Platform == os && installer.Manager == manager && installer.Scope == preferredScope {
 					return installer, true
