@@ -1,0 +1,27 @@
+schema_version: 1
+id: pdm
+name: PDM
+category: python.packages
+description: Python package and project manager supporting current packaging standards.
+tags: [python, dependencies, packages, projects]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [pdm]
+version_args: [--version]
+dependencies: [python]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: pdm
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: pdm
+    scope: user
+    source: homebrew-core
