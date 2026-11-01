@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ const (
 	Official Kind = "official"
 	Regional Kind = "regional"
 	Custom   Kind = "custom"
+	Offline  Kind = "offline"
 )
 
 type Policy string
@@ -229,6 +231,98 @@ func validateSource(source RemoteSource) error {
 		}
 	}
 	return nil
+}
+
+func ValidateRemoteSource(source RemoteSource) error {
+	return validateSource(source)
+}
+
+func (d *Downloader) CopyLocal(ctx context.Context, sourcePath, expectedSHA256, workspace string, publicKey ed25519.PublicKey, signature []byte) (DownloadResult, error) {
+	if !filepath.IsAbs(sourcePath) {
+		return DownloadResult{}, errors.New("offline archive path must be absolute")
+	}
+	if len(expectedSHA256) != sha256.Size*2 {
+		return DownloadResult{}, errors.New("offline archive requires a pinned SHA-256 digest")
+	}
+	if _, err := hex.DecodeString(expectedSHA256); err != nil {
+		return DownloadResult{}, errors.New("offline archive has an invalid expected SHA-256 digest")
+	}
+	if (len(publicKey) == 0) != (len(signature) == 0) || (len(publicKey) > 0 && (len(publicKey) != ed25519.PublicKeySize || len(signature) != ed25519.SignatureSize)) {
+		return DownloadResult{}, errors.New("offline archive signature metadata is incomplete or malformed")
+	}
+	info, err := os.Lstat(sourcePath)
+	if err != nil {
+		return DownloadResult{}, fmt.Errorf("inspect offline archive: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return DownloadResult{}, errors.New("offline archive must be a regular non-symlink file")
+	}
+	if info.Size() > d.options.MaxBytes {
+		return DownloadResult{}, fmt.Errorf("offline archive exceeds the %d byte safety limit", d.options.MaxBytes)
+	}
+	input, err := os.Open(sourcePath)
+	if err != nil {
+		return DownloadResult{}, fmt.Errorf("open offline archive: %w", err)
+	}
+	defer input.Close()
+	openedInfo, err := input.Stat()
+	if err != nil || !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
+		return DownloadResult{}, errors.New("offline archive changed while it was being opened")
+	}
+	output, err := os.CreateTemp(workspace, "dx-offline-*.partial")
+	if err != nil {
+		return DownloadResult{}, fmt.Errorf("create temporary offline archive: %w", err)
+	}
+	path := output.Name()
+	cleanup := func() { _ = output.Close(); _ = os.Remove(path) }
+	if err := output.Chmod(0o600); err != nil {
+		cleanup()
+		return DownloadResult{}, fmt.Errorf("restrict temporary offline archive permissions: %w", err)
+	}
+	hasher := sha256.New()
+	written, copyErr := io.Copy(io.MultiWriter(output, hasher), io.LimitReader(contextReader{ctx: ctx, reader: input}, d.options.MaxBytes+1))
+	if copyErr != nil {
+		cleanup()
+		return DownloadResult{}, fmt.Errorf("copy offline archive: %w", copyErr)
+	}
+	if written > d.options.MaxBytes {
+		cleanup()
+		return DownloadResult{}, fmt.Errorf("offline archive exceeds the %d byte safety limit", d.options.MaxBytes)
+	}
+	if err := ctx.Err(); err != nil {
+		cleanup()
+		return DownloadResult{}, err
+	}
+	actualBytes := hasher.Sum(nil)
+	if !strings.EqualFold(hex.EncodeToString(actualBytes), expectedSHA256) {
+		cleanup()
+		return DownloadResult{}, fmt.Errorf("%w: offline archive SHA-256 mismatch", ErrIntegrity)
+	}
+	if len(publicKey) > 0 && !ed25519.Verify(publicKey, actualBytes, signature) {
+		cleanup()
+		return DownloadResult{}, fmt.Errorf("%w: offline archive Ed25519 signature mismatch", ErrIntegrity)
+	}
+	if err := output.Sync(); err != nil {
+		cleanup()
+		return DownloadResult{}, fmt.Errorf("flush temporary offline archive: %w", err)
+	}
+	if err := output.Close(); err != nil {
+		_ = os.Remove(path)
+		return DownloadResult{}, fmt.Errorf("close temporary offline archive: %w", err)
+	}
+	return DownloadResult{Path: path, SourceName: "offline local archive", SourceKind: Offline, URL: (&url.URL{Scheme: "file", Path: filepath.ToSlash(sourcePath)}).String(), SHA256: hex.EncodeToString(actualBytes), Size: written}, nil
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (reader contextReader) Read(buffer []byte) (int, error) {
+	if err := reader.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return reader.reader.Read(buffer)
 }
 
 func (d *Downloader) downloadOnce(parent context.Context, source RemoteSource, workspace string) (DownloadResult, time.Duration, error) {
