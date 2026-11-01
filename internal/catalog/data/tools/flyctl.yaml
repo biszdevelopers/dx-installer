@@ -1,0 +1,27 @@
+schema_version: 1
+id: flyctl
+name: Fly.io CLI
+category: devops.cloud
+description: Command-line tools for managing Fly.io applications; DX does not authenticate or deploy automatically.
+tags: [cloud, devops, fly]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [flyctl]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: flyctl
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: flyctl
+    scope: user
+    source: homebrew-core
