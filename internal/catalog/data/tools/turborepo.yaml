@@ -1,0 +1,36 @@
+schema_version: 1
+id: turborepo
+name: Turborepo
+category: javascript.build
+description: High-performance build system for JavaScript and TypeScript monorepositories.
+tags: [javascript, monorepo, build]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [turbo]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: turbo
+    version: 2.11.10
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: turbo
+    version: 2.11.10
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: turbo
+    version: 2.11.10
+    scope: user
+    source: https://registry.npmjs.org/
