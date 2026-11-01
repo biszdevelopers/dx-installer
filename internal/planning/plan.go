@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"developers-club-dx/internal/adapters/packagemanager"
 	"developers-club-dx/internal/artifacts"
@@ -12,6 +13,7 @@ import (
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/pathconfig"
+	"developers-club-dx/internal/sources"
 )
 
 type Action string
@@ -36,24 +38,26 @@ type Issue struct {
 }
 
 type Item struct {
-	ToolID            string
-	Name              string
-	Dependencies      []string
-	Action            Action
-	ExistingState     detection.State
-	ExistingPackages  []detection.PackageOwnership
-	Manager           tool.PackageManager
-	PackageID         string
-	Source            string
-	Scope             tool.Scope
-	Command           packagemanager.Command
-	RequiresPrivilege bool
-	Artifact          *tool.Artifact
-	Version           string
-	ApproximateSize   int64
-	InstallPath       string
-	PathChanges       []pathconfig.Change
-	RegionalFallback  bool
+	ToolID             string
+	Name               string
+	Dependencies       []string
+	Action             Action
+	ExistingState      detection.State
+	ExistingPackages   []detection.PackageOwnership
+	Manager            tool.PackageManager
+	PackageID          string
+	Source             string
+	Scope              tool.Scope
+	Command            packagemanager.Command
+	RequiresPrivilege  bool
+	Artifact           *tool.Artifact
+	Version            string
+	ApproximateSize    int64
+	InstallPath        string
+	PathChanges        []pathconfig.Change
+	RegionalFallback   bool
+	CustomSourceURL    string
+	OfflineArchivePath string
 }
 
 type Plan struct {
@@ -73,6 +77,8 @@ func Build(items *catalog.Catalog, current detection.Inventory, selected []strin
 type Options struct {
 	PreferredManager      tool.PackageManager
 	AllowRegionalFallback bool
+	CustomSources         map[string]string
+	OfflineArchives       map[string]string
 }
 
 func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selected []string, options Options) (Plan, error) {
@@ -123,10 +129,21 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State})
 			plan.add(Blocking, id, fmt.Sprintf("an existing %s installation needs manual review; DX will not replace it", entry.State))
 		case detection.Missing:
+			customURL := strings.TrimSpace(options.CustomSources[id])
+			offlinePath := strings.TrimSpace(options.OfflineArchives[id])
+			if customURL != "" || offlinePath != "" {
+				artifact, exists := manifest.ArtifactFor(current.Platform.OS, current.Platform.Architecture)
+				if !exists {
+					plan.add(Blocking, id, "custom and offline sources require a platform-specific artifact pinned in the catalog")
+					continue
+				}
+				plan.addArtifact(current, id, manifest, entry, artifact, false, customURL, offlinePath)
+				continue
+			}
 			installer, managerAvailable := manifest.InstallerFor(current.Platform.OS, managerOrder)
 			if !managerAvailable {
 				if artifact, exists := manifest.ArtifactFor(current.Platform.OS, current.Platform.Architecture); exists {
-					plan.addArtifact(current, id, manifest, entry, artifact, options.AllowRegionalFallback)
+					plan.addArtifact(current, id, manifest, entry, artifact, options.AllowRegionalFallback, "", "")
 					continue
 				}
 				plan.add(Blocking, id, "no supported installer is available through detected package managers and no verified archive exists")
@@ -165,7 +182,28 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 	return plan, nil
 }
 
-func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool.Manifest, entry detection.Tool, artifact tool.Artifact, allowRegionalFallback bool) {
+func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool.Manifest, entry detection.Tool, artifact tool.Artifact, allowRegionalFallback bool, customURL, offlinePath string) {
+	if customURL != "" && offlinePath != "" {
+		p.add(Blocking, id, "choose either a custom HTTPS source or an offline archive, not both")
+		return
+	}
+	if customURL != "" {
+		if err := sources.ValidateRemoteSource(sources.RemoteSource{Name: id + " custom source", Kind: sources.Custom, URL: customURL, SHA256: artifact.SHA256}); err != nil {
+			p.add(Blocking, id, "custom source is invalid: "+err.Error())
+			return
+		}
+	}
+	if offlinePath != "" {
+		if !filepath.IsAbs(offlinePath) {
+			p.add(Blocking, id, "offline archive path must be absolute")
+			return
+		}
+		info, err := os.Lstat(offlinePath)
+		if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			p.add(Blocking, id, "offline archive must be an existing regular, non-symlink file")
+			return
+		}
+	}
 	home, err := os.UserHomeDir()
 	if err != nil || !filepath.IsAbs(home) {
 		p.add(Blocking, id, "could not determine an absolute user home directory for the user-level archive installation")
@@ -184,6 +222,12 @@ func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool
 		return
 	}
 	manifestCopy := artifact
+	source := artifact.URL
+	if customURL != "" {
+		source = customURL
+	} else if offlinePath != "" {
+		source = "offline local archive"
+	}
 	pathDirectories := make([]string, 0, len(artifact.PathEntries))
 	for _, relative := range artifact.PathEntries {
 		pathDirectories = append(pathDirectories, filepath.Join(installPath, filepath.FromSlash(relative)))
@@ -194,18 +238,20 @@ func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool
 		return
 	}
 	p.Items = append(p.Items, Item{
-		ToolID:           id,
-		Name:             manifest.Name,
-		Dependencies:     append([]string(nil), manifest.Dependencies...),
-		Action:           Install,
-		ExistingState:    entry.State,
-		Source:           artifact.URL,
-		Artifact:         &manifestCopy,
-		Version:          artifact.Version,
-		ApproximateSize:  artifact.ApproximateSize,
-		InstallPath:      installPath,
-		PathChanges:      pathChanges,
-		RegionalFallback: allowRegionalFallback && artifact.RegionalURL != "",
+		ToolID:             id,
+		Name:               manifest.Name,
+		Dependencies:       append([]string(nil), manifest.Dependencies...),
+		Action:             Install,
+		ExistingState:      entry.State,
+		Source:             source,
+		Artifact:           &manifestCopy,
+		Version:            artifact.Version,
+		ApproximateSize:    artifact.ApproximateSize,
+		InstallPath:        installPath,
+		PathChanges:        pathChanges,
+		RegionalFallback:   allowRegionalFallback && artifact.RegionalURL != "" && customURL == "" && offlinePath == "",
+		CustomSourceURL:    customURL,
+		OfflineArchivePath: offlinePath,
 	})
 }
 
