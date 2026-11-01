@@ -18,11 +18,16 @@ platforms:
 installers:
   - platform: windows
     manager: winget
-    package_id: Python.Python.3.14
+    package_id: Python.Python.3.15
     scope: user
     source: winget
   - platform: macos
     manager: homebrew
-    package_id: python
+    package_id: python@3.15
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: python@3.15
     scope: user
     source: homebrew-core
