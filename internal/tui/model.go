@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	registryadapter "developers-club-dx/internal/adapters/registry"
 	"developers-club-dx/internal/artifacts"
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
@@ -51,6 +52,7 @@ type Model struct {
 	regionDetection      regional.Result
 	archiveInstaller     *artifacts.ArchiveInstaller
 	customSources        map[string]string
+	registrySources      sources.RegistryURLs
 	offlineArchives      map[string]string
 	offlineBundlePath    string
 	plan                 planning.Plan
@@ -157,6 +159,24 @@ func (m *Model) SetSourceOverrides(customSources, offlineArchives map[string]str
 	return nil
 }
 
+func (m *Model) SetRegistryOverrides(registries sources.RegistryURLs) error {
+	validated, err := sources.ParseRegistryAssignments(registryAssignments(registries))
+	if err != nil {
+		return err
+	}
+	m.registrySources = validated
+	m.invalidatePlan("Registry sources updated. Rebuild the plan to review the selected registry installations.")
+	return nil
+}
+
+func registryAssignments(registries sources.RegistryURLs) []string {
+	assignments := make([]string, 0, len(registries))
+	for ecosystem, source := range registries {
+		assignments = append(assignments, string(ecosystem)+"="+source)
+	}
+	return assignments
+}
+
 func (m *Model) LoadOfflineBundle(bundlePath string) error {
 	absolute, err := filepath.Abs(strings.TrimSpace(bundlePath))
 	if err != nil {
@@ -188,6 +208,14 @@ func cloneStringMap(source map[string]string) map[string]string {
 	clone := make(map[string]string, len(source))
 	for key, value := range source {
 		clone[key] = value
+	}
+	return clone
+}
+
+func cloneRegistryURLs(source sources.RegistryURLs) sources.RegistryURLs {
+	clone := make(sources.RegistryURLs, len(source))
+	for ecosystem, url := range source {
+		clone[ecosystem] = url
 	}
 	return clone
 }
@@ -404,6 +432,12 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.pathInput = ""
 			m.status = "Enter tool-id=https://mirror.example/archive, then press Enter. The catalog SHA-256 remains mandatory."
 		}
+	case "v":
+		if m.screen == SourcesScreen {
+			m.pathMode = "registry"
+			m.pathInput = ""
+			m.status = "Enter ecosystem=https://registry.example, such as npm=https://registry.npmjs.org/."
+		}
 	case "l":
 		if m.screen == SourcesScreen {
 			m.pathMode = "offline-archive"
@@ -419,6 +453,7 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "x":
 		if m.screen == SourcesScreen {
 			m.customSources = make(map[string]string)
+			m.registrySources = make(sources.RegistryURLs)
 			m.offlineArchives = make(map[string]string)
 			m.offlineBundlePath = ""
 			m.invalidatePlan("Custom and offline source overrides cleared.")
@@ -558,6 +593,7 @@ func (m *Model) buildSelectedPlan(selected []string) (planning.Plan, error) {
 		AllowRegionalFallback: allowRegionalFallback,
 		CustomSources:         cloneStringMap(m.customSources),
 		OfflineArchives:       cloneStringMap(m.offlineArchives),
+		RegistrySources:       cloneRegistryURLs(m.registrySources),
 	})
 }
 
@@ -566,7 +602,21 @@ func (m *Model) missingToolsHaveExplicitSources(selected []string) bool {
 		if m.inventory.Tools[id].State != detection.Missing {
 			continue
 		}
-		if m.customSources[id] == "" && m.offlineArchives[id] == "" {
+		if m.customSources[id] != "" || m.offlineArchives[id] != "" {
+			continue
+		}
+		manifest, exists := m.catalog.Tool(id)
+		if !exists {
+			return false
+		}
+		registrySelected := false
+		for _, installer := range manifest.RegistryInstallers {
+			if installer.Platform == m.inventory.Platform.OS && m.registrySources[installer.Ecosystem] != "" {
+				registrySelected = true
+				break
+			}
+		}
+		if !registrySelected {
 			return false
 		}
 	}
@@ -591,6 +641,8 @@ func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
 			err = m.writeDiagnostic(path)
 		case "custom-source":
 			err = m.setCustomSource(path)
+		case "registry":
+			err = m.setRegistrySource(path)
 		case "offline-archive":
 			err = m.setOfflineArchive(path)
 		case "offline-bundle":
@@ -604,6 +656,8 @@ func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
 			m.status = "Redacted diagnostic report saved to " + path + "."
 		} else if m.pathMode == "custom-source" {
 			m.status = "Custom HTTPS source recorded. Rebuild the plan to review the catalog-pinned digest."
+		} else if m.pathMode == "registry" {
+			m.status = "Registry override recorded. Rebuild the plan to review the exact package version and source."
 		} else if m.pathMode == "offline-archive" {
 			m.status = "Offline archive recorded. Rebuild the plan to review its catalog-pinned digest."
 		} else if m.pathMode == "offline-bundle" {
@@ -654,6 +708,21 @@ func (m *Model) setCustomSource(input string) error {
 	delete(m.offlineArchives, toolID)
 	m.offlineBundlePath = ""
 	m.invalidatePlan("Custom HTTPS source recorded. Rebuild the plan to review the catalog-pinned digest.")
+	return nil
+}
+
+func (m *Model) setRegistrySource(input string) error {
+	updated, err := sources.ParseRegistryAssignments([]string{strings.TrimSpace(input)})
+	if err != nil {
+		return err
+	}
+	if m.registrySources == nil {
+		m.registrySources = make(sources.RegistryURLs)
+	}
+	for ecosystem, source := range updated {
+		m.registrySources[ecosystem] = source
+	}
+	m.invalidatePlan("Registry override recorded. Rebuild the plan to review the exact package version and source.")
 	return nil
 }
 
@@ -955,6 +1024,9 @@ func planSignature(plan planning.Plan) string {
 		if item.Artifact != nil {
 			parts = append(parts, strings.Join([]string{item.Artifact.URL, item.Artifact.RegionalURL, item.Artifact.SHA256, string(item.Artifact.Format), item.Artifact.ArchiveRoot}, "|"))
 		}
+		if item.RegistryInstaller != nil {
+			parts = append(parts, strings.Join([]string{string(item.RegistryInstaller.Ecosystem), item.RegistryInstaller.PackageID, item.RegistryInstaller.Version}, "|"))
+		}
 		for _, pathChange := range item.PathChanges {
 			parts = append(parts, strings.Join([]string{pathChange.Directory, pathChange.Target, pathChange.Shell, pathChange.ManualCommand, fmt.Sprint(pathChange.Persist), fmt.Sprint(pathChange.Manual)}, "|"))
 		}
@@ -1021,13 +1093,38 @@ func (m *Model) startNext() tea.Cmd {
 		}
 	}
 	m.status = "Running the approved package-manager operation for " + item.Name + "."
-	command, err := item.Command.ExecContext(m.ctx)
+	commandSpec := item.Command
+	temporaryDirectory := ""
+	if item.RegistryInstaller != nil {
+		m.status = "Installing the approved registry package for " + item.Name + "."
+		var err error
+		temporaryDirectory, err = registryadapter.NewTemporaryDirectory()
+		if err != nil {
+			_ = m.session.Record(item, err, detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing})
+			m.status = "Could not create temporary registry workspace: " + err.Error()
+			return m.startNext()
+		}
+		commandSpec, err = registryadapter.PrepareCommand(commandSpec, temporaryDirectory)
+		if err != nil {
+			err = errors.Join(err, os.RemoveAll(temporaryDirectory))
+			_ = m.session.Record(item, err, detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing})
+			m.status = "Could not prepare the registry installer: " + err.Error()
+			return m.startNext()
+		}
+	}
+	command, err := commandSpec.ExecContext(m.ctx)
 	if err != nil {
+		if temporaryDirectory != "" {
+			err = errors.Join(err, os.RemoveAll(temporaryDirectory))
+		}
 		_ = m.session.Record(item, err, detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing})
 		m.status = "Could not start " + item.Name + ": " + err.Error()
 		return m.startNext()
 	}
 	return tea.ExecProcess(command, func(err error) tea.Msg {
+		if temporaryDirectory != "" {
+			err = errors.Join(err, os.RemoveAll(temporaryDirectory))
+		}
 		return processFinishedMsg{toolID: item.ToolID, err: err}
 	})
 }
@@ -1102,7 +1199,24 @@ func (m *Model) handleVerification(message verificationMsg) (tea.Model, tea.Cmd)
 		m.inventory = message.inventory
 		m.status = "Verified " + message.item.Name + " as " + string(actual.State) + "."
 	}
-	if err := m.session.Record(message.item, commandErr, actual); err != nil {
+	var recordErr error
+	if message.item.RegistryInstaller != nil {
+		details := installation.ExecutionDetails{
+			Source:      string(message.item.RegistryInstaller.Ecosystem) + " registry",
+			SourceURL:   message.item.Source,
+			InstallPath: message.item.InstallPath,
+			PathChanges: message.item.PathChanges,
+		}
+		if actual.State == detection.Healthy {
+			if pathErr := pathconfig.Apply(message.item.PathChanges); pathErr != nil {
+				details.PathError = pathErr.Error()
+			}
+		}
+		recordErr = m.session.RecordWithDetails(message.item, commandErr, actual, details)
+	} else {
+		recordErr = m.session.Record(message.item, commandErr, actual)
+	}
+	if err := recordErr; err != nil {
 		m.status = err.Error()
 		return m, nil
 	}
