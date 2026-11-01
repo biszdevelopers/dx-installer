@@ -1,0 +1,36 @@
+schema_version: 1
+id: markdownlint-cli2
+name: markdownlint-cli2
+category: security.markdown
+description: Fast Markdown linter for documentation quality checks.
+tags: [markdown, lint, documentation, quality]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [markdownlint-cli2]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: markdownlint-cli2
+    version: 0.24.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: markdownlint-cli2
+    version: 0.24.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: markdownlint-cli2
+    version: 0.24.0
+    scope: user
+    source: https://registry.npmjs.org/
