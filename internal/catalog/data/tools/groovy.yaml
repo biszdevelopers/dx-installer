@@ -1,0 +1,27 @@
+schema_version: 1
+id: groovy
+name: Groovy
+category: groovy.runtime
+description: Java-based scripting language and compiler.
+tags: [groovy, jvm, language]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [groovy, groovyc]
+version_args: [--version]
+dependencies: [openjdk-27]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: groovy
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: groovy
+    scope: user
+    source: homebrew-core
