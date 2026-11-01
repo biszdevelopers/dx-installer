@@ -1,0 +1,70 @@
+$ErrorActionPreference = 'Stop'
+$releaseVersion = '@@VERSION@@'
+$origin = '@@ORIGIN@@'
+$artifacts = @{
+@@POWERSHELL_TARGETS@@
+}
+
+$architectureValue = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+$architecture = switch ($architectureValue.ToUpperInvariant()) {
+    'AMD64' { 'amd64' }
+    'X64' { 'amd64' }
+    'ARM64' { 'arm64' }
+    'X86' { '386' }
+    'I386' { '386' }
+    default { throw "Unsupported Windows architecture: $architectureValue" }
+}
+$target = "windows-$architecture"
+if (-not $artifacts.ContainsKey($target)) {
+    throw "No verified DX bootstrap release exists for $target."
+}
+
+$temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ("dx-bootstrap-" + [Guid]::NewGuid().ToString('N'))
+$exitCode = 1
+try {
+    New-Item -ItemType Directory -Path $temporaryDirectory -ErrorAction Stop | Out-Null
+    $artifact = $artifacts[$target]
+    $binaryPath = Join-Path $temporaryDirectory $artifact.Name
+    $downloadUri = "$origin/releases/$releaseVersion/$($artifact.Name)"
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $response = Invoke-WebRequest -Uri $downloadUri -OutFile $binaryPath -UseBasicParsing -TimeoutSec 600 -MaximumRedirection 5
+    if ($response.BaseResponse.ResponseUri.Scheme -cne 'https') {
+        throw 'The bootstrap download redirected away from HTTPS.'
+    }
+    if ((Get-Item -LiteralPath $binaryPath).Length -gt 134217728) {
+        throw 'The downloaded bootstrap exceeds the 128 MiB size limit.'
+    }
+
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    $stream = [IO.File]::OpenRead($binaryPath)
+    try {
+        $actualHash = ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $stream.Dispose()
+        $sha256.Dispose()
+    }
+    if ($actualHash -cne $artifact.SHA256) {
+        throw "Bootstrap SHA-256 verification failed for $target."
+    }
+
+    & $binaryPath @args
+    if ($null -ne $LASTEXITCODE) { $exitCode = $LASTEXITCODE } else { $exitCode = 0 }
+}
+catch {
+    Write-Error -ErrorAction Continue $_
+    if ($null -ne $LASTEXITCODE) { $exitCode = $LASTEXITCODE } else { $exitCode = 1 }
+}
+finally {
+    if (Test-Path -LiteralPath $temporaryDirectory) {
+        try {
+            Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force -ErrorAction Stop
+            if (Test-Path -LiteralPath $temporaryDirectory) { throw 'Temporary bootstrap cleanup did not complete.' }
+        }
+        catch {
+            Write-Error -ErrorAction Continue "Could not remove temporary bootstrap files: $_"
+            if ($exitCode -eq 0) { $exitCode = 1 }
+        }
+    }
+}
+exit $exitCode
