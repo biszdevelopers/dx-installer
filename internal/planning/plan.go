@@ -1,11 +1,13 @@
 package planning
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"developers-club-dx/internal/adapters/packagemanager"
 	registryadapter "developers-club-dx/internal/adapters/registry"
@@ -198,6 +200,31 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 				plan.add(Blocking, id, err.Error())
 				continue
 			}
+			var pathChanges []pathconfig.Change
+			if len(installer.PathEntries) > 0 {
+				prefixContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				prefix, err := packagemanager.HomebrewFormulaPrefix(prefixContext, installer.PackageID)
+				cancel()
+				if err != nil {
+					plan.add(Blocking, id, err.Error())
+					continue
+				}
+				pathEntries, err := packagemanager.ResolveInstallerPaths(installer, prefix)
+				if err != nil {
+					plan.add(Blocking, id, err.Error())
+					continue
+				}
+				home, err := os.UserHomeDir()
+				if err != nil || !filepath.IsAbs(home) {
+					plan.add(Blocking, id, "could not determine an absolute user home directory for PATH configuration")
+					continue
+				}
+				pathChanges, err = pathconfig.Plan(current.Platform, home, pathEntries, os.Getenv("PATH"))
+				if err != nil {
+					plan.add(Blocking, id, "could not safely plan PATH updates: "+err.Error())
+					continue
+				}
+			}
 			plan.Items = append(plan.Items, Item{
 				ToolID:            id,
 				Name:              manifest.Name,
@@ -210,6 +237,7 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 				Scope:             installer.Scope,
 				Command:           command,
 				RequiresPrivilege: command.RequiresPrivilege,
+				PathChanges:       pathChanges,
 			})
 		default:
 			plan.add(Blocking, id, fmt.Sprintf("installation state %q is not safe to modify", entry.State))
