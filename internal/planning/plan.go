@@ -37,6 +37,7 @@ type Item struct {
 	Dependencies      []string
 	Action            Action
 	ExistingState     detection.State
+	ExistingPackages  []detection.PackageOwnership
 	Manager           tool.PackageManager
 	PackageID         string
 	Source            string
@@ -100,9 +101,9 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 		}
 		switch entry.State {
 		case detection.Healthy, detection.Outdated:
-			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State})
+			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State, ExistingPackages: append([]detection.PackageOwnership(nil), entry.Packages...)})
 		case detection.Unknown:
-			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State})
+			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State, ExistingPackages: append([]detection.PackageOwnership(nil), entry.Packages...)})
 			plan.add(Warning, id, "an existing installation could not be verified and will be preserved")
 		case detection.Broken, detection.Partial, detection.Conflicting:
 			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State})
