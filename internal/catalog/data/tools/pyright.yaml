@@ -1,0 +1,36 @@
+schema_version: 1
+id: pyright
+name: Pyright
+category: python.typing
+description: Fast, standards-based Python static type checker.
+tags: [python, typing, static-analysis]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [pyright]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: pyright
+    version: 1.1.414
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: pyright
+    version: 1.1.414
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: pyright
+    version: 1.1.414
+    scope: user
+    source: https://registry.npmjs.org/
