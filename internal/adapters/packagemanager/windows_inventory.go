@@ -111,14 +111,17 @@ func parseWingetExport(contents []byte) ([]packageRecord, error) {
 	}
 	packages := make([]packageRecord, 0)
 	for _, source := range exported.Sources {
+		sourceName := strings.TrimSpace(source.Details.Name)
+		if sourceName == "" {
+			return nil, fmt.Errorf("WinGet export contains a source without a name")
+		}
+		if source.Packages == nil {
+			return nil, fmt.Errorf("WinGet source %q is missing its package list", sourceName)
+		}
 		for _, entry := range source.Packages {
 			identifier := strings.TrimSpace(entry.Identifier)
 			if identifier == "" {
 				return nil, fmt.Errorf("WinGet export contains a package without an identifier")
-			}
-			sourceName := strings.TrimSpace(source.Details.Name)
-			if sourceName == "" {
-				return nil, fmt.Errorf("WinGet export contains a package without a source name")
 			}
 			packages = append(packages, packageRecord{ID: identifier, Version: strings.TrimSpace(entry.Version), Source: sourceName})
 			if len(packages) > maxWindowsPackageRecords {
