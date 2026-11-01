@@ -10,6 +10,7 @@ import (
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/display"
 	"developers-club-dx/internal/planning"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var (
@@ -28,28 +29,57 @@ var screenNames = []string{"Overview", "Catalog", "Profiles", "Environment", "Pl
 func (m *Model) render() string {
 	width := min(max(m.width, 24), 140)
 	height := min(max(m.height, 12), 60)
-	lines := []string{brandStyle.Render("Developers' Club DX  /  Bootstrap"), mutedStyle.Render(m.platformLabel()), m.renderNavigation(width), strings.Repeat("-", width)}
+	brand := "Developers' Club DX  /  Bootstrap"
+	status := m.status
+	help := m.keyHelp()
+	statusStyle := mutedStyle
+	if m.planReady && m.plan.Blocked {
+		statusStyle = warningStyle
+	}
+	if width < 48 {
+		brand = "DX Bootstrap"
+		status = ansi.Truncate(status, width-2, "…")
+	}
+	if width < 36 {
+		help = "? help  |  j/k move  |  q quit"
+		if m.screen == CatalogScreen || m.screen == EnvironmentScreen {
+			help = "f search  |  a clear  |  q quit"
+		}
+	}
+	header := []string{brandStyle.Render(brand), mutedStyle.Render(m.platformLabel()), m.renderNavigation(width), strings.Repeat("-", width)}
+	header = wrapLayout(header, width)
+	footer := wrapLayout([]string{strings.Repeat("-", width), statusStyle.Render(status), mutedStyle.Render(help)}, width)
+	availableRows := max(0, height-len(header)-len(footer))
+	var body []string
 	switch {
 	case m.pathMode != "":
-		lines = append(lines, m.renderPathPrompt())
+		body = strings.Split(m.renderPathPrompt(), "\n")
 	case m.help:
-		lines = append(lines, renderHelp())
+		body = strings.Split(renderHelp(), "\n")
 	case m.approval:
-		lines = append(lines, m.renderApproval())
+		body = strings.Split(m.renderApproval(), "\n")
 	default:
-		lines = append(lines, m.renderScreen(height-10)...)
+		body = m.renderScreen(max(1, availableRows))
 	}
-	lines = append(lines, strings.Repeat("-", width))
-	if m.planReady && m.plan.Blocked {
-		lines = append(lines, warningStyle.Render(m.status))
-	} else {
-		lines = append(lines, mutedStyle.Render(m.status))
+	body = wrapLayout(body, width)
+	if len(body) > availableRows {
+		body = body[:availableRows]
 	}
-	lines = append(lines, mutedStyle.Render(m.keyHelp()))
-	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+	return strings.Join(append(append(header, body...), footer...), "\n")
+}
+
+func wrapLayout(lines []string, width int) []string {
+	if len(lines) == 0 {
+		return nil
+	}
+	wrapped := lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+	return strings.Split(wrapped, "\n")
 }
 
 func (m *Model) renderNavigation(width int) string {
+	if width < 36 {
+		return activeStyle.Render("DX  /  " + screenNames[m.screen])
+	}
 	if width < 70 {
 		return activeStyle.Render(fmt.Sprintf("%d %s", m.screen+1, screenNames[m.screen])) + mutedStyle.Render("  |  Tab to navigate")
 	}
