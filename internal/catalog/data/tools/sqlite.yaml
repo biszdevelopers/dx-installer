@@ -1,0 +1,54 @@
+schema_version: 1
+id: sqlite
+name: SQLite CLI
+category: database.client
+description: Lightweight command-line client for SQLite databases.
+tags: [database, sqlite, client]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [sqlite3]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+  bsd: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: sqlite
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: sqlite3
+    scope: system
+    source: configured-apt-repositories
+  - platform: linux
+    manager: dnf
+    package_id: sqlite
+    scope: system
+    source: configured-dnf-repositories
+  - platform: linux
+    manager: pacman
+    package_id: sqlite
+    scope: system
+    source: configured-pacman-repositories
+  - platform: linux
+    manager: zypper
+    package_id: sqlite3
+    scope: system
+    source: configured-zypper-repositories
+  - platform: linux
+    manager: apk
+    package_id: sqlite
+    scope: system
+    source: configured-apk-repositories
+  - platform: bsd
+    manager: freebsd-pkg
+    package_id: sqlite3
+    scope: system
+    source: configured-freebsd-repository
