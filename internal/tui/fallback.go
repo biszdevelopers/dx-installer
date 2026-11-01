@@ -46,7 +46,7 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 			model.selected[id] = true
 		}
 	}
-	plan, err := planning.BuildWithOptions(model.catalog, model.inventory, model.selectedIDs(), planning.Options{PreferredManager: model.preferredManager, AllowRegionalFallback: model.sourceMode == "official-first"})
+	plan, err := model.buildSelectedPlan(model.selectedIDs())
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,8 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 		if scanErr != nil {
 			return fmt.Errorf("could not refresh inventory before execution: %w", scanErr)
 		}
-		updated, buildErr := planning.BuildWithOptions(model.catalog, inventory, model.selectedIDs(), planning.Options{PreferredManager: model.preferredManager, AllowRegionalFallback: model.sourceMode == "official-first"})
+		model.inventory = inventory
+		updated, buildErr := model.buildSelectedPlan(model.selectedIDs())
 		if buildErr != nil {
 			return buildErr
 		}
@@ -88,11 +89,9 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 		}
 		if planSignature(updated) == planSignature(plan) {
 			plan = updated
-			model.inventory = inventory
 			break
 		}
 		plan = updated
-		model.inventory = inventory
 		model.plan = plan
 		model.planReady = true
 		printPlan(output, plan)
