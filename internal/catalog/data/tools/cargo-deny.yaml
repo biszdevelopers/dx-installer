@@ -1,0 +1,36 @@
+schema_version: 1
+id: cargo-deny
+name: cargo-deny
+category: rust.security
+description: Checks Rust dependency licenses, advisories, bans, and sources.
+tags: [rust, security, dependencies]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [cargo]
+version_args: [deny, --version]
+dependencies: [rustup]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: cargo
+    package_id: cargo-deny
+    version: 0.20.2
+    scope: user
+    source: https://index.crates.io/
+  - platform: macos
+    ecosystem: cargo
+    package_id: cargo-deny
+    version: 0.20.2
+    scope: user
+    source: https://index.crates.io/
+  - platform: linux
+    ecosystem: cargo
+    package_id: cargo-deny
+    version: 0.20.2
+    scope: user
+    source: https://index.crates.io/
