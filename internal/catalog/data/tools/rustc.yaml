@@ -1,0 +1,18 @@
+schema_version: 1
+id: rustc
+name: rustc
+category: rust.compiler
+description: Rust compiler supplied by Rustup.
+tags: [rust, compiler]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [rustc]
+version_args: [--version]
+dependencies: [rustup]
+provided_by: rustup
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
