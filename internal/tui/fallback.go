@@ -175,7 +175,7 @@ func printPlan(output io.Writer, plan planning.Plan) {
 		fmt.Fprintf(output, "  %s %s: %s\n", strings.ToUpper(string(issue.Severity)), issue.ToolID, issue.Message)
 	}
 	if len(plan.InstallItems()) > 0 {
-		fmt.Fprintf(output, "  NOTICE %s\n", planning.TransactionDisclosure)
+		fmt.Fprintf(output, "  NOTICE %s\n", plan.TransactionDisclosure)
 	}
 }
 
