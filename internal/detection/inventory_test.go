@@ -132,12 +132,14 @@ func TestFindExecutablesDiscoversMultipleVersionsOutsidePATH(t *testing.T) {
 		directories = []string{
 			filepath.Join(scoop, "apps", "nodejs", "20.11.0", "bin"),
 			filepath.Join(scoop, "apps", "nodejs", "22.0.0", "bin"),
+			filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", "go", "1.27.3", "bin"),
 		}
 	} else {
 		t.Setenv("HOME", home)
 		directories = []string{
 			filepath.Join(home, ".nvm", "versions", "node", "v20.11.0", "bin"),
 			filepath.Join(home, ".nvm", "versions", "node", "v22.0.0", "bin"),
+			filepath.Join(home, ".local", "opt", "go", "1.27.3", "bin"),
 		}
 	}
 	for _, directory := range directories {
@@ -151,8 +153,8 @@ func TestFindExecutablesDiscoversMultipleVersionsOutsidePATH(t *testing.T) {
 	t.Setenv("PATH", searchPath)
 
 	paths := findExecutables("dx-versioned-runtime-test")
-	if len(paths) != 2 {
-		t.Fatalf("found %d versioned executable paths outside PATH, want two: %#v", len(paths), paths)
+	if len(paths) != len(directories) {
+		t.Fatalf("found %d versioned executable paths outside PATH, want %d: %#v", len(paths), len(directories), paths)
 	}
 	foundDirectories := make(map[string]bool, len(paths))
 	for _, path := range paths {
