@@ -1,0 +1,27 @@
+schema_version: 1
+id: gfortran
+name: GNU Fortran
+category: fortran.compiler
+description: Fortran compiler from the GNU Compiler Collection.
+tags: [fortran, compiler, gcc]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [gfortran]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: gcc
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: gfortran
+    scope: system
+    source: configured-apt-repositories
