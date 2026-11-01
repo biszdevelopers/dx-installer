@@ -4,7 +4,7 @@ This distribution server only serves release files. The supplied Caddyfile disab
 
 ## One-time host setup
 
-Use a Linux VPS with Caddy, OpenSSH, rsync-compatible SSH access, and enough disk space for retained releases. The host also needs OpenSSL Ed25519 support, `sha256sum`, `base64`, `find`, `awk`, `sed`, and GNU `mv -T` for remote release validation and atomic switching. The deployment account must own the static root; do not run the DX application on the VPS.
+Use a Linux VPS with Caddy, OpenSSH, rsync-compatible SSH access, and enough disk space for retained releases. The host also needs OpenSSL Ed25519 support, `sha256sum`, `base64`, `find`, `awk`, `sed`, `readlink`, and GNU `mv -T` for remote release validation and atomic switching. The deployment account must own the static root; do not run the DX application on the VPS.
 
 Create `/srv/www/developers-club-dx/releases`, install `deployment/server/Caddyfile` as the Caddy site config, and set `DX_DOMAIN` in the Caddy service environment to the real DNS hostname. Point A/AAAA records directly at the VPS and allow inbound TCP 80/443 for certificate issuance and HTTPS. Keep SSH access restricted to deployment operators. Do not add a CDN or cache proxy.
 
