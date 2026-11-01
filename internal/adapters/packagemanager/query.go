@@ -57,9 +57,9 @@ func (b *boundedOutput) Write(value []byte) (int, error) {
 	return original, nil
 }
 
-// QueryInstalled reads local package databases for managers with a stable,
-// noninteractive inventory command. A failed query is a warning, never proof
-// that a package is absent.
+// QueryInstalled reads package inventories through bounded, noninteractive
+// manager queries. A failed query is a warning, never proof that a package is
+// absent.
 func QueryInstalled(parent context.Context, managers []Detected) PackageInventory {
 	if len(managers) == 0 {
 		return PackageInventory{}
@@ -101,7 +101,7 @@ func QueryInstalled(parent context.Context, managers []Detected) PackageInventor
 	for index, item := range results {
 		manager := managers[index].Manager
 		if item.err != nil {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("could not inspect the local %s package database: %s", manager, safeQueryError(item.err)))
+			result.Warnings = append(result.Warnings, fmt.Sprintf("could not inspect the %s package inventory: %s", manager, safeQueryError(item.err)))
 			result.UncertainManagers = append(result.UncertainManagers, manager)
 			continue
 		}
