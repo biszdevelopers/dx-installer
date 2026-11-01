@@ -1,0 +1,27 @@
+schema_version: 1
+id: oxlint
+name: oxlint
+category: javascript.quality
+description: Fast JavaScript and TypeScript linter from Oxc.
+tags: [javascript, typescript, linter]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [oxlint]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: oxlint
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: oxlint
+    scope: user
+    source: homebrew-core
