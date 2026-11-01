@@ -16,11 +16,18 @@ import (
 func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output io.Writer) error {
 	reader := bufio.NewReader(input)
 	fmt.Fprintln(output, "DX Bootstrap — line-oriented terminal mode")
+	for _, warning := range model.inventory.Warnings {
+		fmt.Fprintln(output, "Inventory warning:", warning)
+	}
 	if len(model.selectedIDs()) == 0 {
 		fmt.Fprintln(output, "Available tools:")
 		for _, item := range model.catalog.Tools() {
-			state := model.inventory.Tools[item.ID].State
+			entry := model.inventory.Tools[item.ID]
+			state := entry.State
 			fmt.Fprintf(output, "  %-18s %-28s %s\n", item.ID, item.Name, state)
+			for _, installed := range entry.Packages {
+				fmt.Fprintf(output, "    package: %s / %s %s (%s)\n", installed.Manager, installed.ID, installed.Version, installed.Source)
+			}
 		}
 		fmt.Fprint(output, "Enter comma-separated tool IDs: ")
 		line, err := readLine(reader)
@@ -156,6 +163,9 @@ func printPlan(output io.Writer, plan planning.Plan) {
 	for _, item := range plan.Items {
 		if item.Action == planning.Preserve {
 			fmt.Fprintf(output, "  PRESERVE %s (%s)\n", item.Name, item.ExistingState)
+			for _, installed := range item.ExistingPackages {
+				fmt.Fprintf(output, "    package: %s / %s %s (%s)\n", installed.Manager, installed.ID, installed.Version, installed.Source)
+			}
 			continue
 		}
 		fmt.Fprintf(output, "  INSTALL %s\n    source: %s (%s)\n    scope: %s\n    command: %s\n", item.Name, item.Source, item.Manager, item.Scope, item.Command.Display())
