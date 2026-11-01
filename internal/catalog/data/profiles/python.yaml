@@ -1,0 +1,5 @@
+schema_version: 1
+id: python
+name: Python
+description: Python runtime and Astral uv project manager.
+tools: [python, uv]
