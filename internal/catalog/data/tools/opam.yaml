@@ -1,0 +1,27 @@
+schema_version: 1
+id: opam
+name: opam
+category: ocaml.package-manager
+description: Package manager and build environment manager for OCaml.
+tags: [ocaml, package-management]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [opam]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: opam
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: opam
+    scope: user
+    source: homebrew-core
