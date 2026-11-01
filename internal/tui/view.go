@@ -203,6 +203,10 @@ func (m *Model) renderEnvironment(maxRows int) []string {
 		item := m.inventory.Tools[ids[min(max(m.cursor, 0), len(ids)-1)]]
 		for _, instance := range item.Instances {
 			lines = append(lines, "Path: "+instance.Path, "Version: "+valueOr(instance.Version, "unknown"))
+			lines = append(lines, "Architecture: "+display.ArchitectureVerification(instance))
+			if instance.ArchitectureDiagnostic != "" {
+				lines = append(lines, warningStyle.Render("Architecture diagnostic: "+instance.ArchitectureDiagnostic))
+			}
 			if instance.Diagnostic != "" {
 				lines = append(lines, warningStyle.Render("Diagnostic: "+instance.Diagnostic))
 			}
