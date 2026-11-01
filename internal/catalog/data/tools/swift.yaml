@@ -1,0 +1,21 @@
+schema_version: 1
+id: swift
+name: Swift
+category: swift.compiler
+description: Swift compiler and Swift Package Manager toolchain.
+tags: [swift, compiler, mobile, package-manager]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [swift, swiftc, swift-package]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: swift
+    scope: user
+    source: homebrew-core
