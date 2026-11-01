@@ -155,28 +155,50 @@ func runInventoryCommand(ctx context.Context, command string, args []string, man
 }
 
 func inventoryCommand(manager tool.PackageManager) (string, []string, error) {
-	switch manager {
-	case tool.APT:
-		return "dpkg-query", []string{"-W", "-f=${db:Status-Abbrev}\\t${binary:Package}\\t${Version}\\n"}, nil
-	case tool.DNF, tool.Zypper:
-		return "rpm", []string{"-qa", "--qf=%{NAME}\\t%{VERSION}-%{RELEASE}\\n"}, nil
-	case tool.Pacman:
-		return "pacman", []string{"-Q"}, nil
-	case tool.APK:
-		return "apk", []string{"info", "-v"}, nil
-	case tool.MacPorts:
-		return "port", []string{"-q", "installed"}, nil
-	case tool.FreeBSDPkg:
-		return "pkg", []string{"query", "%n\\t%v\\n"}, nil
-	default:
+	command, ok := inventoryCommands[manager]
+	if !ok {
 		return "", nil, fmt.Errorf("%s does not expose a supported local inventory query", manager)
 	}
+	return command.executable, append([]string(nil), command.arguments...), nil
 }
 
 func parsePackageInventory(manager tool.PackageManager, output []byte, cask bool) ([]packageRecord, error) {
-	if manager == tool.Homebrew {
-		return parseHomebrewInventory(output, cask)
+	parser, ok := inventoryParsers[manager]
+	if !ok {
+		return nil, fmt.Errorf("%s inventory output is unsupported", manager)
 	}
+	return parser(output, cask)
+}
+
+type inventoryCommandSpec struct {
+	executable string
+	arguments  []string
+}
+
+type inventoryParser func([]byte, bool) ([]packageRecord, error)
+
+var inventoryCommands = map[tool.PackageManager]inventoryCommandSpec{
+	tool.APT:        {executable: "dpkg-query", arguments: []string{"-W", "-f=${db:Status-Abbrev}\\t${binary:Package}\\t${Version}\\n"}},
+	tool.DNF:        {executable: "rpm", arguments: []string{"-qa", "--qf=%{NAME}\\t%{VERSION}-%{RELEASE}\\n"}},
+	tool.Zypper:     {executable: "rpm", arguments: []string{"-qa", "--qf=%{NAME}\\t%{VERSION}-%{RELEASE}\\n"}},
+	tool.Pacman:     {executable: "pacman", arguments: []string{"-Q"}},
+	tool.APK:        {executable: "apk", arguments: []string{"info", "-v"}},
+	tool.MacPorts:   {executable: "port", arguments: []string{"-q", "installed"}},
+	tool.FreeBSDPkg: {executable: "pkg", arguments: []string{"query", "%n\\t%v\\n"}},
+}
+
+var inventoryParsers = map[tool.PackageManager]inventoryParser{
+	tool.APT:        parseAPTInventory,
+	tool.DNF:        parseTwoFieldInventory,
+	tool.Zypper:     parseTwoFieldInventory,
+	tool.Pacman:     parseTwoFieldInventory,
+	tool.APK:        parseAPKInventory,
+	tool.MacPorts:   parseMacPortsInventory,
+	tool.FreeBSDPkg: parseTwoFieldInventory,
+	tool.Homebrew:   parseHomebrewInventory,
+}
+
+func parseAPTInventory(output []byte, _ bool) ([]packageRecord, error) {
 	lines := strings.Split(string(output), "\n")
 	packages := make([]packageRecord, 0, len(lines))
 	for _, line := range lines {
@@ -184,39 +206,62 @@ func parsePackageInventory(manager tool.PackageManager, output []byte, cask bool
 		if line == "" {
 			continue
 		}
-		var id, version string
-		switch manager {
-		case tool.APT:
-			fields := strings.Fields(line)
-			if len(fields) < 3 {
-				return nil, errors.New("malformed dpkg-query package inventory row")
-			}
-			if len(fields[0]) < 2 || !strings.ContainsRune("iUHFWt", rune(fields[0][1])) {
-				continue
-			}
-			id, version = fields[1], fields[2]
-			id = strings.SplitN(id, ":", 2)[0]
-		case tool.DNF, tool.Zypper, tool.Pacman, tool.FreeBSDPkg:
-			fields := strings.Fields(line)
-			if len(fields) < 2 {
-				return nil, fmt.Errorf("malformed %s package inventory row", manager)
-			}
-			id, version = fields[0], fields[1]
-		case tool.APK:
-			id, version = splitAPKPackage(line)
-			if id == "" {
-				return nil, errors.New("malformed apk package inventory row")
-			}
-		case tool.MacPorts:
-			id, version = parseMacPortsRow(line)
-			if id == "" {
-				if strings.HasPrefix(line, "The following ports are currently installed:") || line == "No ports are installed." {
-					continue
-				}
-				return nil, errors.New("malformed MacPorts package inventory row")
-			}
-		default:
-			return nil, fmt.Errorf("%s inventory output is unsupported", manager)
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			return nil, errors.New("malformed dpkg-query package inventory row")
+		}
+		if len(fields[0]) < 2 || !strings.ContainsRune("iUHFWt", rune(fields[0][1])) {
+			continue
+		}
+		packages = append(packages, packageRecord{ID: strings.SplitN(fields[1], ":", 2)[0], Version: fields[2]})
+	}
+	return packages, nil
+}
+
+func parseTwoFieldInventory(output []byte, _ bool) ([]packageRecord, error) {
+	lines := strings.Split(string(output), "\n")
+	packages := make([]packageRecord, 0, len(lines))
+	for _, line := range lines {
+		fields := strings.Fields(strings.TrimSpace(strings.TrimSuffix(line, "\r")))
+		if len(fields) == 0 {
+			continue
+		}
+		if len(fields) < 2 {
+			return nil, errors.New("malformed two-field package inventory row")
+		}
+		packages = append(packages, packageRecord{ID: fields[0], Version: fields[1]})
+	}
+	return packages, nil
+}
+
+func parseAPKInventory(output []byte, _ bool) ([]packageRecord, error) {
+	lines := strings.Split(string(output), "\n")
+	packages := make([]packageRecord, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(strings.TrimSuffix(line, "\r"))
+		if line == "" {
+			continue
+		}
+		id, version := splitAPKPackage(line)
+		if id == "" {
+			return nil, errors.New("malformed apk package inventory row")
+		}
+		packages = append(packages, packageRecord{ID: id, Version: version})
+	}
+	return packages, nil
+}
+
+func parseMacPortsInventory(output []byte, _ bool) ([]packageRecord, error) {
+	lines := strings.Split(string(output), "\n")
+	packages := make([]packageRecord, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(strings.TrimSuffix(line, "\r"))
+		if line == "" || strings.HasPrefix(line, "The following ports are currently installed:") || line == "No ports are installed." {
+			continue
+		}
+		id, version := parseMacPortsRow(line)
+		if id == "" {
+			return nil, errors.New("malformed MacPorts package inventory row")
 		}
 		packages = append(packages, packageRecord{ID: id, Version: version})
 	}
