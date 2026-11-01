@@ -1,0 +1,27 @@
+schema_version: 1
+id: docker-cli
+name: Docker CLI
+category: containers.client
+description: Docker command-line client for connecting to a separately available Docker-compatible daemon.
+tags: [containers, docker, cli]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [docker]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: docker
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: docker-cli
+    scope: system
+    source: configured-apt-repositories
