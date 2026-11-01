@@ -1,0 +1,27 @@
+schema_version: 1
+id: arm-none-eabi-gcc
+name: ARM GNU Toolchain
+category: embedded.cross-compiler
+description: GNU compiler and binutils for bare-metal ARM targets.
+tags: [embedded, arm, compiler]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [arm-none-eabi-gcc, arm-none-eabi-g++]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: arm-none-eabi-gcc
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: arm-none-eabi-gcc
+    scope: user
+    source: homebrew-core
