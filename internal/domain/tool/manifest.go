@@ -115,6 +115,7 @@ type Manifest struct {
 	Version            VersionPolicy                      `yaml:"version"`
 	Executables        []string                           `yaml:"executables"`
 	VersionArgs        []string                           `yaml:"version_args"`
+	HealthPattern      string                             `yaml:"health_pattern,omitempty"`
 	Dependencies       []string                           `yaml:"dependencies"`
 	ProvidedBy         string                             `yaml:"provided_by,omitempty"`
 	Conflicts          []string                           `yaml:"conflicts"`
@@ -206,6 +207,11 @@ func (m Manifest) Validate() error {
 	for _, arg := range m.VersionArgs {
 		if !versionArgPattern.MatchString(arg) || dangerousVersionArgument(arg) {
 			return fmt.Errorf("version argument %q is empty or can execute code", arg)
+		}
+	}
+	if m.HealthPattern != "" {
+		if _, err := regexp.Compile(m.HealthPattern); err != nil {
+			return fmt.Errorf("health_pattern is invalid: %w", err)
 		}
 	}
 	if len(m.Platforms) == 0 {
