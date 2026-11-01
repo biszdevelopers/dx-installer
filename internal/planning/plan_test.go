@@ -2,6 +2,7 @@ package planning
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -99,6 +100,65 @@ func TestPlanPrefersAnExistingPackageManagerOverTheStandaloneArchive(t *testing.
 	}
 	if plan.Blocked || len(plan.Items) != 1 || plan.Items[0].Artifact != nil || plan.Items[0].Manager != tool.Winget {
 		t.Fatalf("available package manager was not preferred: %#v", plan)
+	}
+}
+
+func TestPlanUsesCatalogPinnedCustomAndOfflineArchivesBeforePackageManagers(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "LocalAppData"))
+	t.Setenv("PATH", "")
+	current := windowsInventory([]packagemanager.Detected{{Manager: tool.Winget}}, detection.Tool{ID: "go", Name: "Go", State: detection.Missing})
+
+	custom, err := BuildWithOptions(items, current, []string{"go"}, Options{CustomSources: map[string]string{"go": "https://mirror.example/go.zip"}})
+	if err != nil || custom.Blocked || len(custom.Items) != 1 {
+		t.Fatalf("catalog-pinned custom source plan = %#v, %v", custom, err)
+	}
+	if custom.Items[0].CustomSourceURL != "https://mirror.example/go.zip" || custom.Items[0].Artifact == nil || custom.Items[0].RegionalFallback || custom.Items[0].Manager != "" {
+		t.Fatalf("custom source did not take precedence over package managers or fallback: %#v", custom.Items[0])
+	}
+
+	archive := filepath.Join(t.TempDir(), "go.zip")
+	if err := os.WriteFile(archive, []byte("offline archive"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	offlinePlan, err := BuildWithOptions(items, current, []string{"go"}, Options{OfflineArchives: map[string]string{"go": archive}})
+	if err != nil || offlinePlan.Blocked || len(offlinePlan.Items) != 1 {
+		t.Fatalf("offline archive plan = %#v, %v", offlinePlan, err)
+	}
+	if offlinePlan.Items[0].OfflineArchivePath != archive || offlinePlan.Items[0].Artifact == nil || offlinePlan.Items[0].Manager != "" {
+		t.Fatalf("offline archive did not bypass package managers: %#v", offlinePlan.Items[0])
+	}
+}
+
+func TestPlanBlocksConflictingOrInvalidExplicitSources(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "LocalAppData"))
+	current := windowsInventory([]packagemanager.Detected{{Manager: tool.Winget}}, detection.Tool{ID: "go", Name: "Go", State: detection.Missing})
+	archive := filepath.Join(t.TempDir(), "go.zip")
+	if err := os.WriteFile(archive, []byte("offline archive"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	conflicting, err := BuildWithOptions(items, current, []string{"go"}, Options{
+		CustomSources:   map[string]string{"go": "https://mirror.example/go.zip"},
+		OfflineArchives: map[string]string{"go": archive},
+	})
+	if err != nil || !conflicting.Blocked {
+		t.Fatalf("conflicting source plan = %#v, %v", conflicting, err)
+	}
+	invalid, err := BuildWithOptions(items, current, []string{"go"}, Options{CustomSources: map[string]string{"go": "http://mirror.example/go.zip"}})
+	if err != nil || !invalid.Blocked {
+		t.Fatalf("unencrypted custom source plan = %#v, %v", invalid, err)
 	}
 }
 
