@@ -17,7 +17,7 @@ DX is split into four parts: a static release origin, a short-lived Go program, 
 - `internal/domain/tool`: manifest types, identifiers, platforms, managers, scopes, and validation.
 - `internal/catalog`: strict YAML decoding, embedded tools and profiles, dependency graph validation, and explicit selection import/export.
 - `internal/platform`: OS/architecture/shell detection and Windows process-PATH refresh.
-- `internal/adapters/packagemanager`: existing manager discovery, typed argument construction, display, process creation, and local package inventory queries for APT, DNF, Pacman, Zypper, APK, Homebrew, MacPorts, and FreeBSD `pkg`.
+- `internal/adapters/packagemanager`: existing manager discovery, typed argument construction, display, process creation, and local package inventory queries for Scoop, Chocolatey, APT, DNF, Pacman, Zypper, APK, Homebrew, MacPorts, and FreeBSD `pkg`.
 - `internal/detection`: executable and supported package-database inventory with bounded output, timeouts, and diagnostics.
 - `internal/planning`: selection closure, dependency ordering, preservation, and blockers.
 - `internal/installation`: serialized execution results and dependency failure handling.
@@ -34,6 +34,6 @@ DX is split into four parts: a static release origin, a short-lived Go program, 
 
 ## Boundaries and current gaps
 
-Inventory combines PATH checks with supported local package-database queries. Windows package databases and arbitrary filesystem discovery are not implemented, so installs there may not be discovered. Package-manager adapters cover the listed managers, but the repository does not currently include direct vendor archive installers, regional source fallback, custom source configuration, or offline bundles. These features must be added with publisher-verified identifiers and integrity metadata before being represented as supported behavior.
+Inventory combines PATH checks with supported local package-database queries. WinGet package ownership and arbitrary filesystem discovery are not implemented, so installs there may not be discovered. Package-manager adapters cover the listed managers, but the repository does not currently include direct vendor archive installers, regional source fallback, custom source configuration, or offline bundles. These features must be added with publisher-verified identifiers and integrity metadata before being represented as supported behavior.
 
 The default release matrix is Windows, macOS, and Linux on amd64 and arm64. BSD platform identifiers and a FreeBSD package-manager adapter exist in the client code, but BSD is not in default release generation or the hosted integration matrix.
