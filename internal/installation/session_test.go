@@ -92,6 +92,37 @@ func TestSessionAcceptsVerificationAfterNonzeroManagerExit(t *testing.T) {
 	}
 }
 
+func TestSessionVerifiesAProvidedComponentAfterItsDependencyInstalls(t *testing.T) {
+	session, err := NewSession(planning.Plan{Items: []planning.Item{
+		{ToolID: "nodejs-lts", Name: "Node.js LTS", Action: planning.Install},
+		{ToolID: "npm", Name: "npm", Dependencies: []string{"nodejs-lts"}, Action: planning.Provided, ProvidedBy: "nodejs-lts"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, ok := session.Next()
+	if !ok || node.ToolID != "nodejs-lts" {
+		t.Fatalf("first operation = %#v, %v", node, ok)
+	}
+	if err := session.Record(node, nil, detection.Tool{ID: "nodejs-lts", State: detection.Healthy}); err != nil {
+		t.Fatal(err)
+	}
+	npm, ok := session.Next()
+	if !ok || npm.ToolID != "npm" || npm.Action != planning.Provided {
+		t.Fatalf("provided component = %#v, %v", npm, ok)
+	}
+	if err := session.RecordProvided(npm, detection.Tool{ID: "npm", State: detection.Healthy, Instances: []detection.Instance{{State: detection.Healthy, Version: "12.2.1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	result, exists := session.Result("npm")
+	if !exists || result.State != AlreadySatisfied || result.Verification != "12.2.1" || !strings.Contains(result.Diagnostic, "nodejs-lts") {
+		t.Fatalf("provided component was not verified and reported: %#v, %v", result, exists)
+	}
+	if !session.Complete() {
+		t.Fatal("session should finish after the provided component was verified")
+	}
+}
+
 func TestSessionRejectsBlockedPlanAndCancellationIsReported(t *testing.T) {
 	if _, err := NewSession(planning.Plan{Blocked: true, Items: []planning.Item{{ToolID: "git", Action: planning.Install}}}); err == nil {
 		t.Fatal("blocked plan created a session")
