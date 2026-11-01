@@ -17,6 +17,7 @@ import (
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/platform"
+	"developers-club-dx/internal/regional"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -92,6 +93,47 @@ func TestPlanAndApprovalDiscloseUnresolvedPackageTransaction(t *testing.T) {
 	model.Update(keyMessage('i'))
 	if rendered := ansi.Strip(model.renderApproval()); !strings.Contains(rendered, disclosure) {
 		t.Fatalf("approval omitted package transaction disclosure: %s", rendered)
+	}
+}
+
+func TestAutomaticPolicyBlocksConflictsUntilUserChoosesRegion(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
+		Managers: []packagemanager.Detected{{Manager: tool.Winget}},
+		Tools:    map[string]detection.Tool{"git": {ID: "git", Name: "Git", State: detection.Missing}},
+	}, []string{"git"})
+	model.regionDetection = regional.Result{Region: regional.Conflict}
+	plan, err := model.buildSelectedPlan(model.selectedIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Blocked || len(plan.InstallItems()) != 0 {
+		t.Fatalf("conflicting automatic signals did not block execution: %#v", plan)
+	}
+	model.screen = SourcesScreen
+	model.Update(keyMessage('g'))
+	plan, err = model.buildSelectedPlan(model.selectedIDs())
+	if err != nil || plan.Blocked || len(plan.InstallItems()) != 1 {
+		t.Fatalf("global override did not resolve the source conflict: %#v, %v", plan, err)
+	}
+	model.Update(keyMessage('c'))
+	if model.sourceMode != "mainland-china" {
+		t.Fatalf("manual Mainland China preference = %q", model.sourceMode)
+	}
+}
+
+func TestSourceScreenShowsSignalsAndManualChoices(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64}}, nil)
+	model.regionDetection = regional.Result{Region: regional.Conflict, Signals: []regional.Signal{{Source: "locale", Value: "zh_CN", Region: regional.MainlandChina}, {Source: "time-zone", Value: "UTC", Region: regional.Global}}}
+	text := ansi.Strip(strings.Join(model.renderSources(30), "\n"))
+	for _, expected := range []string{"conflicting signals", "zh_CN", "UTC", "Mainland China", "global", "official-only", "official-first"} {
+		if !strings.Contains(text, expected) {
+			t.Errorf("source screen omitted %q: %s", expected, text)
+		}
 	}
 }
 
