@@ -96,6 +96,10 @@ func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (I
 	inventory.Managers = packagemanager.Detect(machine.OS, machine.Distribution)
 	packageInventory := packagemanager.QueryInstalled(ctx, inventory.Managers)
 	inventory.Warnings = append(inventory.Warnings, packageInventory.Warnings...)
+	uncertainManagers := make(map[tool.PackageManager]bool, len(packageInventory.UncertainManagers))
+	for _, manager := range packageInventory.UncertainManagers {
+		uncertainManagers[manager] = true
+	}
 	manifests := items.Tools()
 	if len(manifests) == 0 {
 		return inventory, fmt.Errorf("catalog contains no tools")
@@ -109,7 +113,7 @@ func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (I
 		go func() {
 			defer workers.Done()
 			for manifest := range jobs {
-				instances, packages, state := scanTool(ctx, manifest, machine, inventory.Managers, packageInventory.Packages)
+				instances, packages, state := scanTool(ctx, manifest, machine, inventory.Managers, packageInventory.Packages, uncertainManagers)
 				results <- scanResult{manifest: manifest, instances: instances, packages: packages, state: state}
 			}
 		}()
@@ -144,7 +148,7 @@ func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (I
 	return inventory, nil
 }
 
-func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info, managers []packagemanager.Detected, installedPackages []packagemanager.InstalledPackage) ([]Instance, []PackageOwnership, State) {
+func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info, managers []packagemanager.Detected, installedPackages []packagemanager.InstalledPackage, uncertainManagers map[tool.PackageManager]bool) ([]Instance, []PackageOwnership, State) {
 	if !manifest.Supports(machine.OS, machine.Architecture) {
 		return nil, nil, Unsupported
 	}
@@ -158,6 +162,15 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 	if len(paths) == 0 {
 		if len(packages) > 0 {
 			return nil, packages, Unknown
+		}
+		availableManagers := make(map[tool.PackageManager]bool, len(managers))
+		for _, manager := range managers {
+			availableManagers[manager.Manager] = true
+		}
+		for _, installer := range manifest.Installers {
+			if installer.Platform == machine.OS && availableManagers[installer.Manager] && uncertainManagers[installer.Manager] {
+				return nil, nil, Unknown
+			}
 		}
 		return nil, nil, Missing
 	}
@@ -445,10 +458,7 @@ func installedPackagesFor(manifest tool.Manifest, operatingSystem tool.Operating
 			if current.Manager != installer.Manager || !strings.EqualFold(current.ID, installer.PackageID) {
 				continue
 			}
-			if installer.Manager == tool.Winget && !strings.EqualFold(current.Source, installer.Source) {
-				continue
-			}
-			key := strings.Join([]string{string(current.Manager), strings.ToLower(current.ID), current.Version}, "\x00")
+			key := strings.Join([]string{string(current.Manager), strings.ToLower(current.ID), current.Version, strings.ToLower(current.Source)}, "\x00")
 			if seen[key] {
 				continue
 			}
@@ -467,7 +477,10 @@ func installedPackagesFor(manifest tool.Manifest, operatingSystem tool.Operating
 		if packages[i].ID != packages[j].ID {
 			return packages[i].ID < packages[j].ID
 		}
-		return packages[i].Version < packages[j].Version
+		if packages[i].Version != packages[j].Version {
+			return packages[i].Version < packages[j].Version
+		}
+		return packages[i].Source < packages[j].Source
 	})
 	return packages
 }
