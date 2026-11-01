@@ -1,0 +1,27 @@
+schema_version: 1
+id: php-cs-fixer
+name: PHP CS Fixer
+category: php.formatter
+description: Automatically fixes PHP coding standards issues.
+tags: [php, formatting]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [php-cs-fixer]
+version_args: [--version]
+dependencies: [php]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: php-cs-fixer
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: php-cs-fixer
+    scope: user
+    source: homebrew-core
