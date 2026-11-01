@@ -1,0 +1,27 @@
+schema_version: 1
+id: coursier
+name: Coursier
+category: scala.package-manager
+description: Scala and Java artifact fetching and launcher tool.
+tags: [scala, jvm, package-management]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [coursier]
+version_args: [--version]
+dependencies: [openjdk-27]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: coursier
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: coursier
+    scope: user
+    source: homebrew-core
