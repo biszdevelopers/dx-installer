@@ -19,6 +19,8 @@ func DefaultRegistry(ecosystem tool.RegistryEcosystem) string {
 		return "https://pypi.org/simple"
 	case tool.GoModuleRegistry:
 		return "https://proxy.golang.org"
+	case tool.CargoRegistry:
+		return "https://index.crates.io/"
 	default:
 		return ""
 	}
