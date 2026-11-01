@@ -1,0 +1,21 @@
+schema_version: 1
+id: valgrind
+name: Valgrind
+category: cpp.debugging
+description: Dynamic analysis framework for memory debugging and profiling on Linux.
+tags: [c, cpp, debugging, memory]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [valgrind]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  linux: [amd64, arm64]
+installers:
+  - platform: linux
+    manager: homebrew
+    package_id: valgrind
+    scope: user
+    source: homebrew-core
