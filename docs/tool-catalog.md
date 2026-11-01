@@ -1,6 +1,6 @@
 # Embedded tool catalog
 
-The catalog currently contains 44 tools and 10 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
+The catalog currently contains 44 tools and 14 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
 
 | Category | Tools |
 | --- | --- |
@@ -21,7 +21,7 @@ The catalog currently contains 44 tools and 10 profiles. Inspect exact manifests
 | Embedded | OpenOCD |
 | Security | Trivy |
 
-Profiles are Complete, Database, Essential, Full Stack, Go, Java, Python, Rust, Systems Programming, and Web Development. Profiles are editable selections; applying one does not run a command.
+Profiles are Complete, Database, DevOps, Embedded, Essential, Full Stack, Go, Java, Mobile, Python, Rust, Security, Systems Programming, and Web Development. Profiles are editable selections; applying one does not run a command. Mobile selects ADB and Flutter, Embedded selects the existing C toolchains and OpenOCD, DevOps selects Docker CLI and kubectl, and Security selects Trivy.
 
 Manifests specify catalog IDs, version channel and no-automatic-upgrade policy, executable names and version arguments, dependencies/conflicts, declared platforms, and package-manager installers. They do not contain shell fragments or URLs. The runtime loader uses typed Go structs, rejects unknown YAML fields, validates manager/platform/scope combinations, and rejects missing dependencies, duplicate IDs, and graph cycles.
 
