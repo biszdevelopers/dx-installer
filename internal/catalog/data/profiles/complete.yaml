@@ -1,0 +1,5 @@
+schema_version: 1
+id: complete
+name: Complete catalog
+description: Review every catalog entry and remove anything you do not want.
+tools: [git, github-cli, git-lfs, nodejs-lts, bun, python, uv, go, rustup, temurin-jdk-25, cmake, ninja, clang, gcc, powershell, dotnet-sdk-10, sqlite]
