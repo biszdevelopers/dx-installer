@@ -3,6 +3,8 @@ package tui
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -124,6 +126,46 @@ func TestPlanSignatureIncludesPreservedPackageOwnership(t *testing.T) {
 	changed.Items[0].ExistingPackages[0].Version = "2.48.0"
 	if planSignature(base) == planSignature(changed) {
 		t.Fatal("package ownership changes should invalidate the approval signature")
+	}
+}
+
+func TestDiagnosticReportRequiresExplicitExportAndDoesNotOverwrite(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{
+		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
+		Warnings: []string{`failed under C:\Users\alice\AppData\Local`},
+	}, []string{"git"})
+	model.screen = ResultsScreen
+	model.Update(keyMessage('d'))
+	if model.pathMode != "diagnostic" {
+		t.Fatal("diagnostic export should require the explicit Results action")
+	}
+
+	path := filepath.Join(t.TempDir(), "dx-report.json")
+	model.pathInput = path
+	model.handlePathKey(tea.KeyPressMsg{Code: tea.KeyEnter}, "enter")
+	if model.pathMode != "" || !strings.Contains(model.status, "saved") {
+		t.Fatalf("report export did not complete: mode=%q status=%q", model.pathMode, model.status)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "%USERPROFILE%") || strings.Contains(string(data), "alice") {
+		t.Fatalf("saved report was not redacted: %s", data)
+	}
+
+	if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := model.writeDiagnostic(path); err == nil {
+		t.Fatal("expected existing path to reject replacement")
+	}
+	data, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "keep" {
+		t.Fatalf("existing report was replaced: %q", data)
 	}
 }
 
