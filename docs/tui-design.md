@@ -21,4 +21,4 @@ The user sees the plan before any package-manager process starts. Pressing `y` t
 
 ## Known gaps
 
-The current screens do not implement source-policy radio controls, custom sources, offline archives, download progress, mouse support, terminal capability detection beyond Bubble Tea, golden snapshots, or resize/input fuzz tests. No progress percentages are fabricated; current tasks are shown at operation granularity.
+The screens include an Environment golden snapshot, a narrow-terminal resize bound, and a fuzz target for independent environment-search input. Broader snapshots and resize/fuzz coverage for every screen remain to be added. Source-policy radio controls, custom sources, offline archives, download progress, mouse support, and terminal capability detection beyond Bubble Tea are also not implemented. No progress percentages are fabricated; current tasks are shown at operation granularity.
