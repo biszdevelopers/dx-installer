@@ -44,9 +44,23 @@ func TestWindowsBatchExecutableVersionCheckUsesSafeCommandArguments(t *testing.T
 	if err := os.WriteFile(batch, []byte("@echo 1.2.3\r\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	instance := inspectVersion(context.Background(), batch, "registry-tool", []string{"--version"})
+	instance := inspectVersion(context.Background(), batch, "registry-tool", []string{"--version"}, "")
 	if instance.State != Healthy || instance.Version != "1.2.3" {
 		t.Fatalf("batch executable version check = %#v", instance)
+	}
+}
+
+func TestHealthPatternMatchesRequiredRuntimeAndRejectsOtherCapabilities(t *testing.T) {
+	const pattern = `(?m)^Microsoft\.NETCore\.App\s+(10\.[0-9.]+)`
+	version, matched, err := matchHealthPattern("Microsoft.NETCore.App 8.0.20 [C:\\dotnet\\shared\\Microsoft.NETCore.App]\nMicrosoft.NETCore.App 10.0.14 [C:\\dotnet\\shared\\Microsoft.NETCore.App]", pattern)
+	if err != nil || !matched || version != "10.0.14" {
+		t.Fatalf("matching .NET runtime = %q, %v, %v", version, matched, err)
+	}
+	if _, matched, err := matchHealthPattern("Microsoft.NETCore.App 8.0.20", pattern); err != nil || matched {
+		t.Fatalf("nonmatching .NET runtime = %v, %v; want no match", matched, err)
+	}
+	if _, _, err := matchHealthPattern("output", "["); err == nil {
+		t.Fatal("invalid health pattern was accepted")
 	}
 }
 
