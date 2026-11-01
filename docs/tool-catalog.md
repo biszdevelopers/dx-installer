@@ -1,6 +1,6 @@
 # Embedded tool catalog
 
-The current catalog is intentionally small: 36 tools and 10 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
+The catalog currently contains 41 tools and 10 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
 
 | Category | Tools |
 | --- | --- |
@@ -11,13 +11,15 @@ The current catalog is intentionally small: 36 tools and 10 profiles. Inspect ex
 | PHP and Ruby | PHP CLI, Ruby |
 | BEAM languages | Erlang/OTP, Elixir |
 | Other languages | GHC, OCaml, R, GNU Fortran, Perl, Julia, Zig |
-| Mobile and infrastructure | Dart SDK, Android Platform Tools (ADB), kubectl |
+| Mobile and infrastructure | Dart SDK, Flutter SDK, Android Platform Tools (ADB), kubectl, Docker CLI |
 | Go | Go |
 | Rust | Rustup |
 | C/C++ | GCC, Clang, CMake, Ninja, GDB, LLDB |
 | .NET | .NET SDK 10 |
 | Shell | PowerShell |
-| Database | SQLite CLI |
+| Database | SQLite CLI, PostgreSQL Client |
+| Embedded | OpenOCD |
+| Security | Trivy |
 
 Profiles are Complete, Database, Essential, Full Stack, Go, Java, Python, Rust, Systems Programming, and Web Development. Profiles are editable selections; applying one does not run a command.
 
