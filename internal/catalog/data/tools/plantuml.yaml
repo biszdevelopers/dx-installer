@@ -1,0 +1,27 @@
+schema_version: 1
+id: plantuml
+name: PlantUML
+category: documentation.diagrams
+description: Generate UML diagrams from text descriptions.
+tags: [documentation, diagrams, uml]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [plantuml]
+version_args: [-version]
+dependencies: [graphviz, openjdk-27]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: plantuml
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: plantuml
+    scope: user
+    source: homebrew-core
