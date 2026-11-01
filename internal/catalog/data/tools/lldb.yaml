@@ -19,3 +19,13 @@ installers:
     package_id: lldb
     scope: system
     source: configured-apt-repositories
+  - platform: linux
+    manager: dnf
+    package_id: lldb
+    scope: system
+    source: configured-dnf-repositories
+  - platform: linux
+    manager: pacman
+    package_id: lldb
+    scope: system
+    source: configured-pacman-repositories
