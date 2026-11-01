@@ -28,6 +28,13 @@ type ArchiveInstaller struct {
 	TempRoot   string
 }
 
+type InstallOptions struct {
+	Policy                sources.Policy
+	AllowRegionalFallback bool
+	CustomSourceURL       string
+	OfflineArchivePath    string
+}
+
 var toolIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 var versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$`)
 
@@ -47,6 +54,10 @@ func InstallationPath(machine tool.OperatingSystem, toolID, version, home string
 }
 
 func (i *ArchiveInstaller) Install(ctx context.Context, toolID, home string, artifact tool.Artifact, allowRegionalFallback bool) (result InstallResult, installErr error) {
+	return i.InstallWithOptions(ctx, toolID, home, artifact, InstallOptions{AllowRegionalFallback: allowRegionalFallback})
+}
+
+func (i *ArchiveInstaller) InstallWithOptions(ctx context.Context, toolID, home string, artifact tool.Artifact, options InstallOptions) (result InstallResult, installErr error) {
 	if !toolIDPattern.MatchString(toolID) {
 		return result, fmt.Errorf("invalid tool identifier %q", toolID)
 	}
@@ -98,6 +109,16 @@ func (i *ArchiveInstaller) Install(ctx context.Context, toolID, home string, art
 		}
 	}()
 
+	if options.OfflineArchivePath != "" && options.CustomSourceURL != "" {
+		return result, errors.New("choose either an offline archive or a custom online source, not both")
+	}
+	if options.OfflineArchivePath != "" {
+		download, err := downloader.CopyLocal(ctx, options.OfflineArchivePath, artifact.SHA256, workspace, nil, nil)
+		if err != nil {
+			return result, fmt.Errorf("verify offline %s %s: %w", toolID, artifact.Version, err)
+		}
+		return i.extractAndPublish(toolID, download, target, parent, artifact)
+	}
 	candidates := []sources.RemoteSource{{
 		Name:                 toolID + " " + artifact.Version + " official source",
 		Kind:                 sources.Official,
@@ -105,21 +126,37 @@ func (i *ArchiveInstaller) Install(ctx context.Context, toolID, home string, art
 		SHA256:               artifact.SHA256,
 		AllowedRedirectHosts: append([]string(nil), artifact.AllowedRedirectHosts...),
 	}}
-	policy := sources.OfficialOnly
-	if allowRegionalFallback && artifact.RegionalURL != "" {
+	policy := options.Policy
+	if options.CustomSourceURL != "" {
+		custom := sources.RemoteSource{Name: toolID + " user-configured HTTPS source", Kind: sources.Custom, URL: options.CustomSourceURL, SHA256: artifact.SHA256}
+		if err := sources.ValidateRemoteSource(custom); err != nil {
+			return result, fmt.Errorf("validate custom source for %s: %w", toolID, err)
+		}
+		candidates = []sources.RemoteSource{custom}
+		policy = sources.CustomOnly
+	}
+	if policy == "" {
+		policy = sources.OfficialOnly
+	}
+	if options.AllowRegionalFallback && options.CustomSourceURL == "" && artifact.RegionalURL != "" {
 		candidates = append(candidates, sources.RemoteSource{
 			Name:   toolID + " " + artifact.Version + " verified regional mirror",
 			Kind:   sources.Regional,
 			URL:    artifact.RegionalURL,
 			SHA256: artifact.SHA256,
 		})
-		policy = sources.OfficialFirst
+		if policy == sources.OfficialOnly {
+			policy = sources.OfficialFirst
+		}
 	}
 	download, err := downloader.Download(ctx, policy, candidates, workspace)
 	if err != nil {
 		return result, fmt.Errorf("download %s %s: %w", toolID, artifact.Version, err)
 	}
+	return i.extractAndPublish(toolID, download, target, parent, artifact)
+}
 
+func (i *ArchiveInstaller) extractAndPublish(toolID string, download sources.DownloadResult, target, parent string, artifact tool.Artifact) (result InstallResult, installErr error) {
 	if err := os.MkdirAll(parent, 0o700); err != nil {
 		return result, fmt.Errorf("create user-level installation directory: %w", err)
 	}
