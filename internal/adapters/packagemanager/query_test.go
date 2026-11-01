@@ -15,7 +15,7 @@ func TestParsePackageInventory(t *testing.T) {
 		output  string
 		want    []packageRecord
 	}{
-		{name: "dpkg strips multiarch suffix", manager: tool.APT, output: "cmake:amd64\t3.28.3-1\n", want: []packageRecord{{ID: "cmake", Version: "3.28.3-1"}}},
+		{name: "dpkg filters removed packages keeps partial installs and strips multiarch suffix", manager: tool.APT, output: "ii\tcmake:amd64\t3.28.3-1\niU\tpartial-tool\t2.0-1\nrc\tremoved-tool\t1.0-1\n", want: []packageRecord{{ID: "cmake", Version: "3.28.3-1"}, {ID: "partial-tool", Version: "2.0-1"}}},
 		{name: "rpm format", manager: tool.DNF, output: "gcc\t14.2.1-2.fc42\n", want: []packageRecord{{ID: "gcc", Version: "14.2.1-2.fc42"}}},
 		{name: "pacman format", manager: tool.Pacman, output: "cmake 3.30.0-1\n", want: []packageRecord{{ID: "cmake", Version: "3.30.0-1"}}},
 		{name: "apk format", manager: tool.APK, output: "py3-pip-24.3.1-r0\n", want: []packageRecord{{ID: "py3-pip", Version: "24.3.1-r0"}}},
