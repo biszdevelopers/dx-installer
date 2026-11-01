@@ -79,8 +79,8 @@ func TestPlanUsesVerifiedArchiveWhenNoPackageManagerIsAvailable(t *testing.T) {
 		t.Fatalf("plan omitted verified artifact details: %#v", item)
 	}
 	wantTarget := filepath.Join(localAppData, "Programs", "go", "1.27.3")
-	if item.InstallPath != wantTarget || len(item.PathAdditions) != 1 || item.PathAdditions[0] != filepath.Join(wantTarget, "bin") {
-		t.Fatalf("plan target/PATH additions = %q / %#v, want %q / bin", item.InstallPath, item.PathAdditions, wantTarget)
+	if item.InstallPath != wantTarget || len(item.PathChanges) != 1 || item.PathChanges[0].Directory != filepath.Join(wantTarget, "bin") {
+		t.Fatalf("plan target/PATH changes = %q / %#v, want %q / bin", item.InstallPath, item.PathChanges, wantTarget)
 	}
 	if item.Command.Display() != "" || item.Manager != "" || plan.TransactionDisclosure != "" {
 		t.Fatalf("direct archive install was represented as a package-manager transaction: %#v", item)
