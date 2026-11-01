@@ -1,0 +1,21 @@
+schema_version: 1
+id: checkov
+name: Checkov
+category: security.iac
+description: Static analysis for infrastructure-as-code configurations.
+tags: [security, iac, quality]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [checkov]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: checkov
+    scope: user
+    source: homebrew-core
