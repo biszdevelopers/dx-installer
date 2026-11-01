@@ -1,5 +1,5 @@
 schema_version: 1
 id: devops
 name: DevOps tooling
-description: Docker, Kubernetes, cloud, and automation CLIs; does not install or start services.
-tools: [docker-cli, kubectl, helm, ansible, aws-cli, azure-cli]
+description: Container, Kubernetes, infrastructure, cloud, and automation CLIs; does not start services or authenticate.
+tools: [docker-cli, docker-compose, podman, kubectl, helm, terraform, opentofu, ansible, packer, vagrant, aws-cli, azure-cli, gcloud-cli, wrangler, flyctl, railway-cli, supabase]
