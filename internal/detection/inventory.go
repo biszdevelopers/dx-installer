@@ -380,6 +380,10 @@ func scanKnownInstallDirectories(home string) []string {
 		}
 		appendHomePattern("AppData", "Local", "Programs", "Python", "Python*")
 		appendHomePattern("AppData", "Local", "Programs", "Python", "Python*", "Scripts")
+		appendHomePattern("AppData", "Local", "Programs", "*", "*", "bin")
+		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+			patterns = append(patterns, filepath.Join(localAppData, "Programs", "*", "*", "bin"))
+		}
 		for _, root := range []string{os.Getenv("SCOOP"), os.Getenv("SCOOP_GLOBAL")} {
 			if root != "" {
 				patterns = append(patterns, filepath.Join(root, "apps", "*", "*"), filepath.Join(root, "apps", "*", "*", "bin"), filepath.Join(root, "apps", "*", "*", "cmd"))
@@ -402,6 +406,7 @@ func scanKnownInstallDirectories(home string) []string {
 		appendHomePattern(".pyenv", "versions", "*", "bin")
 		appendHomePattern(".asdf", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
+		appendHomePattern(".local", "opt", "*", "*", "bin")
 		patterns = append(patterns, "/usr/local/Cellar/*/*/bin", "/opt/homebrew/Cellar/*/*/bin")
 	case "freebsd", "openbsd", "netbsd", "dragonfly":
 		patterns = append(patterns, "/usr/local/openjdk*/bin", "/usr/local/lib/nodejs/node-v*/bin")
@@ -409,12 +414,14 @@ func scanKnownInstallDirectories(home string) []string {
 		appendHomePattern(".pyenv", "versions", "*", "bin")
 		appendHomePattern(".asdf", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
+		appendHomePattern(".local", "opt", "*", "*", "bin")
 	default:
 		patterns = append(patterns, "/usr/lib/jvm/*/bin", "/usr/lib/jvm/*/jre/bin", "/usr/local/lib/nodejs/node-v*/bin")
 		appendHomePattern(".nvm", "versions", "node", "*", "bin")
 		appendHomePattern(".pyenv", "versions", "*", "bin")
 		appendHomePattern(".asdf", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
+		appendHomePattern(".local", "opt", "*", "*", "bin")
 	}
 
 	directories := make([]string, 0, min(len(patterns), maxDiscoveredInstallDirectories))
