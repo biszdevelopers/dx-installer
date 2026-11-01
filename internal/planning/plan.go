@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"developers-club-dx/internal/adapters/packagemanager"
+	registryadapter "developers-club-dx/internal/adapters/registry"
 	"developers-club-dx/internal/artifacts"
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
@@ -58,6 +59,7 @@ type Item struct {
 	RegionalFallback   bool
 	CustomSourceURL    string
 	OfflineArchivePath string
+	RegistryInstaller  *tool.RegistryInstaller
 }
 
 type Plan struct {
@@ -79,6 +81,7 @@ type Options struct {
 	AllowRegionalFallback bool
 	CustomSources         map[string]string
 	OfflineArchives       map[string]string
+	RegistrySources       map[tool.RegistryEcosystem]string
 }
 
 func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selected []string, options Options) (Plan, error) {
@@ -140,10 +143,27 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 				plan.addArtifact(current, id, manifest, entry, artifact, false, customURL, offlinePath)
 				continue
 			}
+			registryInstaller, registrySource, registryRequested := requestedRegistry(manifest, current.Platform.OS, options.RegistrySources)
+			if registryRequested {
+				if !registryInstallerAvailableInClosure(*registryInstaller, closureSet) {
+					plan.add(Blocking, id, "the selected registry ecosystem is not configured for this tool")
+					continue
+				}
+				plan.addRegistry(current, id, manifest, entry, *registryInstaller, registrySource)
+				continue
+			}
 			installer, managerAvailable := manifest.InstallerFor(current.Platform.OS, managerOrder)
 			if !managerAvailable {
 				if artifact, exists := manifest.ArtifactFor(current.Platform.OS, current.Platform.Architecture); exists {
 					plan.addArtifact(current, id, manifest, entry, artifact, options.AllowRegionalFallback, "", "")
+					continue
+				}
+				if registryInstaller, exists := firstRegistryInstaller(manifest, current.Platform.OS); exists {
+					source := registryInstaller.Source
+					if override := options.RegistrySources[registryInstaller.Ecosystem]; override != "" {
+						source = override
+					}
+					plan.addRegistry(current, id, manifest, entry, registryInstaller, source)
 					continue
 				}
 				plan.add(Blocking, id, "no supported installer is available through detected package managers and no verified archive exists")
@@ -171,6 +191,28 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 			plan.add(Blocking, id, fmt.Sprintf("installation state %q is not safe to modify", entry.State))
 		}
 	}
+	registryEcosystems := make([]string, 0, len(options.RegistrySources))
+	for ecosystem := range options.RegistrySources {
+		registryEcosystems = append(registryEcosystems, string(ecosystem))
+	}
+	sort.Strings(registryEcosystems)
+	for _, ecosystemText := range registryEcosystems {
+		ecosystem := tool.RegistryEcosystem(ecosystemText)
+		used := false
+		for _, id := range closure {
+			manifest, _ := items.Tool(id)
+			entry := current.Tools[id]
+			if entry.State == detection.Missing && options.CustomSources[id] == "" && options.OfflineArchives[id] == "" {
+				if _, exists := manifest.RegistryInstallerFor(current.Platform.OS, ecosystem); exists {
+					used = true
+					break
+				}
+			}
+		}
+		if !used {
+			plan.add(Warning, "", fmt.Sprintf("registry override for %q is unused because no missing selected tool uses it", ecosystem))
+		}
+	}
 	for _, item := range plan.Items {
 		if item.Action == Install {
 			if item.Artifact == nil {
@@ -180,6 +222,80 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 		}
 	}
 	return plan, nil
+}
+
+func requestedRegistry(manifest tool.Manifest, operatingSystem tool.OperatingSystem, sources map[tool.RegistryEcosystem]string) (*tool.RegistryInstaller, string, bool) {
+	for _, installer := range manifest.RegistryInstallers {
+		if installer.Platform == operatingSystem {
+			if source, exists := sources[installer.Ecosystem]; exists {
+				installerCopy := installer
+				return &installerCopy, source, true
+			}
+		}
+	}
+	return nil, "", false
+}
+
+func registryInstallerAvailableInClosure(installer tool.RegistryInstaller, closure map[string]bool) bool {
+	return closure[tool.RegistryRuntimeTool(installer.Ecosystem)]
+}
+
+func firstRegistryInstaller(manifest tool.Manifest, operatingSystem tool.OperatingSystem) (tool.RegistryInstaller, bool) {
+	for _, ecosystem := range []tool.RegistryEcosystem{tool.NPMRegistry, tool.PyPIRegistry, tool.GoModuleRegistry} {
+		if installer, exists := manifest.RegistryInstallerFor(operatingSystem, ecosystem); exists {
+			return installer, true
+		}
+	}
+	return tool.RegistryInstaller{}, false
+}
+
+func (p *Plan) addRegistry(current detection.Inventory, id string, manifest tool.Manifest, entry detection.Tool, installer tool.RegistryInstaller, source string) {
+	if source == "" {
+		source = installer.Source
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || !filepath.IsAbs(home) {
+		p.add(Blocking, id, "could not determine an absolute user home directory for the registry installation")
+		return
+	}
+	installPath, err := artifacts.InstallationPath(current.Platform.OS, id, installer.Version, home)
+	if err != nil {
+		p.add(Blocking, id, err.Error())
+		return
+	}
+	if _, err := os.Lstat(installPath); err == nil {
+		p.add(Blocking, id, "the versioned user-level installation target already exists and will not be replaced")
+		return
+	} else if !os.IsNotExist(err) {
+		p.add(Blocking, id, "the versioned user-level installation target could not be inspected: "+err.Error())
+		return
+	}
+	command, pathEntries, err := registryadapter.BuildCommand(installer, installPath, source)
+	if err != nil {
+		p.add(Blocking, id, err.Error())
+		return
+	}
+	pathChanges, err := pathconfig.Plan(current.Platform, home, pathEntries, os.Getenv("PATH"))
+	if err != nil {
+		p.add(Blocking, id, "could not safely plan PATH updates: "+err.Error())
+		return
+	}
+	installerCopy := installer
+	p.Items = append(p.Items, Item{
+		ToolID:            id,
+		Name:              manifest.Name,
+		Dependencies:      append([]string(nil), manifest.Dependencies...),
+		Action:            Install,
+		ExistingState:     entry.State,
+		PackageID:         installer.PackageID,
+		Source:            source,
+		Scope:             tool.UserScope,
+		Command:           command,
+		RegistryInstaller: &installerCopy,
+		Version:           installer.Version,
+		InstallPath:       installPath,
+		PathChanges:       pathChanges,
+	})
 }
 
 func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool.Manifest, entry detection.Tool, artifact tool.Artifact, allowRegionalFallback bool, customURL, offlinePath string) {
