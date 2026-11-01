@@ -1,0 +1,36 @@
+schema_version: 1
+id: cypress
+name: Cypress CLI
+category: javascript.testing
+description: Cypress command-line runner and test application, installed only when explicitly selected.
+tags: [javascript, testing, browser]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [cypress]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64]
+  macos: [amd64, arm64]
+  linux: [amd64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: cypress
+    version: 16.2.1
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: cypress
+    version: 16.2.1
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: cypress
+    version: 16.2.1
+    scope: user
+    source: https://registry.npmjs.org/
