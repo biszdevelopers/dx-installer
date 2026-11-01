@@ -1,0 +1,36 @@
+schema_version: 1
+id: vitest
+name: Vitest
+category: javascript.testing
+description: Vite-powered JavaScript and TypeScript test framework.
+tags: [javascript, typescript, testing]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [vitest]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: vitest
+    version: 5.0.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: vitest
+    version: 5.0.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: vitest
+    version: 5.0.0
+    scope: user
+    source: https://registry.npmjs.org/
