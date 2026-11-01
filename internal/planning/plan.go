@@ -53,6 +53,8 @@ type Plan struct {
 	Blocked  bool
 }
 
+const TransactionDisclosure = "DX has not resolved a candidate package version or simulated the package-manager transaction. Dependencies or other affected packages may be added; review any manager confirmation before accepting."
+
 func Build(items *catalog.Catalog, current detection.Inventory, selected []string) (Plan, error) {
 	return BuildWithOptions(items, current, selected, Options{})
 }
