@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"developers-club-dx/internal/adapters/packagemanager"
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/display"
@@ -24,6 +25,7 @@ import (
 	"developers-club-dx/internal/platform"
 	"developers-club-dx/internal/regional"
 	"developers-club-dx/internal/security"
+	"developers-club-dx/internal/sources"
 	"developers-club-dx/internal/temporary"
 	"developers-club-dx/internal/tui"
 )
@@ -139,9 +141,10 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 	toolsFlag := flags.String("tools", "", "comma-separated tool IDs to include")
 	managerFlag := flags.String("manager", "", "prefer a detected package manager")
 	sourcePolicyFlag := flags.String("source-policy", string(regional.Automatic), "automatic, official-only, official-first, mainland-china, or global")
-	var customSourceFlags, offlineArchiveFlags stringValues
+	var customSourceFlags, offlineArchiveFlags, registryFlags stringValues
 	flags.Var(&customSourceFlags, "custom-source", "catalog-pinned custom HTTPS source as tool-id=https://URL (repeatable)")
 	flags.Var(&offlineArchiveFlags, "offline-archive", "catalog-pinned local archive as tool-id=absolute-path (repeatable)")
+	flags.Var(&registryFlags, "registry", "HTTPS registry override as ecosystem=https://URL (repeatable)")
 	offlineBundleFlag := flags.String("offline-bundle", "", "signed platform-specific offline bundle directory")
 	jsonOutput := flags.Bool("json", false, "write the plan as JSON")
 	if err := flags.Parse(args); err != nil {
@@ -151,11 +154,12 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 	if len(selected) == 0 {
 		return errors.New("plan requires --tools with one or more catalog IDs")
 	}
-	inventory, err := detection.Scan(ctx, items, platform.Detect())
+	machine := platform.Detect()
+	managerPreference, err := detectedManagerPreference(packagemanager.Detect(machine.OS, machine.Distribution), *managerFlag)
 	if err != nil {
 		return err
 	}
-	preferredManager, err := detectedManagerPreference(inventory, *managerFlag)
+	inventory, err := detection.Scan(ctx, items, machine)
 	if err != nil {
 		return err
 	}
@@ -167,19 +171,24 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 	if err != nil {
 		return err
 	}
+	registrySources, err := sources.ParseRegistryAssignments(registryFlags)
+	if err != nil {
+		return err
+	}
 	offlineArchives, err = addBundleArchives(*offlineBundleFlag, items, inventory.Platform, customSources, offlineArchives)
 	if err != nil {
 		return err
 	}
-	allowRegionalFallback, err := sourceFallbackForSelection(inventory.Platform, *sourcePolicyFlag, items, inventory, selected, customSources, offlineArchives)
+	allowRegionalFallback, err := sourceFallbackForSelection(inventory.Platform, *sourcePolicyFlag, items, inventory, selected, customSources, offlineArchives, registrySources)
 	if err != nil {
 		return err
 	}
 	plan, err := planning.BuildWithOptions(items, inventory, selected, planning.Options{
-		PreferredManager:      preferredManager,
+		PreferredManager:      managerPreference,
 		AllowRegionalFallback: allowRegionalFallback,
 		CustomSources:         customSources,
 		OfflineArchives:       offlineArchives,
+		RegistrySources:       registrySources,
 	})
 	if err != nil {
 		return err
@@ -202,9 +211,10 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	toolsFlag := flags.String("tools", "", "preselect comma-separated tool IDs")
 	managerFlag := flags.String("manager", "", "prefer a detected package manager")
 	sourcePolicyFlag := flags.String("source-policy", string(regional.Automatic), "automatic, official-only, official-first, mainland-china, or global")
-	var customSourceFlags, offlineArchiveFlags stringValues
+	var customSourceFlags, offlineArchiveFlags, registryFlags stringValues
 	flags.Var(&customSourceFlags, "custom-source", "catalog-pinned custom HTTPS source as tool-id=https://URL (repeatable)")
 	flags.Var(&offlineArchiveFlags, "offline-archive", "catalog-pinned local archive as tool-id=absolute-path (repeatable)")
+	flags.Var(&registryFlags, "registry", "HTTPS registry override as ecosystem=https://URL (repeatable)")
 	offlineBundleFlag := flags.String("offline-bundle", "", "signed platform-specific offline bundle directory")
 	approveFlag := flags.Bool("yes", false, "approve and execute the preselected plan in line mode")
 	if err := flags.Parse(args); err != nil {
@@ -222,6 +232,11 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	if !*approveFlag && (!isTerminal(os.Stdin) || !isTerminal(os.Stdout)) {
 		return errors.New("interactive approval requires a terminal; catalog, inventory, and plan commands are available without one")
 	}
+	machine := platform.Detect()
+	preferredManager, err := detectedManagerPreference(packagemanager.Detect(machine.OS, machine.Distribution), *managerFlag)
+	if err != nil {
+		return err
+	}
 	workspace, err := temporary.NewWorkspace()
 	if err != nil {
 		return err
@@ -234,12 +249,7 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 		}
 	}()
 
-	machine := platform.Detect()
 	inventory, err := detection.Scan(ctx, items, machine)
-	if err != nil {
-		return err
-	}
-	preferredManager, err := detectedManagerPreference(inventory, *managerFlag)
 	if err != nil {
 		return err
 	}
@@ -251,6 +261,10 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	if err != nil {
 		return err
 	}
+	registrySources, err := sources.ParseRegistryAssignments(registryFlags)
+	if err != nil {
+		return err
+	}
 	offlineArchives, err = addBundleArchives(*offlineBundleFlag, items, inventory.Platform, customSources, offlineArchives)
 	if err != nil {
 		return err
@@ -258,6 +272,9 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	model := tui.NewModel(ctx, items, inventory, selected)
 	model.SetPreferredManager(preferredManager)
 	if err := model.SetSourceOverrides(customSources, offlineArchives); err != nil {
+		return err
+	}
+	if err := model.SetRegistryOverrides(registrySources); err != nil {
 		return err
 	}
 	if strings.TrimSpace(*offlineBundleFlag) != "" {
@@ -295,12 +312,12 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	return nil
 }
 
-func detectedManagerPreference(inventory detection.Inventory, requested string) (tool.PackageManager, error) {
+func detectedManagerPreference(managers []packagemanager.Detected, requested string) (tool.PackageManager, error) {
 	if requested == "" {
 		return "", nil
 	}
 	manager := tool.PackageManager(requested)
-	for _, detected := range inventory.Managers {
+	for _, detected := range managers {
 		if detected.Manager == manager {
 			return manager, nil
 		}
@@ -371,7 +388,7 @@ func sourceFallback(machine platform.Info, requested string) (bool, error) {
 	return regional.Detect(machine).UseRegionalFallback(preference)
 }
 
-func sourceFallbackForSelection(machine platform.Info, requested string, items *catalog.Catalog, inventory detection.Inventory, selected []string, customSources, offlineArchives map[string]string) (bool, error) {
+func sourceFallbackForSelection(machine platform.Info, requested string, items *catalog.Catalog, inventory detection.Inventory, selected []string, customSources, offlineArchives map[string]string, registrySources sources.RegistryURLs) (bool, error) {
 	allow, err := sourceFallback(machine, requested)
 	if err == nil || requested != string(regional.Automatic) {
 		return allow, err
@@ -380,12 +397,22 @@ func sourceFallbackForSelection(machine platform.Info, requested string, items *
 		if inventory.Tools[id].State != detection.Missing {
 			continue
 		}
-		if customSources[id] == "" && offlineArchives[id] == "" {
-			return false, err
-		}
 		manifest, exists := items.Tool(id)
 		if !exists {
 			return false, fmt.Errorf("unknown tool %q", id)
+		}
+		if customSources[id] == "" && offlineArchives[id] == "" {
+			registrySelected := false
+			for _, installer := range manifest.RegistryInstallers {
+				if installer.Platform == machine.OS && registrySources[installer.Ecosystem] != "" {
+					registrySelected = true
+					break
+				}
+			}
+			if registrySelected {
+				continue
+			}
+			return false, err
 		}
 		if _, hasArchive := manifest.ArtifactFor(machine.OS, machine.Architecture); !hasArchive {
 			return false, fmt.Errorf("%s has no catalog-pinned archive for this platform", id)
@@ -432,6 +459,18 @@ func printPlan(output *os.File, plan planning.Plan) {
 			}
 			if item.RegionalFallback && item.Artifact.RegionalURL != "" {
 				fmt.Fprintf(output, "    verified regional fallback: %s (after retryable official-source failures)\n", item.Artifact.RegionalURL)
+			}
+			continue
+		}
+		if item.RegistryInstaller != nil {
+			fmt.Fprintf(output, "  INSTALL %s %s\n    package: %s (%s registry)\n    source: %s\n    scope: user\n    install path: %s\n    command: %s\n",
+				item.Name, item.Version, item.PackageID, item.RegistryInstaller.Ecosystem, item.Source, item.InstallPath, item.Command.Display())
+			for _, change := range item.PathChanges {
+				if change.Manual {
+					fmt.Fprintf(output, "    PATH: manual setup (%s)\n    command: %s\n", change.Target, change.ManualCommand)
+				} else if change.Persist {
+					fmt.Fprintf(output, "    PATH: add %s to %s\n", change.Directory, change.Target)
+				}
 			}
 			continue
 		}
@@ -500,6 +539,7 @@ Usage:
   dx-bootstrap plan --tools git,go --manager homebrew
   dx-bootstrap plan --tools go --offline-archive go=C:\archives\go.zip
   dx-bootstrap plan --tools go --custom-source go=https://mirror.example/go.zip
+  dx-bootstrap plan --tools typescript --registry npm=https://registry.example/npm/
   dx-bootstrap plan --tools go --offline-bundle C:\archives\dx-bundle
   dx-bootstrap install --tools git,go --yes [--manager apt]
                                       Approve the displayed plan without a TTY
