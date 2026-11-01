@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"developers-club-dx/internal/detection"
+	"developers-club-dx/internal/pathconfig"
 	"developers-club-dx/internal/planning"
 )
 
@@ -21,14 +22,29 @@ const (
 )
 
 type Result struct {
-	ToolID       string
-	Name         string
-	State        ResultState
-	Manager      string
-	Source       string
-	Command      string
-	Verification string
-	Diagnostic   string
+	ToolID        string
+	Name          string
+	State         ResultState
+	Manager       string
+	Source        string
+	SourceURL     string
+	Command       string
+	InstallPath   string
+	SHA256        string
+	PathChanges   []pathconfig.Change
+	CleanupNotice string
+	Verification  string
+	Diagnostic    string
+}
+
+type ExecutionDetails struct {
+	Source        string
+	SourceURL     string
+	InstallPath   string
+	SHA256        string
+	PathChanges   []pathconfig.Change
+	PathError     string
+	CleanupNotice string
 }
 
 type Session struct {
@@ -111,15 +127,29 @@ func (s *Session) failedDependency(item planning.Item) string {
 }
 
 func (s *Session) Record(item planning.Item, commandErr error, actual detection.Tool) error {
+	return s.RecordWithDetails(item, commandErr, actual, ExecutionDetails{})
+}
+
+func (s *Session) RecordWithDetails(item planning.Item, operationErr error, actual detection.Tool, details ExecutionDetails) error {
 	if s.running == "" || s.running != item.ToolID {
 		return fmt.Errorf("tool %q is not the active installation", item.ToolID)
 	}
 	result := Result{
-		ToolID:  item.ToolID,
-		Name:    item.Name,
-		Manager: string(item.Manager),
-		Source:  item.Source,
-		Command: item.Command.Display(),
+		ToolID:        item.ToolID,
+		Name:          item.Name,
+		Manager:       string(item.Manager),
+		Source:        item.Source,
+		Command:       item.Command.Display(),
+		InstallPath:   details.InstallPath,
+		SHA256:        details.SHA256,
+		PathChanges:   append([]pathconfig.Change(nil), details.PathChanges...),
+		CleanupNotice: details.CleanupNotice,
+	}
+	if details.Source != "" {
+		result.Source = details.Source
+	}
+	if details.SourceURL != "" {
+		result.SourceURL = details.SourceURL
 	}
 	result.Verification = string(actual.State)
 	for _, instance := range actual.Instances {
@@ -129,28 +159,48 @@ func (s *Session) Record(item planning.Item, commandErr error, actual detection.
 		}
 	}
 	if actual.State == detection.Healthy {
-		result.State = InstalledVerified
-		if commandErr != nil {
-			result.Diagnostic = "package manager returned an error, but the installed tool passed verification: " + commandErr.Error()
+		if details.PathError != "" {
+			result.State = PartiallyInstalled
+			result.Diagnostic = "tool passed verification, but its persistent PATH update failed: " + details.PathError
+		} else {
+			result.State = InstalledVerified
+		}
+		if operationErr != nil {
+			result.Diagnostic = joinDiagnostic(result.Diagnostic, "installation operation reported an error, but the installed tool passed verification: "+operationErr.Error())
 		}
 	} else if actual.State == detection.Missing {
 		result.State = Failed
-		if commandErr != nil {
-			result.Diagnostic = commandErr.Error()
+		if operationErr != nil {
+			result.Diagnostic = operationErr.Error()
 		} else {
-			result.Diagnostic = "package manager completed, but the tool was not found during verification"
+			result.Diagnostic = "installation completed, but the tool was not found during verification"
 		}
 	} else {
 		result.State = PartiallyInstalled
-		if commandErr != nil {
-			result.Diagnostic = commandErr.Error() + "; post-install state is " + string(actual.State)
+		if operationErr != nil {
+			result.Diagnostic = operationErr.Error() + "; post-install state is " + string(actual.State)
 		} else {
 			result.Diagnostic = "post-install verification returned " + string(actual.State)
 		}
 	}
+	for _, change := range details.PathChanges {
+		if change.Manual && change.ManualCommand != "" {
+			result.Diagnostic = joinDiagnostic(result.Diagnostic, "PATH requires a manual update: "+change.ManualCommand)
+		}
+	}
+	if details.CleanupNotice != "" {
+		result.Diagnostic = joinDiagnostic(result.Diagnostic, details.CleanupNotice)
+	}
 	s.results[item.ToolID] = result
 	s.running = ""
 	return nil
+}
+
+func joinDiagnostic(existing, next string) string {
+	if existing == "" {
+		return next
+	}
+	return existing + "; " + next
 }
 
 func (s *Session) Current() (planning.Item, bool) {
