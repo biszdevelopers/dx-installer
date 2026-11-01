@@ -1,0 +1,27 @@
+schema_version: 1
+id: ghc
+name: GHC
+category: haskell.compiler
+description: Glasgow Haskell Compilation System.
+tags: [haskell, compiler, functional]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [ghc]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: ghc
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: ghc
+    scope: system
+    source: configured-apt-repositories
