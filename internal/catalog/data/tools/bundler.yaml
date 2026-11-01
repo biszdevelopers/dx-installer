@@ -1,0 +1,17 @@
+schema_version: 1
+id: bundler
+name: Bundler
+category: ruby.package-manager
+description: Ruby dependency manager supplied by compatible Ruby runtimes.
+tags: [ruby, dependencies, package-management]
+version:
+  channel: provided-by-runtime
+  upgrade_policy: never_automatically
+executables: [bundle]
+version_args: [--version]
+dependencies: [ruby]
+provided_by: ruby
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
