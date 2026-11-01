@@ -79,6 +79,57 @@ func TestFindExecutablesReturnsEachVersionOnPATH(t *testing.T) {
 	}
 }
 
+func TestFindExecutablesDiscoversMultipleVersionsOutsidePATH(t *testing.T) {
+	home := t.TempDir()
+	searchPath := t.TempDir()
+	filename := "dx-versioned-runtime-test"
+	var directories []string
+	if runtime.GOOS == "windows" {
+		filename += ".exe"
+		t.Setenv("USERPROFILE", home)
+		t.Setenv("ProgramFiles", home)
+		t.Setenv("ProgramFiles(x86)", filepath.Join(home, "Program Files (x86)"))
+		t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+		t.Setenv("ProgramData", filepath.Join(home, "ProgramData"))
+		scoop := filepath.Join(home, "scoop")
+		t.Setenv("SCOOP", scoop)
+		t.Setenv("SCOOP_GLOBAL", "")
+		directories = []string{
+			filepath.Join(scoop, "apps", "nodejs", "20.11.0", "bin"),
+			filepath.Join(scoop, "apps", "nodejs", "22.0.0", "bin"),
+		}
+	} else {
+		t.Setenv("HOME", home)
+		directories = []string{
+			filepath.Join(home, ".nvm", "versions", "node", "v20.11.0", "bin"),
+			filepath.Join(home, ".nvm", "versions", "node", "v22.0.0", "bin"),
+		}
+	}
+	for _, directory := range directories {
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(directory, filename), []byte("test executable"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", searchPath)
+
+	paths := findExecutables("dx-versioned-runtime-test")
+	if len(paths) != 2 {
+		t.Fatalf("found %d versioned executable paths outside PATH, want two: %#v", len(paths), paths)
+	}
+	foundDirectories := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		foundDirectories[filepath.Clean(filepath.Dir(path))] = true
+	}
+	for _, directory := range directories {
+		if !foundDirectories[filepath.Clean(directory)] {
+			t.Fatalf("versioned executable directories = %#v, want both %#v", foundDirectories, directories)
+		}
+	}
+}
+
 func TestFindExecutablesSkipsNonExecutableUnixFiles(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows does not use POSIX executable permission bits")
