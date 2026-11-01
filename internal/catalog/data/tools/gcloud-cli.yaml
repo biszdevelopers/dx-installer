@@ -1,0 +1,29 @@
+schema_version: 1
+id: gcloud-cli
+name: Google Cloud CLI
+category: devops.cloud
+description: Command-line tools for Google Cloud; DX does not authenticate or change cloud resources.
+tags: [cloud, devops, google]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [gcloud]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: gcloud-cli
+    kind: cask
+    scope: user
+    source: homebrew-cask
+  - platform: linux
+    manager: homebrew
+    package_id: gcloud-cli
+    kind: cask
+    scope: user
+    source: homebrew-cask
