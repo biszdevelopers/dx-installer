@@ -91,6 +91,7 @@
         "approximate_size": { "type": "integer", "minimum": 0, "maximum": 1073741824 },
         "format": { "enum": ["tar.gz", "zip"] },
         "archive_root": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*(/[A-Za-z0-9][A-Za-z0-9._+-]*)*$" },
+        "install_subdirectory": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*(/[A-Za-z0-9][A-Za-z0-9._+-]*)*$" },
         "path_entries": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*(/[A-Za-z0-9][A-Za-z0-9._+-]*)*$" } },
         "allowed_redirect_hosts": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$" } }
       }
