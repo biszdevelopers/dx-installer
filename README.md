@@ -1,6 +1,6 @@
 # Developers' Club DX Bootstrap
 
-DX is a temporary, approval-driven developer-tool selector. It inventories executables available on the current `PATH`, lets a user select tools, resolves declared dependencies, previews package-manager commands, and verifies tools after approved installs. The Go client embeds its strict YAML catalog and does not install or persist itself.
+DX is a temporary, approval-driven developer-tool selector. It inventories executables available on the current `PATH` and package records from supported local package databases, lets a user select tools, resolves declared dependencies, previews package-manager commands, and verifies tools after approved installs. The Go client embeds its strict YAML catalog and does not install or persist itself.
 
 ## Run from source
 
@@ -17,7 +17,7 @@ go test ./...
 
 The interactive install flow requires a terminal. It refreshes inventory after approval and asks for approval again if the plan changed. `plan` is read-only. The application never bootstraps a package manager, never adds a package repository, and never runs a package-manager command without approval.
 
-The catalog currently contains 17 tool manifests and 10 profiles. Package-manager installations use only package managers already detected on the machine. The source screen lets the user prefer one of those managers; it does not yet implement direct publisher downloads, custom source overrides, regional mirror selection, or offline bundle installation. Inventory currently verifies executable names found on `PATH`; it does not query every operating-system package database or search arbitrary disk locations. See [platform support](docs/platform-support.md) and [source behavior](docs/source-selection.md) for the exact boundaries.
+The catalog currently contains 17 tool manifests and 10 profiles. Package-manager installations use only package managers already detected on the machine. Inventory verifies executables found on `PATH` and checks local package databases where a stable inventory command is available; package records without a discoverable executable are preserved as unknown. Windows package databases, arbitrary disk locations, direct publisher downloads, custom source overrides, regional mirror selection, and offline bundle installation are not implemented yet. See [platform support](docs/platform-support.md) and [source behavior](docs/source-selection.md) for the exact boundaries.
 
 ## Build a signed release
 
