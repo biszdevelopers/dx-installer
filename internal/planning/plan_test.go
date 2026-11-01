@@ -1,6 +1,8 @@
 package planning
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"developers-club-dx/internal/adapters/packagemanager"
@@ -50,6 +52,28 @@ func TestPlanPrefersTheRequestedDetectedManager(t *testing.T) {
 	}
 	if plan.Blocked || len(plan.Items) != 1 || plan.Items[0].Manager != tool.Scoop {
 		t.Fatalf("plan did not honor the detected manager preference: %#v", plan)
+	}
+}
+
+func TestPlanDisclosesUnresolvedPackageTransactionInJSON(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := windowsInventory([]packagemanager.Detected{{Manager: tool.Winget}}, detection.Tool{ID: "git", Name: "Git", State: detection.Missing})
+	plan, err := Build(items, current, []string{"git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.TransactionDisclosure != TransactionDisclosure {
+		t.Fatalf("transaction disclosure = %q, want %q", plan.TransactionDisclosure, TransactionDisclosure)
+	}
+	encoded, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"transaction_disclosure"`) || !strings.Contains(string(encoded), TransactionDisclosure) {
+		t.Fatalf("JSON plan omitted transaction uncertainty: %s", encoded)
 	}
 }
 
