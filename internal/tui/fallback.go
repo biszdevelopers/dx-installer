@@ -121,6 +121,16 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 		if !ok {
 			break
 		}
+		if item.Action == planning.Provided {
+			actual, found := model.inventory.Tools[item.ToolID]
+			if !found {
+				actual = detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Unknown}
+			}
+			if err := session.RecordProvided(item, actual); err != nil {
+				return err
+			}
+			continue
+		}
 		var operationErr error
 		details := installation.ExecutionDetails{PathChanges: item.PathChanges}
 		if item.Artifact != nil {
@@ -236,6 +246,10 @@ func printPlan(output io.Writer, plan planning.Plan) {
 			for _, installed := range item.ExistingPackages {
 				fmt.Fprintf(output, "    package: %s\n", display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 			}
+			continue
+		}
+		if item.Action == planning.Provided {
+			fmt.Fprintf(output, "  PROVIDED %s by dependency %s (verified after install)\n", item.Name, item.ProvidedBy)
 			continue
 		}
 		if item.Artifact != nil {
