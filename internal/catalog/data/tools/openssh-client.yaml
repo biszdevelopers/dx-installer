@@ -1,0 +1,44 @@
+schema_version: 1
+id: openssh-client
+name: OpenSSH Client
+category: version-control.transport
+description: SSH, SCP, and SFTP client utilities for secure remote development access.
+tags: [ssh, git, remote, networking]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [ssh]
+version_args: [-V]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+  bsd: [amd64]
+installers:
+  - platform: linux
+    manager: apt
+    package_id: openssh-client
+    scope: system
+    source: configured-apt-repositories
+  - platform: linux
+    manager: dnf
+    package_id: openssh-clients
+    scope: system
+    source: configured-dnf-repositories
+  - platform: linux
+    manager: pacman
+    package_id: openssh
+    scope: system
+    source: configured-pacman-repositories
+  - platform: linux
+    manager: zypper
+    package_id: openssh-clients
+    scope: system
+    source: configured-zypper-repositories
+  - platform: linux
+    manager: apk
+    package_id: openssh-client
+    scope: system
+    source: configured-apk-repositories
