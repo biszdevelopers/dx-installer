@@ -445,12 +445,19 @@ func installedPackagesFor(manifest tool.Manifest, operatingSystem tool.Operating
 			if current.Manager != installer.Manager || !strings.EqualFold(current.ID, installer.PackageID) {
 				continue
 			}
+			if installer.Manager == tool.Winget && !strings.EqualFold(current.Source, installer.Source) {
+				continue
+			}
 			key := strings.Join([]string{string(current.Manager), strings.ToLower(current.ID), current.Version}, "\x00")
 			if seen[key] {
 				continue
 			}
 			seen[key] = true
-			packages = append(packages, PackageOwnership{Manager: current.Manager, ID: current.ID, Version: current.Version, Source: installer.Source})
+			source := installer.Source
+			if current.Source != "" {
+				source = current.Source
+			}
+			packages = append(packages, PackageOwnership{Manager: current.Manager, ID: current.ID, Version: current.Version, Source: source})
 		}
 	}
 	sort.Slice(packages, func(i, j int) bool {
