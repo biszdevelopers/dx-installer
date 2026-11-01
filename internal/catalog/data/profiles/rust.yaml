@@ -1,0 +1,5 @@
+schema_version: 1
+id: rust
+name: Rust
+description: Rustup toolchain manager.
+tools: [rustup]
