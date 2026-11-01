@@ -96,6 +96,10 @@ func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inv
 	}
 }
 
+func (m *Model) SetPreferredManager(manager tool.PackageManager) {
+	m.preferredManager = manager
+}
+
 func (m *Model) Init() tea.Cmd { return nil }
 
 func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
