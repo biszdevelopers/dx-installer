@@ -1,0 +1,36 @@
+schema_version: 1
+id: nox
+name: Nox
+category: python.testing
+description: Session-based Python test automation.
+tags: [python, testing, automation]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [nox]
+version_args: [--version]
+dependencies: [python, uv]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: pypi
+    package_id: nox
+    version: 2026.10.20
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: macos
+    ecosystem: pypi
+    package_id: nox
+    version: 2026.10.20
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: linux
+    ecosystem: pypi
+    package_id: nox
+    version: 2026.10.20
+    scope: user
+    source: https://pypi.org/simple/
