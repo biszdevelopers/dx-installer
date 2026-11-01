@@ -1,0 +1,75 @@
+#!/bin/sh
+set -eu
+
+release_version='@@VERSION@@'
+origin='@@ORIGIN@@'
+system_name=$(uname -s)
+machine_arch=$(uname -m)
+
+case "$machine_arch" in
+    x86_64|amd64) architecture=amd64 ;;
+    aarch64|arm64) architecture=arm64 ;;
+    i386|i486|i586|i686) architecture=386 ;;
+    armv7l|armv6l) architecture=arm ;;
+    riscv64) architecture=riscv64 ;;
+    *) printf 'Unsupported architecture: %s\n' "$machine_arch" >&2; exit 1 ;;
+esac
+
+case "$system_name" in
+    Darwin) platform=macos ;;
+    Linux) platform=linux ;;
+    FreeBSD) platform=freebsd ;;
+    *) printf 'Unsupported operating system: %s\n' "$system_name" >&2; exit 1 ;;
+esac
+
+target="$platform-$architecture"
+case "$target" in
+@@SHELL_TARGETS@@
+    *) printf 'No verified DX bootstrap release exists for %s.\n' "$target" >&2; exit 1 ;;
+esac
+
+temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/dx-bootstrap.XXXXXXXX") || {
+    printf 'Could not create a temporary bootstrap directory.\n' >&2
+    exit 1
+}
+
+cleanup() {
+    result=$?
+    trap - EXIT HUP INT TERM
+    if ! rm -rf "$temporary_directory"; then
+        printf 'Could not remove temporary bootstrap files: %s\n' "$temporary_directory" >&2
+        if [ "$result" -eq 0 ]; then result=1; fi
+    fi
+    exit "$result"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+binary_path="$temporary_directory/$binary_name"
+download_uri="$origin/releases/$release_version/$binary_name"
+curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 20 --max-time 600 --max-filesize 134217728 "$download_uri" --output "$binary_path"
+
+if command -v sha256sum >/dev/null 2>&1; then
+    actual_hash=$(sha256sum "$binary_path" | awk '{print $1}')
+elif command -v shasum >/dev/null 2>&1; then
+    actual_hash=$(shasum -a 256 "$binary_path" | awk '{print $1}')
+elif command -v sha256 >/dev/null 2>&1; then
+    actual_hash=$(sha256 -q "$binary_path")
+else
+    printf 'No supported SHA-256 utility is available; the downloaded bootstrap was not executed.\n' >&2
+    exit 1
+fi
+
+if [ "$actual_hash" != "$expected_hash" ]; then
+    printf 'Bootstrap SHA-256 verification failed for %s.\n' "$target" >&2
+    exit 1
+fi
+
+chmod 700 "$binary_path"
+set +e
+"$binary_path" "$@"
+exit_code=$?
+set -e
+exit "$exit_code"
