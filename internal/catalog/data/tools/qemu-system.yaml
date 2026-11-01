@@ -1,0 +1,27 @@
+schema_version: 1
+id: qemu-system
+name: QEMU system emulators
+category: embedded.emulator
+description: QEMU system emulators for testing virtual machines and embedded targets; no virtual machines are started.
+tags: [embedded, emulator, virtualization]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [qemu-system-x86_64, qemu-system-aarch64]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: qemu
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: qemu
+    scope: user
+    source: homebrew-core
