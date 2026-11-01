@@ -1,0 +1,21 @@
+schema_version: 1
+id: shellcheck
+name: ShellCheck
+category: quality.shell
+description: Static analysis for shell scripts.
+tags: [shell, lint, quality]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [shellcheck]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: shellcheck
+    scope: user
+    source: homebrew-core
