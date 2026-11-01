@@ -37,9 +37,11 @@ var (
 )
 
 const (
-	Automatic Preference = "automatic"
-	China     Preference = "mainland-china"
-	Worldwide Preference = "global"
+	Automatic     Preference = "automatic"
+	China         Preference = "mainland-china"
+	Worldwide     Preference = "global"
+	OfficialOnly  Preference = "official-only"
+	OfficialFirst Preference = "official-first"
 )
 
 func Detect(machine platform.Info) Result {
@@ -89,8 +91,10 @@ func (result Result) UseRegionalFallback(preference Preference) (bool, error) {
 		return result.Region == MainlandChina, nil
 	case China:
 		return true, nil
-	case Worldwide:
+	case Worldwide, OfficialOnly:
 		return false, nil
+	case OfficialFirst:
+		return true, nil
 	default:
 		return false, ErrUnknownPreference
 	}
