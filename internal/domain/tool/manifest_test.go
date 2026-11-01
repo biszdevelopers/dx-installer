@@ -19,6 +19,18 @@ func TestManifestAcceptsTypedWindowsInstaller(t *testing.T) {
 	}
 }
 
+func TestManifestValidatesHealthPattern(t *testing.T) {
+	manifest := validManifest()
+	manifest.HealthPattern = `(?m)^Microsoft\.NETCore\.App\s+(10\.[0-9.]+)`
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("valid health pattern was rejected: %v", err)
+	}
+	manifest.HealthPattern = "["
+	if err := manifest.Validate(); err == nil {
+		t.Fatal("invalid health pattern was accepted")
+	}
+}
+
 func TestManifestAcceptsScopedNPMRegistryPackages(t *testing.T) {
 	manifest := Manifest{
 		SchemaVersion: 1,
