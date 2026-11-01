@@ -44,6 +44,31 @@ func TestManifestAcceptsScopedNPMRegistryPackages(t *testing.T) {
 	}
 }
 
+func TestManifestAcceptsSafePyPIExtras(t *testing.T) {
+	manifest := Manifest{
+		SchemaVersion: 1,
+		ID:            "hypothesis",
+		Name:          "Hypothesis",
+		Category:      "python.testing",
+		Description:   "Property-based testing for Python.",
+		Version:       VersionPolicy{Channel: "stable", UpgradePolicy: "never_automatically"},
+		Executables:   []string{"hypothesis"},
+		VersionArgs:   []string{"--version"},
+		Dependencies:  []string{"python", "uv"},
+		Platforms:     map[OperatingSystem][]Architecture{Windows: {AMD64}},
+		RegistryInstallers: []RegistryInstaller{{
+			Platform: Windows, Ecosystem: PyPIRegistry, PackageID: "hypothesis[cli]", Version: "6.170.14", Scope: UserScope, Source: "https://pypi.org/simple/",
+		}},
+	}
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("safe PyPI extra was rejected: %v", err)
+	}
+	manifest.RegistryInstallers[0].PackageID = "hypothesis[cli;Remove-Item]"
+	if err := manifest.Validate(); err == nil {
+		t.Fatal("unsafe PyPI extra was accepted")
+	}
+}
+
 func TestManifestRejectsExecutableCodeAndUnmanagedUpgradePolicy(t *testing.T) {
 	cases := []struct {
 		name   string
