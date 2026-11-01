@@ -1,0 +1,5 @@
+schema_version: 1
+id: database
+name: Database clients
+description: Command-line client for working with SQLite files.
+tools: [sqlite]
