@@ -1,0 +1,22 @@
+schema_version: 1
+id: dotnet-runtime-10
+name: .NET Runtime 10
+category: dotnet.runtime
+description: Runtime for executing .NET 10 applications without the SDK.
+tags: [dotnet, runtime]
+version:
+  channel: lts-10
+  upgrade_policy: never_automatically
+executables: [dotnet]
+version_args: [--list-runtimes]
+health_pattern: '(?m)^Microsoft\.NETCore\.App\s+(10\.[0-9.]+)'
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: Microsoft.DotNet.Runtime.10
+    scope: system
+    source: winget
