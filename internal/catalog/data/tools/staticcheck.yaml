@@ -1,0 +1,27 @@
+schema_version: 1
+id: staticcheck
+name: Staticcheck
+category: go.quality
+description: Go static analysis for bugs, performance issues, and style.
+tags: [go, linter, static-analysis]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [staticcheck]
+version_args: [--version]
+dependencies: [go]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: staticcheck
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: staticcheck
+    scope: user
+    source: homebrew-core
