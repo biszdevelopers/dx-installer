@@ -1,0 +1,5 @@
+schema_version: 1
+id: embedded
+name: Embedded development
+description: Common C toolchains and OpenOCD for embedded systems work.
+tools: [gcc, clang, openocd]
