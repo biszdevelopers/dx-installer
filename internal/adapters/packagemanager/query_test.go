@@ -106,6 +106,9 @@ func TestUnsupportedInventoryIsAWarningRatherThanAbsence(t *testing.T) {
 	if len(result.Packages) != 0 || len(result.Warnings) != 1 || !strings.Contains(result.Warnings[0], "could not inspect") {
 		t.Fatalf("unexpected package inventory result: %#v", result)
 	}
+	if len(result.UncertainManagers) != 1 || result.UncertainManagers[0] != tool.Winget {
+		t.Fatalf("uncertain managers = %#v, want WinGet", result.UncertainManagers)
+	}
 }
 
 func TestBoundedOutputReportsTruncation(t *testing.T) {
