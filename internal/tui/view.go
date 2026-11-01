@@ -166,7 +166,7 @@ func (m *Model) renderCatalog(maxRows int) []string {
 	}
 	if detected, ok := m.inventory.Tools[item.ID]; ok {
 		for _, installed := range detected.Packages {
-			lines = append(lines, fmt.Sprintf("Package record: %s / %s %s (%s)", installed.Manager, installed.ID, installed.Version, installed.Source))
+			lines = append(lines, "Package record: "+display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 		}
 	}
 	if installer, ok := item.InstallerFor(m.inventory.Platform.OS, m.inventory.ManagerOrder()); ok {
