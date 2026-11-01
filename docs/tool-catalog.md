@@ -27,6 +27,6 @@ Manifests specify catalog IDs, version channel and no-automatic-upgrade policy, 
 
 ## Coverage limits
 
-The current catalog does not yet include the larger Phase 7 and Phase 9 language, mobile, embedded, database-server, DevOps, and security tool sets in the product specification. A package-manager installer is only a declared adapter mapping; actual availability still depends on the OS, architecture, configured repository, and detected manager. Catalog presence is not a claim that every listed manager/platform pair has been exercised in a disposable VM.
+The current catalog does not yet include the larger Phase 7 and Phase 9 language, mobile, embedded, database-server, DevOps, and security tool sets in the product specification. A package-manager installer is only a declared adapter mapping; actual availability still depends on the OS, architecture, configured repository, and detected manager. CI exercises the complete Ninja installation flow in disposable Linux containers for apt, dnf, pacman, zypper, and apk. It does not yet exercise every declared manager/platform pair.
 
 Before adding a manifest, verify every package identifier against the named package manager's maintained metadata and check the package's publisher and scope. Add a focused manifest validation test, update relevant profiles, run the catalog checker, and document any real platform test.
