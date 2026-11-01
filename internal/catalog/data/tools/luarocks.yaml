@@ -1,0 +1,27 @@
+schema_version: 1
+id: luarocks
+name: LuaRocks
+category: lua.package-manager
+description: Package manager for Lua modules.
+tags: [lua, package-management]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [luarocks]
+version_args: [--version]
+dependencies: [lua]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: luarocks
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: luarocks
+    scope: user
+    source: homebrew-core
