@@ -36,6 +36,20 @@ func TestInstalledPackageWithoutExecutableIsPreservedAsUnknown(t *testing.T) {
 	}
 }
 
+func TestWindowsBatchExecutableVersionCheckUsesSafeCommandArguments(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows batch executable behavior is tested on Windows")
+	}
+	batch := filepath.Join(t.TempDir(), "registry-tool.cmd")
+	if err := os.WriteFile(batch, []byte("@echo 1.2.3\r\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	instance := inspectVersion(context.Background(), batch, "registry-tool", []string{"--version"})
+	if instance.State != Healthy || instance.Version != "1.2.3" {
+		t.Fatalf("batch executable version check = %#v", instance)
+	}
+}
+
 func TestInstalledPackageMatchingUsesDeclaredPlatformManagerAndIdentifier(t *testing.T) {
 	manifest := tool.Manifest{
 		Installers: []tool.Installer{
