@@ -56,7 +56,7 @@ func TestManifestAcceptsVerifiedArchiveInstallersAndLooksUpExactPlatform(t *test
 	manifest.Artifacts = []Artifact{{
 		Platform: Windows, Architecture: AMD64, Version: "1.2.3",
 		URL: "https://downloads.example/sample.zip", SHA256: "4c5a4f9afca56f9c04b1f6c93a7f70947aa41a279c1d128f0136f726c1ddaf4d",
-		Size: 128, Format: Zip, ArchiveRoot: "sample",
+		ApproximateSize: 128, Format: Zip, ArchiveRoot: "sample", PathEntries: []string{"bin"},
 		AllowedRedirectHosts: []string{"cdn.example"},
 	}}
 	if err := manifest.Validate(); err != nil {
@@ -75,7 +75,7 @@ func TestManifestRejectsUnsafeArchiveSources(t *testing.T) {
 	base := Artifact{
 		Platform: Windows, Architecture: AMD64, Version: "1.2.3",
 		URL: "https://downloads.example/sample.zip", SHA256: "4c5a4f9afca56f9c04b1f6c93a7f70947aa41a279c1d128f0136f726c1ddaf4d",
-		Size: 128, Format: Zip, ArchiveRoot: "sample",
+		ApproximateSize: 128, Format: Zip, ArchiveRoot: "sample",
 	}
 	for _, testCase := range []struct {
 		name   string
@@ -85,11 +85,13 @@ func TestManifestRejectsUnsafeArchiveSources(t *testing.T) {
 		{"URL credentials", func(item *Artifact) { item.URL = "https://user:pass@downloads.example/sample.zip" }},
 		{"missing checksum", func(item *Artifact) { item.SHA256 = "" }},
 		{"malformed checksum", func(item *Artifact) { item.SHA256 = strings.Repeat("z", 64) }},
-		{"negative size", func(item *Artifact) { item.Size = -1 }},
+		{"negative size", func(item *Artifact) { item.ApproximateSize = -1 }},
 		{"unsafe archive root", func(item *Artifact) { item.ArchiveRoot = "../outside" }},
 		{"unsupported archive", func(item *Artifact) { item.Format = "exe" }},
 		{"invalid redirect host", func(item *Artifact) { item.AllowedRedirectHosts = []string{"*.example"} }},
 		{"regional URL is plaintext", func(item *Artifact) { item.RegionalURL = "http://mirror.example/sample.zip" }},
+		{"unsafe PATH entry", func(item *Artifact) { item.PathEntries = []string{"../../outside"} }},
+		{"duplicate PATH entry", func(item *Artifact) { item.PathEntries = []string{"bin", "bin"} }},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			manifest := validManifest()
