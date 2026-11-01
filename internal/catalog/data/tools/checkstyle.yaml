@@ -1,0 +1,27 @@
+schema_version: 1
+id: checkstyle
+name: Checkstyle
+category: java.quality
+description: Checks Java source code against configurable coding standards.
+tags: [java, jvm, lint]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [checkstyle]
+version_args: [--version]
+dependencies: [openjdk-27]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: checkstyle
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: checkstyle
+    scope: user
+    source: homebrew-core
