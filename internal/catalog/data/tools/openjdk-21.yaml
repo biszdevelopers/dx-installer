@@ -20,8 +20,10 @@ installers:
     package_id: openjdk@21
     scope: user
     source: homebrew-core
+    path_entries: [bin]
   - platform: linux
     manager: homebrew
     package_id: openjdk@21
     scope: user
     source: homebrew-core
+    path_entries: [bin]
