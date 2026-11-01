@@ -1,0 +1,27 @@
+schema_version: 1
+id: gdb
+name: GNU Debugger
+category: cpp.debugger
+description: Source-level debugger for C, C++, Fortran, Go, and other languages.
+tags: [c, cpp, debugger, gnu]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [gdb]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: gdb
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: gdb
+    scope: system
+    source: configured-apt-repositories
