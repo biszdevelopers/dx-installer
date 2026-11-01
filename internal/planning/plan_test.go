@@ -35,6 +35,24 @@ func TestPlanAddsDependenciesInInstallOrderAndPreservesExistingTools(t *testing.
 	}
 }
 
+func TestPlanPrefersTheRequestedDetectedManager(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := windowsInventory(
+		[]packagemanager.Detected{{Manager: tool.Winget}, {Manager: tool.Scoop}},
+		detection.Tool{ID: "git", Name: "Git", State: detection.Missing},
+	)
+	plan, err := BuildWithOptions(items, current, []string{"git"}, Options{PreferredManager: tool.Scoop})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Blocked || len(plan.Items) != 1 || plan.Items[0].Manager != tool.Scoop {
+		t.Fatalf("plan did not honor the detected manager preference: %#v", plan)
+	}
+}
+
 func TestPlanBlocksMissingManagerAndPreservesUnverifiedExistingTool(t *testing.T) {
 	items, err := catalog.LoadEmbedded()
 	if err != nil {
