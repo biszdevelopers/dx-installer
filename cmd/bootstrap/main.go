@@ -149,16 +149,20 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 func launchInteractive(ctx context.Context, items *catalog.Catalog, args []string) error {
 	flags := flag.NewFlagSet("install", flag.ContinueOnError)
 	toolsFlag := flags.String("tools", "", "preselect comma-separated tool IDs")
+	approveFlag := flags.Bool("yes", false, "approve and execute the preselected plan in line mode")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	selected := parseIDs(*toolsFlag)
+	if *approveFlag && len(selected) == 0 {
+		return errors.New("--yes requires --tools with one or more catalog IDs")
+	}
 	for _, id := range selected {
 		if _, exists := items.Tool(id); !exists {
 			return fmt.Errorf("unknown tool %q", id)
 		}
 	}
-	if !isTerminal(os.Stdin) || !isTerminal(os.Stdout) {
+	if !*approveFlag && (!isTerminal(os.Stdin) || !isTerminal(os.Stdout)) {
 		return errors.New("interactive approval requires a terminal; catalog, inventory, and plan commands are available without one")
 	}
 	workspace, err := temporary.NewWorkspace()
@@ -179,6 +183,11 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 		return err
 	}
 	model := tui.NewModel(ctx, items, inventory, selected)
+	if *approveFlag {
+		lineErr := tui.RunLineFallback(ctx, model, strings.NewReader("yes\n"), os.Stdout)
+		printSummary(model.SessionReport())
+		return lineErr
+	}
 	program := tea.NewProgram(model, tea.WithContext(ctx), tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout))
 	finalModel, runErr := program.Run()
 	if current, ok := finalModel.(*tui.Model); ok {
@@ -279,6 +288,8 @@ Usage:
   dx-bootstrap catalog [--json]        List embedded tools
   dx-bootstrap inventory [--json]      Inspect the current environment
   dx-bootstrap plan --tools git,go     Preview an installation plan
+  dx-bootstrap install --tools git,go --yes
+                                      Approve the displayed plan without a TTY
   dx-bootstrap verify-release --directory PATH
                                       Verify release checksums with this build's pinned key
   dx-bootstrap install [--tools ids]   Open the interactive application
