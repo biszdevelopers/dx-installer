@@ -1,0 +1,21 @@
+schema_version: 1
+id: redis-cli
+name: Redis CLI
+category: database.client
+description: Redis command-line client without installing a Redis server.
+tags: [database, redis, key-value, client]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [redis-cli]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  linux: [amd64, arm64]
+installers:
+  - platform: linux
+    manager: apt
+    package_id: redis-tools
+    scope: system
+    source: configured-apt-repositories
