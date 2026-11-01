@@ -137,6 +137,49 @@ func TestSourceScreenShowsSignalsAndManualChoices(t *testing.T) {
 	}
 }
 
+func TestSourceScreenConfiguresAndPlansCustomAndOfflineArchives(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "LocalAppData"))
+	t.Setenv("PATH", "")
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
+		Tools:    map[string]detection.Tool{"go": {ID: "go", Name: "Go", State: detection.Missing}},
+	}, []string{"go"})
+	model.screen = SourcesScreen
+	model.regionDetection = regional.Result{Region: regional.Conflict}
+
+	model.Update(keyMessage('u'))
+	if model.pathMode != "custom-source" {
+		t.Fatalf("custom source key opened mode %q", model.pathMode)
+	}
+	model.pathInput = "go=https://mirror.example/go.zip"
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	plan, err := model.buildSelectedPlan(model.selectedIDs())
+	if err != nil || plan.Blocked || len(plan.Items) != 1 || plan.Items[0].CustomSourceURL != "https://mirror.example/go.zip" {
+		t.Fatalf("custom source was not used in the reviewed plan: %#v, %v", plan, err)
+	}
+
+	archive := filepath.Join(t.TempDir(), "go.zip")
+	if err := os.WriteFile(archive, []byte("offline archive"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	model.Update(keyMessage('l'))
+	model.pathInput = "go=" + archive
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	plan, err = model.buildSelectedPlan(model.selectedIDs())
+	if err != nil || plan.Blocked || len(plan.Items) != 1 || plan.Items[0].OfflineArchivePath != archive || plan.Items[0].CustomSourceURL != "" {
+		t.Fatalf("offline source did not replace the custom source: %#v, %v", plan, err)
+	}
+	if rendered := strings.Join(model.renderSources(30), "\n"); !strings.Contains(rendered, "local archive "+archive) {
+		t.Fatalf("source screen omitted the active offline archive: %s", rendered)
+	}
+}
+
 func TestLineFallbackDisplaysPackageOwnedUnknownTool(t *testing.T) {
 	items, err := catalog.LoadEmbedded()
 	if err != nil {
