@@ -47,4 +47,4 @@ go vet ./...
 go run ./cmd/catalog-check
 ```
 
-No test command invokes package managers to install software. Live integration tests need disposable machines and explicit operator setup.
+These local check commands do not invoke package managers to install software. The `Package manager integration` GitHub Actions workflow provisions disposable Linux containers and a FreeBSD VM for install checks; running live installs locally requires a separate disposable environment.
