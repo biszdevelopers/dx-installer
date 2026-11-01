@@ -303,6 +303,10 @@ func (m *Model) renderPlan(maxRows int) []string {
 			}
 			continue
 		}
+		if item.Action == planning.Provided {
+			rows = append(rows, fmt.Sprintf("PROVIDED  %-18s by %s; verify after dependency install", item.ToolID, item.ProvidedBy))
+			continue
+		}
 		privilege := "user scope"
 		if item.RequiresPrivilege || item.Scope == "system" {
 			privilege = "system scope / privilege may be required"
