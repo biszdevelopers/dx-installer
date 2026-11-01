@@ -12,9 +12,20 @@ version_args: [--version]
 dependencies: []
 conflicts: []
 platforms:
+  windows: [amd64]
   macos: [amd64, arm64]
   linux: [amd64, arm64]
 installers:
+  - platform: windows
+    manager: scoop
+    package_id: maven
+    scope: user
+    source: scoop-main
+  - platform: windows
+    manager: chocolatey
+    package_id: maven
+    scope: system
+    source: configured-chocolatey-source
   - platform: macos
     manager: homebrew
     package_id: maven
