@@ -52,14 +52,22 @@ func queryWingetExport(ctx context.Context, executablePath string) (packages []p
 
 	outputPath := filepath.Join(directory, "packages.json")
 	command := exec.CommandContext(ctx, executablePath,
-		"export", "--output", outputPath, "--include-versions", "--disable-interactivity")
-	command.Stdout = &boundedOutput{limit: 16 << 10}
-	command.Stderr = &boundedOutput{limit: 16 << 10}
+		"export", "--output", outputPath, "--include-versions", "--disable-interactivity", "--output-locale", "en-US")
+	stdout := &boundedOutput{limit: 16 << 10}
+	stderr := &boundedOutput{limit: 16 << 10}
+	command.Stdout = stdout
+	command.Stderr = stderr
 	if err := command.Run(); err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		return nil, fmt.Errorf("WinGet export failed or requires an unaccepted source agreement")
+	}
+	if stdout.truncated || stderr.truncated {
+		return nil, fmt.Errorf("WinGet export produced too much diagnostic output")
+	}
+	if stderr.Len() > 0 || wingetExportHasWarning(stdout.String()) {
+		return nil, fmt.Errorf("WinGet export reported an incomplete inventory")
 	}
 	info, err := os.Lstat(outputPath)
 	if err != nil {
@@ -87,6 +95,10 @@ func queryWingetExport(ctx context.Context, executablePath string) (packages []p
 		return nil, fmt.Errorf("WinGet export exceeds the %d byte safety limit", maxWingetExportBytes)
 	}
 	return parseWingetExport(contents)
+}
+
+func wingetExportHasWarning(output string) bool {
+	return strings.Contains(strings.ToLower(output), "warning")
 }
 
 func parseWingetExport(contents []byte) ([]packageRecord, error) {
