@@ -27,7 +27,7 @@ func TestInstalledPackageWithoutExecutableIsPreservedAsUnknown(t *testing.T) {
 	}
 	managers := []packagemanager.Detected{{Manager: tool.APT, Path: "/usr/bin/apt-get"}}
 	installed := []packagemanager.InstalledPackage{{Manager: tool.APT, ID: "dx-inventory-package", Version: "1.2.3-1"}}
-	instances, packages, state := scanTool(context.Background(), manifest, platform.Info{OS: tool.Linux, Architecture: tool.AMD64}, managers, installed)
+	instances, packages, state := scanTool(context.Background(), manifest, platform.Info{OS: tool.Linux, Architecture: tool.AMD64}, managers, installed, nil)
 	if state != Unknown || len(instances) != 0 {
 		t.Fatalf("scan state = %s, instances = %#v", state, instances)
 	}
@@ -69,8 +69,24 @@ func TestWingetPackageOwnershipRequiresDeclaredSource(t *testing.T) {
 		{Manager: tool.Winget, ID: "Git.Git", Version: "2.47.0", Source: "winget"},
 	}
 	got := installedPackagesFor(manifest, tool.Windows, managers, installed)
-	if len(got) != 1 || got[0].Source != "winget" {
-		t.Fatalf("matched WinGet ownership = %#v, want only the declared source", got)
+	if len(got) != 2 || got[0].Source != "msstore" || got[1].Source != "winget" {
+		t.Fatalf("matched WinGet ownership = %#v, want both exact-ID source records", got)
+	}
+}
+
+func TestFailedManagerInventoryKeepsUnseenToolsUnknown(t *testing.T) {
+	manifest := tool.Manifest{
+		ID:          "inventory-query-failure",
+		Executables: []string{"dx-inventory-query-failure-missing"},
+		Platforms:   map[tool.OperatingSystem][]tool.Architecture{tool.Windows: {tool.AMD64}},
+		Installers: []tool.Installer{{
+			Platform: tool.Windows, Manager: tool.Winget, PackageID: "Example.Tool", Scope: tool.UserScope, Source: "winget",
+		}},
+	}
+	managers := []packagemanager.Detected{{Manager: tool.Winget}}
+	_, packages, state := scanTool(context.Background(), manifest, platform.Info{OS: tool.Windows, Architecture: tool.AMD64}, managers, nil, map[tool.PackageManager]bool{tool.Winget: true})
+	if state != Unknown || len(packages) != 0 {
+		t.Fatalf("scan state = %s, packages = %#v, want unknown after failed package query", state, packages)
 	}
 }
 
