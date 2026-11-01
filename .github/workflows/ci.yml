@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify on ${{ matrix.platform }} / ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            platform: windows
+            architecture: amd64
+          - runner: windows-11-arm
+            platform: windows
+            architecture: arm64
+          - runner: macos-15-intel
+            platform: macos
+            architecture: amd64
+          - runner: macos-15
+            platform: macos
+            architecture: arm64
+          - runner: ubuntu-24.04
+            platform: linux
+            architecture: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            architecture: arm64
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          files=$(gofmt -l $(git ls-files '*.go'))
+          if [ -n "$files" ]; then
+            printf 'Go files are not gofmt formatted:\n%s\n' "$files"
+            exit 1
+          fi
+
+      - name: Run unit and platform tests
+        run: go test ./...
+
+      - name: Run static analysis
+        run: go vet ./...
+
+      - name: Validate embedded manifests
+        run: go run ./cmd/catalog-check
+
+      - name: Check deployment script syntax
+        shell: bash
+        run: bash -n deployment/scripts/publish-release.sh deployment/scripts/rollback-release.sh deployment/scripts/check-published-release.sh
+
+      - name: Build native bootstrap binary
+        shell: bash
+        run: |
+          executable="$RUNNER_TEMP/dx-bootstrap"
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            executable="$executable.exe"
+          fi
+          go build -trimpath -buildvcs=false -o "$executable" ./cmd/bootstrap
+          "$executable" catalog --json > "$RUNNER_TEMP/catalog.json"
+          test -s "$RUNNER_TEMP/catalog.json"
