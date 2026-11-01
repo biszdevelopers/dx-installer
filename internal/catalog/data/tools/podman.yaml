@@ -1,0 +1,27 @@
+schema_version: 1
+id: podman
+name: Podman
+category: containers.engine
+description: OCI container and pod management client; no Podman machine or service is started automatically.
+tags: [containers, oci, devops]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [podman]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: podman
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: podman
+    scope: user
+    source: homebrew-core
