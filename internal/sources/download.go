@@ -49,6 +49,7 @@ type DownloadResult struct {
 	Path       string
 	SourceName string
 	SourceKind Kind
+	URL        string
 	SHA256     string
 	Size       int64
 }
@@ -311,7 +312,7 @@ func (d *Downloader) downloadOnce(parent context.Context, source RemoteSource, w
 		_ = os.Remove(path)
 		return DownloadResult{}, 0, fmt.Errorf("%w: Ed25519 signature mismatch from %s", ErrIntegrity, source.Name)
 	}
-	return DownloadResult{Path: path, SourceName: source.Name, SourceKind: source.Kind, SHA256: actual, Size: written}, 0, nil
+	return DownloadResult{Path: path, SourceName: source.Name, SourceKind: source.Kind, URL: source.URL, SHA256: actual, Size: written}, 0, nil
 }
 
 type statusError struct{ code int }
