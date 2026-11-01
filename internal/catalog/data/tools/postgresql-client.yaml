@@ -1,0 +1,21 @@
+schema_version: 1
+id: postgresql-client
+name: PostgreSQL Client
+category: database.client
+description: PostgreSQL command-line client for connecting to PostgreSQL database servers.
+tags: [database, postgresql, sql, client]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [psql]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  linux: [amd64, arm64]
+installers:
+  - platform: linux
+    manager: apt
+    package_id: postgresql-client
+    scope: system
+    source: configured-apt-repositories
