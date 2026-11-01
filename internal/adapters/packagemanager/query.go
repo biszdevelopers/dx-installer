@@ -25,8 +25,9 @@ type InstalledPackage struct {
 }
 
 type PackageInventory struct {
-	Packages []InstalledPackage
-	Warnings []string
+	Packages          []InstalledPackage
+	Warnings          []string
+	UncertainManagers []tool.PackageManager
 }
 
 type packageRecord struct {
@@ -101,6 +102,7 @@ func QueryInstalled(parent context.Context, managers []Detected) PackageInventor
 		manager := managers[index].Manager
 		if item.err != nil {
 			result.Warnings = append(result.Warnings, fmt.Sprintf("could not inspect the local %s package database: %s", manager, safeQueryError(item.err)))
+			result.UncertainManagers = append(result.UncertainManagers, manager)
 			continue
 		}
 		for _, entry := range item.packages {
