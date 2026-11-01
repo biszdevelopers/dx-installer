@@ -9,6 +9,7 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/display"
+	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/regional"
 	"github.com/charmbracelet/x/ansi"
@@ -329,6 +330,21 @@ func (m *Model) renderPlan(maxRows int) []string {
 					rows = append(rows, "          persistent PATH change: add "+change.Directory+" to "+change.Target)
 				}
 			}
+		} else if item.RegistryInstaller != nil {
+			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s  user scope", item.ToolID, item.Version, item.RegistryInstaller.Ecosystem),
+				"          package: "+item.PackageID,
+				"          registry: "+item.Source,
+				"          install path: "+item.InstallPath,
+				"          command: "+item.Command.Display())
+			for _, change := range item.PathChanges {
+				if change.Manual {
+					rows = append(rows, "          PATH requires manual setup: "+change.Target, "          manual command: "+change.ManualCommand)
+				} else if change.AlreadyConfigured {
+					rows = append(rows, "          PATH already configured in "+change.Target+"; add to this session")
+				} else {
+					rows = append(rows, "          persistent PATH change: add "+change.Directory+" to "+change.Target)
+				}
+			}
 		} else {
 			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s  %s", item.ToolID, item.Manager, item.PackageID, privilege), "          source: "+item.Source, "          command: "+item.Command.Display())
 		}
@@ -349,12 +365,17 @@ func (m *Model) renderPlan(maxRows int) []string {
 
 func (m *Model) renderSources(maxRows int) []string {
 	managers := m.inventory.Managers
-	lines := []string{strongStyle.Render("Download sources"), "Package managers already on this machine are preferred when they support the selected tool.", "Direct archives use pinned publisher digests; regional mirrors must match that digest.", "Region signals: " + regionLabel(m.regionDetection.Region), "Source policy: " + m.sourceMode, "Keys: a automatic  |  c Mainland China  |  g global  |  o official-only  |  m official-first  |  u custom HTTPS  |  l local archive  |  b signed bundle  |  x clear overrides  |  Space/Enter manager  |  0 reset", "A preferred detected package manager is selected when it has a compatible catalog entry.", ""}
+	lines := []string{strongStyle.Render("Download sources"), "Package managers already on this machine are preferred when they support the selected tool.", "Direct archives use pinned publisher digests; regional mirrors must match that digest.", "Region signals: " + regionLabel(m.regionDetection.Region), "Source policy: " + m.sourceMode, "Keys: a automatic  |  c Mainland China  |  g global  |  o official-only  |  m official-first  |  u custom archive source  |  v registry override  |  l local archive  |  b signed bundle  |  x clear overrides  |  Space/Enter manager  |  0 reset", "A preferred detected package manager is selected when it has a compatible catalog entry.", ""}
 	if m.offlineBundlePath != "" {
 		lines = append(lines, "Verified signed offline bundle: "+m.offlineBundlePath)
 	}
 	for _, signal := range m.regionDetection.Signals {
 		lines = append(lines, fmt.Sprintf("  %s: %s (%s)", signal.Source, signal.Value, signal.Region))
+	}
+	for _, ecosystem := range []tool.RegistryEcosystem{tool.NPMRegistry, tool.PyPIRegistry, tool.GoModuleRegistry} {
+		if source := m.registrySources[ecosystem]; source != "" {
+			lines = append(lines, "Registry override "+string(ecosystem)+": "+source)
+		}
 	}
 	if len(managers) == 0 {
 		lines = append(lines, warningStyle.Render("No supported package manager was detected."))
@@ -386,6 +407,21 @@ func (m *Model) renderSources(maxRows int) []string {
 		}
 		manifest, exists := m.catalog.Tool(id)
 		if !exists {
+			continue
+		}
+		registryShown := false
+		for _, installer := range manifest.RegistryInstallers {
+			if installer.Platform == m.inventory.Platform.OS {
+				source := m.registrySources[installer.Ecosystem]
+				if source == "" {
+					source = installer.Source
+				}
+				lines = append(lines, fmt.Sprintf("%s: %s registry %s; exact version %s", id, installer.Ecosystem, source, installer.Version))
+				registryShown = true
+				break
+			}
+		}
+		if registryShown {
 			continue
 		}
 		artifact, exists := manifest.ArtifactFor(m.inventory.Platform.OS, m.inventory.Platform.Architecture)
@@ -502,6 +538,17 @@ func (m *Model) renderApproval() string {
 			}
 			continue
 		}
+		if item.RegistryInstaller != nil {
+			lines = append(lines, fmt.Sprintf("%s  %s registry  %s %s  %s", item.ToolID, item.RegistryInstaller.Ecosystem, item.PackageID, item.Version, item.Source))
+			for _, change := range item.PathChanges {
+				if change.Manual {
+					lines = append(lines, "  PATH manual command: "+change.ManualCommand)
+				} else if change.Persist {
+					lines = append(lines, "  PATH change: add "+change.Directory+" to "+change.Target)
+				}
+			}
+			continue
+		}
 		lines = append(lines, fmt.Sprintf("%s  %s  %s  %s", item.ToolID, item.Manager, item.PackageID, item.Scope))
 	}
 	lines = append(lines, warningStyle.Render("Press y to refresh inventory and continue. Any plan change requires approval again."), mutedStyle.Render("Press n or Esc to cancel without changes."))
@@ -516,6 +563,8 @@ func (m *Model) renderPathPrompt() string {
 		label = "Save a redacted diagnostic report to a new JSON file"
 	} else if m.pathMode == "custom-source" {
 		label = "Custom HTTPS source (tool-id=https://...)"
+	} else if m.pathMode == "registry" {
+		label = "Registry override (npm, pypi, or go-modules=https://...)"
 	} else if m.pathMode == "offline-archive" {
 		label = "Offline archive (tool-id=absolute-path)"
 	} else if m.pathMode == "offline-bundle" {
@@ -592,7 +641,7 @@ func renderHelp() string {
 		"p         Generate a dry-run plan",
 		"i         Review and approve a plan",
 		"r         Refresh inventory",
-		"Sources: a automatic; c Mainland China; g global; o official-only; m official-first",
+		"Sources: a automatic; c Mainland China; g global; o official-only; m official-first; v registry override",
 		"e / o     Export or import an explicit selection file",
 		"d         Save a redacted JSON diagnostic report from Results",
 		"q         Exit",
