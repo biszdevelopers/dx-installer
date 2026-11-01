@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -233,7 +232,7 @@ func findExecutables(name string) []string {
 		switch strings.ToLower(filepath.Ext(name)) {
 		case ".exe", ".com":
 		default:
-			candidates = []string{name + ".exe", name + ".com"}
+			candidates = []string{name + ".exe", name + ".com", name + ".cmd", name + ".bat"}
 		}
 	}
 	found := make(map[string]string)
@@ -381,8 +380,12 @@ func scanKnownInstallDirectories(home string) []string {
 		appendHomePattern("AppData", "Local", "Programs", "Python", "Python*")
 		appendHomePattern("AppData", "Local", "Programs", "Python", "Python*", "Scripts")
 		appendHomePattern("AppData", "Local", "Programs", "*", "*", "bin")
+		appendHomePattern("AppData", "Local", "Programs", "*", "*", "node_modules", ".bin")
 		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
-			patterns = append(patterns, filepath.Join(localAppData, "Programs", "*", "*", "bin"))
+			patterns = append(patterns,
+				filepath.Join(localAppData, "Programs", "*", "*", "bin"),
+				filepath.Join(localAppData, "Programs", "*", "*", "node_modules", ".bin"),
+			)
 		}
 		for _, root := range []string{os.Getenv("SCOOP"), os.Getenv("SCOOP_GLOBAL")} {
 			if root != "" {
@@ -407,6 +410,7 @@ func scanKnownInstallDirectories(home string) []string {
 		appendHomePattern(".asdf", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "opt", "*", "*", "bin")
+		appendHomePattern(".local", "opt", "*", "*", "node_modules", ".bin")
 		patterns = append(patterns, "/usr/local/Cellar/*/*/bin", "/opt/homebrew/Cellar/*/*/bin")
 	case "freebsd", "openbsd", "netbsd", "dragonfly":
 		patterns = append(patterns, "/usr/local/openjdk*/bin", "/usr/local/lib/nodejs/node-v*/bin")
@@ -415,6 +419,7 @@ func scanKnownInstallDirectories(home string) []string {
 		appendHomePattern(".asdf", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "opt", "*", "*", "bin")
+		appendHomePattern(".local", "opt", "*", "*", "node_modules", ".bin")
 	default:
 		patterns = append(patterns, "/usr/lib/jvm/*/bin", "/usr/lib/jvm/*/jre/bin", "/usr/local/lib/nodejs/node-v*/bin")
 		appendHomePattern(".nvm", "versions", "node", "*", "bin")
@@ -422,6 +427,7 @@ func scanKnownInstallDirectories(home string) []string {
 		appendHomePattern(".asdf", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "opt", "*", "*", "bin")
+		appendHomePattern(".local", "opt", "*", "*", "node_modules", ".bin")
 	}
 
 	directories := make([]string, 0, min(len(patterns), maxDiscoveredInstallDirectories))
@@ -495,7 +501,10 @@ func installedPackagesFor(manifest tool.Manifest, operatingSystem tool.Operating
 func inspectVersion(parent context.Context, path, executable string, args []string) Instance {
 	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, path, args...)
+	command, commandErr := versionCommand(ctx, path, args)
+	if commandErr != nil {
+		return Instance{Executable: executable, Path: path, State: Unknown, Diagnostic: sanitizeOutput(commandErr.Error())}
+	}
 	stdout := &boundedBuffer{limit: 8192}
 	stderr := &boundedBuffer{limit: 8192}
 	command.Stdout = stdout
