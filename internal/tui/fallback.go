@@ -15,6 +15,7 @@ import (
 	"developers-club-dx/internal/installation"
 	"developers-club-dx/internal/pathconfig"
 	"developers-club-dx/internal/planning"
+	"developers-club-dx/internal/sources"
 )
 
 func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output io.Writer) error {
@@ -126,7 +127,16 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 			if homeErr != nil {
 				operationErr = homeErr
 			} else {
-				result, installErr := artifacts.NewArchiveInstaller().Install(ctx, item.ToolID, home, *item.Artifact, item.RegionalFallback)
+				policy := sources.OfficialOnly
+				if item.RegionalFallback {
+					policy = sources.OfficialFirst
+				}
+				result, installErr := artifacts.NewArchiveInstaller().InstallWithOptions(ctx, item.ToolID, home, *item.Artifact, artifacts.InstallOptions{
+					Policy:                policy,
+					AllowRegionalFallback: item.RegionalFallback,
+					CustomSourceURL:       item.CustomSourceURL,
+					OfflineArchivePath:    item.OfflineArchivePath,
+				})
 				operationErr = installErr
 				details.Source = result.SourceName
 				details.SourceURL = result.SourceURL
