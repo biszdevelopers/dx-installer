@@ -1,0 +1,27 @@
+schema_version: 1
+id: hatch
+name: Hatch
+category: python.packages
+description: Extensible Python project management tool.
+tags: [python, build, packaging, projects]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [hatch]
+version_args: [--version]
+dependencies: [python, uv]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: hatch
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: hatch
+    scope: user
+    source: homebrew-core
