@@ -10,7 +10,7 @@ go run ./cmd/bootstrap catalog
 go run ./cmd/bootstrap inventory
 ```
 
-Use `--json` with `catalog` or `inventory` for structured output. Inventory reports executable paths and versions found on the current `PATH` and the package managers already present.
+Use `--json` with `catalog` or `inventory` for structured output. Inventory reports executable paths and versions found on the current `PATH` and in a bounded set of standard installation directories, along with package managers already present.
 
 ## Preview a plan
 
