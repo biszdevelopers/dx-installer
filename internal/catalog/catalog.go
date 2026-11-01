@@ -144,6 +144,17 @@ func (c *Catalog) validateGraph() error {
 		for _, dependency := range manifest.Dependencies {
 			dependencies[dependency] = true
 		}
+		if manifest.ProvidedBy != "" {
+			if _, exists := c.tools[manifest.ProvidedBy]; !exists {
+				return fmt.Errorf("tool %q is provided by unknown dependency %q", id, manifest.ProvidedBy)
+			}
+			if !dependencies[manifest.ProvidedBy] {
+				return fmt.Errorf("tool %q provided by %q must declare it as a dependency", id, manifest.ProvidedBy)
+			}
+			if len(manifest.Installers) != 0 || len(manifest.Artifacts) != 0 || len(manifest.RegistryInstallers) != 0 {
+				return fmt.Errorf("tool %q cannot declare both provided_by and an installer", id)
+			}
+		}
 		for _, installer := range manifest.RegistryInstallers {
 			runtimeTool := tool.RegistryRuntimeTool(installer.Ecosystem)
 			if runtimeTool == "" || !dependencies[runtimeTool] {
