@@ -1,5 +1,5 @@
 schema_version: 1
 id: embedded
 name: Embedded development
-description: Common C toolchains and OpenOCD for embedded systems work.
-tools: [gcc, clang, openocd]
+description: Cross-compilers, firmware tooling, programmers, debug tools, and system emulation for embedded development.
+tools: [arduino-cli, arm-none-eabi-gcc, avrdude, gcc, clang, openocd, platformio-core, riscv-gnu-toolchain, west, qemu-system]
