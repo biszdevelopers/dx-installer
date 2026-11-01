@@ -23,6 +23,7 @@ const (
 	Install  Action = "install"
 	Preserve Action = "preserve"
 	Skip     Action = "skip"
+	Provided Action = "provided"
 )
 
 type Severity string
@@ -42,6 +43,7 @@ type Item struct {
 	ToolID             string
 	Name               string
 	Dependencies       []string
+	ProvidedBy         string
 	Action             Action
 	ExistingState      detection.State
 	ExistingPackages   []detection.PackageOwnership
@@ -120,6 +122,28 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 		}
 		if !manifest.Supports(current.Platform.OS, current.Platform.Architecture) || entry.State == detection.Unsupported {
 			plan.add(Blocking, id, "the current operating system and architecture are not supported by this tool")
+			continue
+		}
+		if entry.State == detection.Missing && manifest.ProvidedBy != "" {
+			providerWillInstall := false
+			for _, planned := range plan.Items {
+				if planned.ToolID == manifest.ProvidedBy && planned.Action == Install {
+					providerWillInstall = true
+					break
+				}
+			}
+			if providerWillInstall {
+				plan.Items = append(plan.Items, Item{
+					ToolID:        id,
+					Name:          manifest.Name,
+					Dependencies:  append([]string(nil), manifest.Dependencies...),
+					Action:        Provided,
+					ExistingState: entry.State,
+					ProvidedBy:    manifest.ProvidedBy,
+				})
+				continue
+			}
+			plan.add(Blocking, id, fmt.Sprintf("%s is supplied by %q only when that dependency is installed in this plan", manifest.Name, manifest.ProvidedBy))
 			continue
 		}
 		switch entry.State {
