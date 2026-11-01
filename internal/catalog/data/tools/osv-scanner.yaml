@@ -1,0 +1,27 @@
+schema_version: 1
+id: osv-scanner
+name: OSV-Scanner
+category: security.vulnerability
+description: Local vulnerability scanner using the OSV database; scans only when explicitly invoked.
+tags: [security, vulnerabilities, dependencies]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [osv-scanner]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: osv-scanner
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: osv-scanner
+    scope: user
+    source: homebrew-core
