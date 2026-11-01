@@ -1,0 +1,5 @@
+schema_version: 1
+id: security
+name: Security and code quality
+description: Trivy for local container and filesystem vulnerability analysis.
+tools: [trivy]
