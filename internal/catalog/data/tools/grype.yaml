@@ -1,0 +1,21 @@
+schema_version: 1
+id: grype
+name: Grype
+category: security.vulnerability
+description: Vulnerability scanner for container images and filesystems.
+tags: [security, vulnerability, containers]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [grype]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: grype
+    scope: user
+    source: homebrew-core
