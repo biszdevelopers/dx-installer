@@ -30,10 +30,11 @@ type Manifest struct {
 }
 
 type Payload struct {
-	ToolID  string `json:"tool_id,omitempty"`
-	Version string `json:"version,omitempty"`
-	File    string `json:"file"`
-	SHA256  string `json:"sha256"`
+	ToolID     string `json:"tool_id,omitempty"`
+	Version    string `json:"version,omitempty"`
+	File       string `json:"file"`
+	SHA256     string `json:"sha256"`
+	Executable bool   `json:"executable,omitempty"`
 }
 
 type VerifiedBundle struct {
@@ -127,6 +128,9 @@ func LoadBundle(root string, items *catalog.Catalog, machine platform.Info, publ
 		if payload.ToolID != "" || payload.Version != "" {
 			return VerifiedBundle{}, errors.New("bootstrap payload cannot identify a tool version")
 		}
+		if !payload.Executable {
+			return VerifiedBundle{}, errors.New("bootstrap bundle payload must be marked executable")
+		}
 		if err := validatePayload(payload); err != nil {
 			return VerifiedBundle{}, err
 		}
@@ -184,6 +188,9 @@ func validatePayload(payload Payload) error {
 	if payload.ToolID != "" && payload.Version == "" {
 		return fmt.Errorf("tool payload %q must declare a version", payload.File)
 	}
+	if payload.ToolID != "" && payload.Executable {
+		return fmt.Errorf("tool archive payload %q cannot be marked executable", payload.File)
+	}
 	return nil
 }
 
@@ -218,14 +225,30 @@ func verifyPayload(path, expected string) (int64, error) {
 }
 
 func readRegular(path string, limit int64) ([]byte, error) {
-	info, err := os.Lstat(path)
+	linkInfo, err := os.Lstat(path)
 	if err != nil {
 		return nil, err
 	}
-	if !info.Mode().IsRegular() || info.Size() > limit {
+	if !linkInfo.Mode().IsRegular() || linkInfo.Size() > limit {
 		return nil, errors.New("bundle metadata member is not a regular file or is too large")
 	}
-	return os.ReadFile(path)
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	openedInfo, err := file.Stat()
+	if err != nil || !openedInfo.Mode().IsRegular() || !os.SameFile(linkInfo, openedInfo) {
+		return nil, errors.New("bundle metadata member changed while it was being opened")
+	}
+	contents, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(contents)) > limit {
+		return nil, errors.New("bundle metadata member exceeds the size limit")
+	}
+	return contents, nil
 }
 
 func SortManifest(manifest *Manifest) {
