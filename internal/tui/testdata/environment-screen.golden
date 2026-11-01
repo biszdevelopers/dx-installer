@@ -1,0 +1,16 @@
+Developers' Club DX  /  Bootstrap
+linux  /  amd64  /  ubuntu  /  bash
+1 Overview   2 Catalog   3 Profiles   [4 Environment]   5 Plan   6
+Sources   7 Progress   8 Results
+------------------------------------------------------------------------
+Existing environment
+Search: all
+Each detected executable is checked with its declared version command.
+> git                Git                          healthy
+Path: /usr/bin/git
+Version: git version 2.48.1
+Architecture:
+------------------------------------------------------------------------
+Review the machine overview, then select tools from the catalog.
+f search inventory  |  a clear search  |  r refresh  |  j/k inspect
+records
