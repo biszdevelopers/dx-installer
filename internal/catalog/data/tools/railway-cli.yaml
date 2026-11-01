@@ -1,0 +1,36 @@
+schema_version: 1
+id: railway-cli
+name: Railway CLI
+category: devops.cloud
+description: Railway command-line interface for deployment workflows; does not authenticate automatically.
+tags: [railway, cloud, devops, javascript]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [railway]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: '@railway/cli'
+    version: 5.70.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: '@railway/cli'
+    version: 5.70.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: '@railway/cli'
+    version: 5.70.0
+    scope: user
+    source: https://registry.npmjs.org/
