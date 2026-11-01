@@ -1,0 +1,27 @@
+schema_version: 1
+id: openjdk-21
+name: OpenJDK 21
+category: java.runtime
+description: OpenJDK 21 development kit for projects that require the Java 21 toolchain.
+tags: [java, jdk, openjdk]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [java, javac]
+version_args: [-version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: openjdk@21
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: openjdk@21
+    scope: user
+    source: homebrew-core
