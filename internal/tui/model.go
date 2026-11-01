@@ -607,7 +607,10 @@ func (m *Model) handlePreflight(message preflightMsg) (tea.Model, tea.Cmd) {
 func planSignature(plan planning.Plan) string {
 	parts := make([]string, 0, len(plan.Items)+len(plan.Issues))
 	for _, item := range plan.Items {
-		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display()}, "|"))
+		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display()}, "|"))
+		for _, installed := range item.ExistingPackages {
+			parts = append(parts, strings.Join([]string{item.ToolID, string(installed.Manager), installed.ID, installed.Version, installed.Source}, "|"))
+		}
 	}
 	for _, issue := range plan.Issues {
 		parts = append(parts, strings.Join([]string{string(issue.Severity), issue.ToolID, issue.Message}, "|"))
