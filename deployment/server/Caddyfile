@@ -1,0 +1,20 @@
+{
+	admin off
+}
+
+{$DX_DOMAIN} {
+	log {
+		output discard
+	}
+
+	root * /srv/www/developers-club-dx
+	header {
+		Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+		Pragma "no-cache"
+		Expires "0"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	file_server
+}
