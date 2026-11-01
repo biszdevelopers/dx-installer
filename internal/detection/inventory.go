@@ -85,6 +85,15 @@ const maxDiscoveredInstallDirectories = 512
 var installDirectoryCache sync.Map
 
 func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (Inventory, error) {
+	return ScanWithSearchPaths(ctx, items, machine, nil)
+}
+
+// ScanWithSearchPaths verifies tools in additional installation directories
+// without changing the process PATH or writing persistent environment settings.
+func ScanWithSearchPaths(ctx context.Context, items *catalog.Catalog, machine platform.Info, additionalSearchPaths []string) (Inventory, error) {
+	searchPaths := filepath.SplitList(os.Getenv("PATH"))
+	searchPaths = append(searchPaths, knownExecutableDirectories()...)
+	searchPaths = append(searchPaths, additionalSearchPaths...)
 	inventory := Inventory{
 		Platform: machine,
 		Tools:    make(map[string]Tool),
@@ -112,7 +121,7 @@ func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (I
 		go func() {
 			defer workers.Done()
 			for manifest := range jobs {
-				instances, packages, state := scanTool(ctx, manifest, machine, inventory.Managers, packageInventory.Packages, uncertainManagers)
+				instances, packages, state := scanTool(ctx, manifest, machine, inventory.Managers, packageInventory.Packages, uncertainManagers, searchPaths)
 				results <- scanResult{manifest: manifest, instances: instances, packages: packages, state: state}
 			}
 		}()
@@ -147,14 +156,14 @@ func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (I
 	return inventory, nil
 }
 
-func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info, managers []packagemanager.Detected, installedPackages []packagemanager.InstalledPackage, uncertainManagers map[tool.PackageManager]bool) ([]Instance, []PackageOwnership, State) {
+func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info, managers []packagemanager.Detected, installedPackages []packagemanager.InstalledPackage, uncertainManagers map[tool.PackageManager]bool, searchPaths []string) ([]Instance, []PackageOwnership, State) {
 	if !manifest.Supports(machine.OS, machine.Architecture) {
 		return nil, nil, Unsupported
 	}
 	packages := installedPackagesFor(manifest, machine.OS, managers, installedPackages)
 	paths := make(map[string]string)
 	for _, executable := range manifest.Executables {
-		for _, path := range findExecutables(executable) {
+		for _, path := range findExecutablesInDirectories(executable, searchPaths) {
 			paths[path] = executable
 		}
 	}
@@ -224,6 +233,10 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 func findExecutables(name string) []string {
 	searchPath := filepath.SplitList(os.Getenv("PATH"))
 	searchPath = append(searchPath, knownExecutableDirectories()...)
+	return findExecutablesInDirectories(name, searchPath)
+}
+
+func findExecutablesInDirectories(name string, searchPath []string) []string {
 	if len(searchPath) == 0 {
 		return nil
 	}
