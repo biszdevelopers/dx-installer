@@ -2,4 +2,4 @@ schema_version: 1
 id: systems-programming
 name: Systems programming
 description: C and C++ compilers, build systems, analysis, caching, and package tooling.
-tools: [gcc, clang, cmake, ninja, openocd, bazel, cppcheck, ccache, sccache, conan, mold]
+tools: [gcc, clang, cmake, ninja, make, meson, scons, openocd, bazel, cppcheck, ccache, sccache, conan, mold, valgrind, clang-format, clang-tidy, include-what-you-use, lld]
