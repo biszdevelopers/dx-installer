@@ -1,0 +1,5 @@
+schema_version: 1
+id: swift
+name: Swift
+description: Swift compiler and Swift Package Manager.
+tools: [swift]
