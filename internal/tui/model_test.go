@@ -109,6 +109,36 @@ func TestEnvironmentShowsPackageOwnershipWithoutClaimingExecutableHealth(t *test
 	}
 }
 
+func TestCatalogDetailsShowCompatibilityDependenciesConflictsAndVerification(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.MacOS, Architecture: tool.ARM64},
+		Managers: []packagemanager.Detected{{Manager: tool.Homebrew, Path: "/opt/homebrew/bin/brew"}},
+	}, nil)
+	for index, item := range items.Tools() {
+		if item.ID == "flutter" {
+			model.cursor = index
+			break
+		}
+	}
+	output := strings.Join(model.renderCatalog(80), "\n")
+	for _, expected := range []string{
+		"Flutter SDK details",
+		"Dependencies: git",
+		"Conflicts: dart",
+		"Supported platforms: macos/amd64, arm64",
+		"Verification: flutter --version",
+		"Proposed source: homebrew / flutter (homebrew-cask)",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("catalog details omitted %q:\n%s", expected, output)
+		}
+	}
+}
+
 func TestPlanSignatureIncludesPreservedPackageOwnership(t *testing.T) {
 	base := planning.Plan{Items: []planning.Item{{
 		ToolID:        "git",
