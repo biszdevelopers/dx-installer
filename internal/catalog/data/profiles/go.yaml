@@ -1,0 +1,5 @@
+schema_version: 1
+id: go
+name: Go
+description: Go programming language toolchain.
+tools: [go]
