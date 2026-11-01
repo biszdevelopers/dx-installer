@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/display"
+	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/installation"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/platform"
@@ -122,6 +124,7 @@ func showInventory(ctx context.Context, items *catalog.Catalog, args []string) e
 func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error {
 	flags := flag.NewFlagSet("plan", flag.ContinueOnError)
 	toolsFlag := flags.String("tools", "", "comma-separated tool IDs to include")
+	managerFlag := flags.String("manager", "", "prefer a detected package manager")
 	jsonOutput := flags.Bool("json", false, "write the plan as JSON")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -134,7 +137,11 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 	if err != nil {
 		return err
 	}
-	plan, err := planning.Build(items, inventory, selected)
+	preferredManager, err := detectedManagerPreference(inventory, *managerFlag)
+	if err != nil {
+		return err
+	}
+	plan, err := planning.BuildWithOptions(items, inventory, selected, planning.Options{PreferredManager: preferredManager})
 	if err != nil {
 		return err
 	}
@@ -154,6 +161,7 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 func launchInteractive(ctx context.Context, items *catalog.Catalog, args []string) error {
 	flags := flag.NewFlagSet("install", flag.ContinueOnError)
 	toolsFlag := flags.String("tools", "", "preselect comma-separated tool IDs")
+	managerFlag := flags.String("manager", "", "prefer a detected package manager")
 	approveFlag := flags.Bool("yes", false, "approve and execute the preselected plan in line mode")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -187,9 +195,14 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	if err != nil {
 		return err
 	}
+	preferredManager, err := detectedManagerPreference(inventory, *managerFlag)
+	if err != nil {
+		return err
+	}
 	model := tui.NewModel(ctx, items, inventory, selected)
+	model.SetPreferredManager(preferredManager)
 	if *approveFlag {
-		lineErr := tui.RunLineFallback(ctx, model, strings.NewReader("yes\n"), os.Stdout)
+		lineErr := tui.RunLineFallback(ctx, model, io.MultiReader(strings.NewReader("yes\n"), os.Stdin), os.Stdout)
 		printSummary(model.SessionReport())
 		return lineErr
 	}
@@ -213,6 +226,19 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	}
 	printSummary(model.SessionReport())
 	return nil
+}
+
+func detectedManagerPreference(inventory detection.Inventory, requested string) (tool.PackageManager, error) {
+	if requested == "" {
+		return "", nil
+	}
+	manager := tool.PackageManager(requested)
+	for _, detected := range inventory.Managers {
+		if detected.Manager == manager {
+			return manager, nil
+		}
+	}
+	return "", fmt.Errorf("package manager %q is not detected on this machine", requested)
 }
 
 func printSummary(results []installation.Result) {
@@ -293,7 +319,8 @@ Usage:
   dx-bootstrap catalog [--json]        List embedded tools
   dx-bootstrap inventory [--json]      Inspect the current environment
   dx-bootstrap plan --tools git,go     Preview an installation plan
-  dx-bootstrap install --tools git,go --yes
+  dx-bootstrap plan --tools git,go --manager homebrew
+  dx-bootstrap install --tools git,go --yes [--manager apt]
                                       Approve the displayed plan without a TTY
   dx-bootstrap verify-release --directory PATH
                                       Verify release checksums with this build's pinned key
