@@ -1,0 +1,22 @@
+schema_version: 1
+id: flutter
+name: Flutter SDK
+category: mobile.framework
+description: Flutter SDK for building mobile, web, and desktop applications, with its bundled Dart SDK.
+tags: [mobile, android, ios, web, dart, flutter]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [flutter]
+version_args: [--version]
+dependencies: [git]
+conflicts: [dart]
+platforms:
+  macos: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: flutter
+    kind: cask
+    scope: user
+    source: homebrew-cask
