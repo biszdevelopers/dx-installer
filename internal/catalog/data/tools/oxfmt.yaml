@@ -12,6 +12,7 @@ version_args: [--version]
 dependencies: [nodejs-lts]
 conflicts: []
 platforms:
+  windows: [amd64, arm64]
   macos: [arm64]
   linux: [amd64, arm64]
 installers:
@@ -25,3 +26,22 @@ installers:
     package_id: oxfmt
     scope: user
     source: homebrew-core
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: oxfmt
+    version: 0.75.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: oxfmt
+    version: 0.75.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: oxfmt
+    version: 0.75.0
+    scope: user
+    source: https://registry.npmjs.org/
