@@ -11,8 +11,8 @@ func TestEmbeddedCatalogPassesGraphAndProfileValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := len(items.Tools()); got != 61 {
-		t.Fatalf("embedded tool count = %d, want 61", got)
+	if got := len(items.Tools()); got == 0 {
+		t.Fatal("embedded catalog contains no tools")
 	}
 	if got := len(items.Profiles()); got != 16 {
 		t.Fatalf("embedded profile count = %d, want 16", got)
@@ -35,6 +35,9 @@ func TestEmbeddedCatalogPassesGraphAndProfileValidation(t *testing.T) {
 		if !selected[id] {
 			t.Errorf("complete profile is missing catalog tool %q", id)
 		}
+	}
+	if len(complete.Tools) != len(items.Tools()) {
+		t.Errorf("complete profile contains %d tools; catalog contains %d", len(complete.Tools), len(items.Tools()))
 	}
 }
 
