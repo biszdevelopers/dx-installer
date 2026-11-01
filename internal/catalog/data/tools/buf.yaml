@@ -1,0 +1,21 @@
+schema_version: 1
+id: buf
+name: Buf CLI
+category: api.protobuf
+description: Toolchain for managing, linting, and generating Protocol Buffer APIs.
+tags: [protobuf, api, schema]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [buf]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: buf
+    scope: user
+    source: homebrew-core
