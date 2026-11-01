@@ -1,0 +1,27 @@
+schema_version: 1
+id: docker-compose
+name: Docker Compose
+category: containers.compose
+description: Docker Compose command-line plugin; does not install or start a container engine. Homebrew users may need to add its plugin directory to Docker CLI configuration.
+tags: [containers, docker, compose]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [docker-compose]
+version_args: [--version]
+dependencies: [docker-cli]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: docker-compose
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: docker-compose
+    scope: user
+    source: homebrew-core
