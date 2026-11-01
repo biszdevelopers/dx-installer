@@ -1,0 +1,5 @@
+schema_version: 1
+id: essential
+name: Essential
+description: Core version-control tools for day-to-day development.
+tools: [git, github-cli, git-lfs]
