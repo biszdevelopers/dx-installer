@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -18,12 +19,23 @@ import (
 	"developers-club-dx/internal/display"
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/installation"
+	"developers-club-dx/internal/offline"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/platform"
 	"developers-club-dx/internal/regional"
+	"developers-club-dx/internal/security"
 	"developers-club-dx/internal/temporary"
 	"developers-club-dx/internal/tui"
 )
+
+type stringValues []string
+
+func (values *stringValues) String() string { return strings.Join(*values, ",") }
+
+func (values *stringValues) Set(value string) error {
+	*values = append(*values, value)
+	return nil
+}
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -127,6 +139,10 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 	toolsFlag := flags.String("tools", "", "comma-separated tool IDs to include")
 	managerFlag := flags.String("manager", "", "prefer a detected package manager")
 	sourcePolicyFlag := flags.String("source-policy", string(regional.Automatic), "automatic, official-only, official-first, mainland-china, or global")
+	var customSourceFlags, offlineArchiveFlags stringValues
+	flags.Var(&customSourceFlags, "custom-source", "catalog-pinned custom HTTPS source as tool-id=https://URL (repeatable)")
+	flags.Var(&offlineArchiveFlags, "offline-archive", "catalog-pinned local archive as tool-id=absolute-path (repeatable)")
+	offlineBundleFlag := flags.String("offline-bundle", "", "signed platform-specific offline bundle directory")
 	jsonOutput := flags.Bool("json", false, "write the plan as JSON")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -147,7 +163,24 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 	if err != nil {
 		return err
 	}
-	plan, err := planning.BuildWithOptions(items, inventory, selected, planning.Options{PreferredManager: preferredManager, AllowRegionalFallback: allowRegionalFallback})
+	customSources, err := parseSourceAssignments(customSourceFlags, "custom source")
+	if err != nil {
+		return err
+	}
+	offlineArchives, err := parseSourceAssignments(offlineArchiveFlags, "offline archive")
+	if err != nil {
+		return err
+	}
+	offlineArchives, err = addBundleArchives(*offlineBundleFlag, items, inventory.Platform, customSources, offlineArchives)
+	if err != nil {
+		return err
+	}
+	plan, err := planning.BuildWithOptions(items, inventory, selected, planning.Options{
+		PreferredManager:      preferredManager,
+		AllowRegionalFallback: allowRegionalFallback,
+		CustomSources:         customSources,
+		OfflineArchives:       offlineArchives,
+	})
 	if err != nil {
 		return err
 	}
@@ -169,6 +202,10 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	toolsFlag := flags.String("tools", "", "preselect comma-separated tool IDs")
 	managerFlag := flags.String("manager", "", "prefer a detected package manager")
 	sourcePolicyFlag := flags.String("source-policy", string(regional.Automatic), "automatic, official-only, official-first, mainland-china, or global")
+	var customSourceFlags, offlineArchiveFlags stringValues
+	flags.Var(&customSourceFlags, "custom-source", "catalog-pinned custom HTTPS source as tool-id=https://URL (repeatable)")
+	flags.Var(&offlineArchiveFlags, "offline-archive", "catalog-pinned local archive as tool-id=absolute-path (repeatable)")
+	offlineBundleFlag := flags.String("offline-bundle", "", "signed platform-specific offline bundle directory")
 	approveFlag := flags.Bool("yes", false, "approve and execute the preselected plan in line mode")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -206,8 +243,28 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	if err != nil {
 		return err
 	}
+	customSources, err := parseSourceAssignments(customSourceFlags, "custom source")
+	if err != nil {
+		return err
+	}
+	offlineArchives, err := parseSourceAssignments(offlineArchiveFlags, "offline archive")
+	if err != nil {
+		return err
+	}
+	offlineArchives, err = addBundleArchives(*offlineBundleFlag, items, inventory.Platform, customSources, offlineArchives)
+	if err != nil {
+		return err
+	}
 	model := tui.NewModel(ctx, items, inventory, selected)
 	model.SetPreferredManager(preferredManager)
+	if err := model.SetSourceOverrides(customSources, offlineArchives); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*offlineBundleFlag) != "" {
+		if err := model.LoadOfflineBundle(*offlineBundleFlag); err != nil {
+			return err
+		}
+	}
 	if err := model.SetSourceMode(*sourcePolicyFlag); err != nil {
 		return err
 	}
@@ -249,6 +306,61 @@ func detectedManagerPreference(inventory detection.Inventory, requested string) 
 		}
 	}
 	return "", fmt.Errorf("package manager %q is not detected on this machine", requested)
+}
+
+func parseSourceAssignments(entries []string, label string) (map[string]string, error) {
+	assignments := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		toolID, value, found := strings.Cut(entry, "=")
+		toolID = strings.TrimSpace(toolID)
+		value = strings.TrimSpace(value)
+		if !found || toolID == "" || value == "" {
+			return nil, fmt.Errorf("%s must use tool-id=value", label)
+		}
+		if _, duplicate := assignments[toolID]; duplicate {
+			return nil, fmt.Errorf("%s for %q was supplied more than once", label, toolID)
+		}
+		assignments[toolID] = value
+	}
+	return assignments, nil
+}
+
+func addBundleArchives(bundlePath string, items *catalog.Catalog, machine platform.Info, customSources, offlineArchives map[string]string) (map[string]string, error) {
+	merged := cloneAssignments(offlineArchives)
+	bundlePath = strings.TrimSpace(bundlePath)
+	if bundlePath == "" {
+		return merged, nil
+	}
+	absPath, err := filepath.Abs(bundlePath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve offline bundle path: %w", err)
+	}
+	publicKey, err := security.DecodePublicKey(security.PinnedEd25519PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("pinned offline bundle public key is unavailable: %w", err)
+	}
+	bundle, err := offline.LoadBundle(absPath, items, machine, publicKey)
+	if err != nil {
+		return nil, err
+	}
+	for toolID, archivePath := range bundle.Artifacts {
+		if customSources[toolID] != "" {
+			return nil, fmt.Errorf("tool %q has both a custom source and an offline bundle archive", toolID)
+		}
+		if existing := merged[toolID]; existing != "" && existing != archivePath {
+			return nil, fmt.Errorf("tool %q has multiple offline archives configured", toolID)
+		}
+		merged[toolID] = archivePath
+	}
+	return merged, nil
+}
+
+func cloneAssignments(source map[string]string) map[string]string {
+	clone := make(map[string]string, len(source))
+	for key, value := range source {
+		clone[key] = value
+	}
+	return clone
 }
 
 func sourceFallback(machine platform.Info, requested string) (bool, error) {
@@ -363,6 +475,9 @@ Usage:
   dx-bootstrap inventory [--json]      Inspect the current environment
   dx-bootstrap plan --tools git,go     Preview an installation plan
   dx-bootstrap plan --tools git,go --manager homebrew
+  dx-bootstrap plan --tools go --offline-archive go=C:\archives\go.zip
+  dx-bootstrap plan --tools go --custom-source go=https://mirror.example/go.zip
+  dx-bootstrap plan --tools go --offline-bundle C:\archives\dx-bundle
   dx-bootstrap install --tools git,go --yes [--manager apt]
                                       Approve the displayed plan without a TTY
   dx-bootstrap verify-release --directory PATH
