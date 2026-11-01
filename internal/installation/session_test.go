@@ -2,10 +2,12 @@ package installation
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/domain/tool"
+	"developers-club-dx/internal/pathconfig"
 	"developers-club-dx/internal/planning"
 )
 
@@ -40,6 +42,34 @@ func TestSessionSkipsOnlyDependentsOfFailedInstall(t *testing.T) {
 	}
 	if result, _ := session.Result("go"); result.State != InstalledVerified || result.Verification != "go1.26.0" {
 		t.Fatalf("healthy tool was not recorded as verified: %#v", result)
+	}
+}
+
+func TestSessionReportsVerifiedArchiveAndFailedPATHPersistenceAsPartial(t *testing.T) {
+	item := planning.Item{ToolID: "go", Name: "Go", Action: planning.Install, Source: "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz", Artifact: &tool.Artifact{Version: "1.27.3"}}
+	session, err := NewSession(planning.Plan{Items: []planning.Item{item}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	active, ok := session.Next()
+	if !ok {
+		t.Fatal("session did not produce an operation")
+	}
+	details := ExecutionDetails{
+		Source:      "official source",
+		SourceURL:   "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz",
+		InstallPath: "/home/user/.local/opt/go/1.27.3",
+		SHA256:      "b6f8e931e4ab497fcde6da8ae4499a58f9d258e55c8a80824a516eae5950a750",
+		PathChanges: []pathconfig.Change{{Directory: "/home/user/.local/opt/go/1.27.3/bin", Target: "/home/user/.bashrc", Persist: true}},
+		PathError:   "permission denied",
+	}
+	actual := detection.Tool{ID: "go", State: detection.Healthy, Instances: []detection.Instance{{State: detection.Healthy, Version: "go1.27.3"}}}
+	if err := session.RecordWithDetails(active, nil, actual, details); err != nil {
+		t.Fatal(err)
+	}
+	result, _ := session.Result("go")
+	if result.State != PartiallyInstalled || result.Source != "official source" || result.SourceURL != details.SourceURL || result.InstallPath != details.InstallPath || result.SHA256 != details.SHA256 || result.Verification != "go1.27.3" || !strings.Contains(result.Diagnostic, "permission denied") {
+		t.Fatalf("archive and PATH outcomes were not reported accurately: %#v", result)
 	}
 }
 
