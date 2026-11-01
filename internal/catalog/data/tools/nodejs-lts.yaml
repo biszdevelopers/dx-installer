@@ -26,3 +26,10 @@ installers:
     package_id: node@24
     scope: user
     source: homebrew-core
+    path_entries: [bin]
+  - platform: linux
+    manager: homebrew
+    package_id: node@24
+    scope: user
+    source: homebrew-core
+    path_entries: [bin]
