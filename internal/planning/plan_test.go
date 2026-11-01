@@ -41,7 +41,7 @@ func TestPlanBlocksMissingManagerAndPreservesUnverifiedExistingTool(t *testing.T
 		t.Fatal(err)
 	}
 	current := windowsInventory(nil,
-		detection.Tool{ID: "git", Name: "Git", State: detection.Unknown},
+		detection.Tool{ID: "git", Name: "Git", State: detection.Unknown, Packages: []detection.PackageOwnership{{Manager: tool.Winget, ID: "Git.Git", Version: "2.47.1", Source: "winget"}}},
 	)
 	plan, err := Build(items, current, []string{"git"})
 	if err != nil {
@@ -49,6 +49,9 @@ func TestPlanBlocksMissingManagerAndPreservesUnverifiedExistingTool(t *testing.T
 	}
 	if plan.Blocked || len(plan.Items) != 1 || plan.Items[0].Action != Preserve {
 		t.Fatalf("unknown existing tool should be preserved: %#v", plan)
+	}
+	if len(plan.Items[0].ExistingPackages) != 1 || plan.Items[0].ExistingPackages[0].ID != "Git.Git" {
+		t.Fatalf("plan did not retain package ownership details: %#v", plan.Items[0].ExistingPackages)
 	}
 
 	current.Tools["git"] = detection.Tool{ID: "git", Name: "Git", State: detection.Missing}
