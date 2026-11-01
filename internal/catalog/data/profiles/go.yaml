@@ -2,4 +2,4 @@ schema_version: 1
 id: go
 name: Go
 description: Go programming language toolchain.
-tools: [go, gopls, golangci-lint, staticcheck, gofumpt, delve]
+tools: [go, gopls, golangci-lint, staticcheck, gofumpt, govulncheck, delve]
