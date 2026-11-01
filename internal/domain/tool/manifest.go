@@ -114,6 +114,7 @@ type Manifest struct {
 	Executables        []string                           `yaml:"executables"`
 	VersionArgs        []string                           `yaml:"version_args"`
 	Dependencies       []string                           `yaml:"dependencies"`
+	ProvidedBy         string                             `yaml:"provided_by,omitempty"`
 	Conflicts          []string                           `yaml:"conflicts"`
 	Platforms          map[OperatingSystem][]Architecture `yaml:"platforms"`
 	Installers         []Installer                        `yaml:"installers"`
@@ -130,10 +131,12 @@ type Profile struct {
 }
 
 var (
-	identifierPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
-	executablePattern = regexp.MustCompile(`^[A-Za-z0-9_.+-]+$`)
-	packageIDPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$`)
-	versionArgPattern = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._=:+/-]*$`)
+	identifierPattern  = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
+	executablePattern  = regexp.MustCompile(`^[A-Za-z0-9_.+-]+$`)
+	packageIDPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$`)
+	versionArgPattern  = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._=:+/-]*$`)
+	npmPackagePattern  = regexp.MustCompile(`^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/)?[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`)
+	pypiPackagePattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,127})$`)
 )
 
 func (m Manifest) Supports(os OperatingSystem, architecture Architecture) bool {
@@ -205,6 +208,9 @@ func (m Manifest) Validate() error {
 	if len(m.Platforms) == 0 {
 		return fmt.Errorf("at least one supported platform is required")
 	}
+	if m.ProvidedBy != "" && (!identifierPattern.MatchString(m.ProvidedBy) || m.ProvidedBy == m.ID) {
+		return fmt.Errorf("provided_by must name a different catalog tool")
+	}
 	for os, architectures := range m.Platforms {
 		if !validPlatform(os) || len(architectures) == 0 {
 			return fmt.Errorf("platform %q is unknown or has no architectures", os)
@@ -246,7 +252,7 @@ func (m Manifest) Validate() error {
 		}
 		seenInstallers[key] = true
 	}
-	if len(m.Installers) == 0 && len(m.Artifacts) == 0 {
+	if len(m.Installers) == 0 && len(m.Artifacts) == 0 && m.ProvidedBy == "" {
 		if len(m.RegistryInstallers) == 0 {
 			return fmt.Errorf("at least one package-manager installer, registry installer, or verified archive source is required")
 		}
@@ -262,7 +268,7 @@ func (m Manifest) Validate() error {
 		if !validRegistryEcosystem(installer.Ecosystem) {
 			return fmt.Errorf("registry installer has unsupported ecosystem %q", installer.Ecosystem)
 		}
-		if !packageIDPattern.MatchString(installer.PackageID) || strings.Contains(installer.PackageID, "@") {
+		if !validRegistryPackageID(installer.Ecosystem, installer.PackageID) {
 			return fmt.Errorf("registry installer package identifier %q is invalid", installer.PackageID)
 		}
 		if !artifactVersionPattern.MatchString(installer.Version) {
@@ -336,6 +342,19 @@ func validRegistryEcosystem(ecosystem RegistryEcosystem) bool {
 	switch ecosystem {
 	case NPMRegistry, PyPIRegistry, GoModuleRegistry:
 		return true
+	default:
+		return false
+	}
+}
+
+func validRegistryPackageID(ecosystem RegistryEcosystem, packageID string) bool {
+	switch ecosystem {
+	case NPMRegistry:
+		return npmPackagePattern.MatchString(packageID)
+	case PyPIRegistry:
+		return pypiPackagePattern.MatchString(packageID)
+	case GoModuleRegistry:
+		return packageIDPattern.MatchString(packageID) && !strings.Contains(packageID, "@")
 	default:
 		return false
 	}
