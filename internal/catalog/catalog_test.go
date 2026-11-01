@@ -11,8 +11,8 @@ func TestEmbeddedCatalogPassesGraphAndProfileValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := len(items.Tools()); got != 41 {
-		t.Fatalf("embedded tool count = %d, want 41", got)
+	if got := len(items.Tools()); got != 44 {
+		t.Fatalf("embedded tool count = %d, want 44", got)
 	}
 	if got := len(items.Profiles()); got != 10 {
 		t.Fatalf("embedded profile count = %d, want 10", got)
