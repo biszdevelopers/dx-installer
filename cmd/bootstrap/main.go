@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
+	"developers-club-dx/internal/display"
 	"developers-club-dx/internal/installation"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/platform"
@@ -105,7 +106,7 @@ func showInventory(ctx context.Context, items *catalog.Catalog, args []string) e
 			}
 		}
 		for _, installed := range item.Packages {
-			fmt.Fprintf(os.Stdout, "  package: %s / %s %s (%s)\n", installed.Manager, installed.ID, installed.Version, installed.Source)
+			fmt.Fprintf(os.Stdout, "  package: %s\n", display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 		}
 	}
 	for _, warning := range inventory.Warnings {
