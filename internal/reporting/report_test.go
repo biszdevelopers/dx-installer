@@ -3,11 +3,13 @@ package reporting
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/installation"
+	"developers-club-dx/internal/pathconfig"
 	"developers-club-dx/internal/platform"
 )
 
@@ -20,6 +22,9 @@ func TestNewRedactsSecretsAndPersonalPaths(t *testing.T) {
 		ToolID:       "git",
 		Name:         "Git",
 		State:        installation.Failed,
+		InstallPath:  filepath.Join(home, ".local", "opt", "go", "1.27.3"),
+		SourceURL:    "https://downloads.example/go.tar.gz",
+		PathChanges:  []pathconfig.Change{{Directory: filepath.Join(home, ".local", "opt", "go", "1.27.3", "bin"), Target: filepath.Join(home, ".bashrc"), ManualCommand: "export PATH=/home/rjian/.local/bin:$PATH"}},
 		Verification: "could not inspect " + home + "/Downloads/token.txt",
 		Diagnostic:   "request https://alice:password123@example.test/install?access_token=abc123 failed; Authorization: Bearer xyz987",
 	}}
@@ -35,7 +40,7 @@ func TestNewRedactsSecretsAndPersonalPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(encoded)
-	for _, secret := range []string{"password123", "abc123", "xyz987", "alice", "AppData"} {
+	for _, secret := range []string{"password123", "abc123", "xyz987", "alice", "AppData", "rjian", ".bashrc"} {
 		if strings.Contains(text, secret) {
 			t.Errorf("report contains sensitive value %q: %s", secret, text)
 		}
