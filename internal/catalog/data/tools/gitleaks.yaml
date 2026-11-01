@@ -1,0 +1,21 @@
+schema_version: 1
+id: gitleaks
+name: Gitleaks
+category: security.secrets
+description: Detects secrets and credentials committed to Git repositories.
+tags: [security, secrets, git]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [gitleaks]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: gitleaks
+    scope: user
+    source: homebrew-core
