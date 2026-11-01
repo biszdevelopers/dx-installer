@@ -41,7 +41,7 @@ The manual workflow accepts a version and requires dispatch from the matching Gi
 - Secret `DX_SSH_PRIVATE_KEY`: deployment SSH private key.
 - Secret `DX_SSH_KNOWN_HOSTS`: preverified known-host entries; do not populate this with an unauthenticated `ssh-keyscan` at deployment time.
 
-The workflow tests all six native Windows/macOS/Linux architecture jobs and gates publication on the disposable package-manager integration workflow. That workflow installs and verifies Ninja through five Linux managers and FreeBSD `pkg` in a FreeBSD 15.1 VM. Native jobs build and run the bootstrap catalog command as a smoke check. It generates scripts and artifacts on a fresh runner, deploys only through SSH, and checks the public HTTPS endpoints after publication. It never prints the private key. A real domain, server account, key material, production environment approval, and protected tag are external prerequisites; without them, no production release can be created.
+The workflow tests all six native Windows/macOS/Linux architecture jobs and gates publication on the disposable package-manager integration workflow. That workflow installs and verifies Ninja through five Linux managers and FreeBSD `pkg` in a FreeBSD 15.1 VM, SQLite through Chocolatey on Windows amd64, and OpenOCD through Homebrew on macOS amd64 and arm64. Native jobs build and run the bootstrap catalog command as a smoke check. It generates scripts and artifacts on a fresh runner, deploys only through SSH, and checks the public HTTPS endpoints after publication. It never prints the private key. A real domain, server account, key material, production environment approval, and protected tag are external prerequisites; without them, no production release can be created.
 
 ## Rollback
 
