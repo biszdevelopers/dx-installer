@@ -1,0 +1,21 @@
+schema_version: 1
+id: actionlint
+name: actionlint
+category: quality.ci
+description: Static checker for GitHub Actions workflow files.
+tags: [github-actions, ci, lint]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [actionlint]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: actionlint
+    scope: user
+    source: homebrew-core
