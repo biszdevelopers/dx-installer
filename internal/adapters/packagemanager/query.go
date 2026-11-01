@@ -112,6 +112,12 @@ func QueryInstalled(parent context.Context, managers []Detected) PackageInventor
 }
 
 func queryManager(ctx context.Context, detected Detected) ([]packageRecord, error) {
+	if detected.Manager == tool.Scoop || detected.Manager == tool.Chocolatey {
+		return queryWindowsPackageManager(detected.Manager, detected.Path)
+	}
+	if detected.Manager == tool.Winget {
+		return nil, fmt.Errorf("WinGet export consults configured sources and may require source agreements; its local database is not queried")
+	}
 	if detected.Manager == tool.Homebrew {
 		formulae, err := runInventoryCommand(ctx, "brew", []string{"list", "--json=v1", "--formula"}, tool.Homebrew, false)
 		if err != nil {
