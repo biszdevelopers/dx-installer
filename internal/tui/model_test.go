@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"developers-club-dx/internal/adapters/packagemanager"
@@ -15,6 +17,7 @@ import (
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/platform"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestApprovalDoesNotStartSessionUntilFreshInventoryMessage(t *testing.T) {
@@ -151,6 +154,96 @@ func TestEnvironmentSearchMatchesVersionsAndPathsIndependently(t *testing.T) {
 	if got := model.filteredEnvironmentIDs(); len(got) != 1 || got[0] != "git" {
 		t.Fatalf("path search returned %v, want [git]", got)
 	}
+}
+
+func TestEnvironmentScreenGolden(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64, Distribution: "ubuntu", Shell: "bash"},
+		Managers: []packagemanager.Detected{{Manager: tool.APT, Path: "/usr/bin/apt"}},
+		Tools: map[string]detection.Tool{
+			"git": {
+				ID: "git", Name: "Git", Category: "vcs.client", State: detection.Healthy,
+				Instances: []detection.Instance{{Executable: "git", Path: "/usr/bin/git", Version: "git version 2.48.1", State: detection.Healthy}},
+			},
+		},
+	}, nil)
+	model.screen = EnvironmentScreen
+	model.width = 72
+	model.height = 18
+	got := normalizedRender(model.render())
+	path := filepath.Join("testdata", "environment-screen.golden")
+	if os.Getenv("UPDATE_GOLDEN") == "1" {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(got), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != string(want) {
+		t.Fatalf("environment screen differs from golden snapshot\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+func TestRenderAdaptsToTerminalResize(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+		Tools: map[string]detection.Tool{
+			"git": {ID: "git", Name: "Git", State: detection.Healthy, Instances: []detection.Instance{{Executable: "git", Path: "/usr/local/bin/git", Version: "git version 2.48.1", State: detection.Healthy}}},
+		},
+	}, nil)
+	model.screen = EnvironmentScreen
+	model.Update(tea.WindowSizeMsg{Width: 32, Height: 12})
+	lines := strings.Split(ansi.Strip(model.render()), "\n")
+	if len(lines) > 12 {
+		t.Fatalf("rendered %d rows for a 12-row terminal:\n%s", len(lines), strings.Join(lines, "\n"))
+	}
+	for index, line := range lines {
+		if utf8.RuneCountInString(line) > 32 {
+			t.Errorf("rendered line %d is wider than the 32-column terminal: %q", index+1, line)
+		}
+	}
+}
+
+func FuzzEnvironmentSearchInput(f *testing.F) {
+	f.Add("C:\\tools\\git 2.48.1", uint8(4))
+	f.Add("工具版本", uint8(2))
+	f.Fuzz(func(t *testing.T, input string, deleteCount uint8) {
+		model := NewModel(context.Background(), nil, detection.Inventory{
+			Tools: map[string]detection.Tool{"git": {ID: "git", Name: "Git", State: detection.Healthy}},
+		}, nil)
+		model.environmentSearching = true
+		for _, character := range input {
+			if unicode.IsControl(character) {
+				continue
+			}
+			key := "text"
+			if character == ' ' {
+				key = "space"
+			}
+			model.handleEnvironmentSearchKey(tea.KeyPressMsg{Text: string(character), Code: character}, key)
+		}
+		for index := uint8(0); index < deleteCount && index < 100; index++ {
+			model.handleEnvironmentSearchKey(tea.KeyPressMsg{}, "backspace")
+		}
+		if !utf8.ValidString(model.environmentFilter) {
+			t.Fatalf("search input is not valid UTF-8 after editing: %q", model.environmentFilter)
+		}
+		_ = model.filteredEnvironmentIDs()
+	})
+}
+
+func normalizedRender(rendered string) string {
+	lines := strings.Split(ansi.Strip(rendered), "\n")
+	for index := range lines {
+		lines[index] = strings.TrimRight(lines[index], " ")
+	}
+	return strings.TrimRight(strings.Join(lines, "\n"), "\n") + "\n"
 }
 
 func TestCatalogDetailsShowCompatibilityDependenciesConflictsAndVerification(t *testing.T) {
