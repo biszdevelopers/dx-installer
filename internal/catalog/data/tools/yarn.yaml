@@ -1,0 +1,21 @@
+schema_version: 1
+id: yarn
+name: Yarn Classic
+category: javascript.package-manager
+description: Yarn 1.x package manager for JavaScript projects; requires Node.js.
+tags: [javascript, nodejs, package-manager]
+version:
+  channel: classic
+  upgrade_policy: never_automatically
+executables: [yarn]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: yarn
+    scope: user
+    source: homebrew-core
