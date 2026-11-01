@@ -109,6 +109,50 @@ func TestEnvironmentShowsPackageOwnershipWithoutClaimingExecutableHealth(t *test
 	}
 }
 
+func TestEnvironmentSearchMatchesVersionsAndPathsIndependently(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{
+		Tools: map[string]detection.Tool{
+			"git": {
+				ID: "git", Name: "Git", Category: "vcs.client", State: detection.Healthy,
+				Instances: []detection.Instance{{Executable: "git", Path: "/opt/git/bin/git", Version: "git version 2.48.1", State: detection.Healthy}},
+			},
+			"cmake": {
+				ID: "cmake", Name: "CMake", Category: "build.system", State: detection.Healthy,
+				Instances: []detection.Instance{{Executable: "cmake", Path: "/usr/bin/cmake", Version: "cmake version 3.29.0", State: detection.Healthy}},
+			},
+		},
+	}, nil)
+	model.screen = EnvironmentScreen
+	model.filter = "no-catalog-match"
+
+	model.Update(keyMessage('f'))
+	if !model.environmentSearching {
+		t.Fatal("f should open search on the Environment screen")
+	}
+	for _, character := range "3.29" {
+		model.Update(keyMessage(character))
+	}
+	if got := model.filteredEnvironmentIDs(); len(got) != 1 || got[0] != "cmake" {
+		t.Fatalf("version search returned %v, want [cmake]", got)
+	}
+	if model.filter != "no-catalog-match" {
+		t.Fatalf("environment search changed the catalog query: %q", model.filter)
+	}
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if model.environmentSearching {
+		t.Fatal("Enter should finish environment search input")
+	}
+	model.Update(keyMessage('a'))
+	if got := model.filteredEnvironmentIDs(); len(got) != 2 {
+		t.Fatalf("clearing environment search returned %v, want all records", got)
+	}
+
+	model.environmentFilter = "/opt/git/bin"
+	if got := model.filteredEnvironmentIDs(); len(got) != 1 || got[0] != "git" {
+		t.Fatalf("path search returned %v, want [git]", got)
+	}
+}
+
 func TestCatalogDetailsShowCompatibilityDependenciesConflictsAndVerification(t *testing.T) {
 	items, err := catalog.LoadEmbedded()
 	if err != nil {
