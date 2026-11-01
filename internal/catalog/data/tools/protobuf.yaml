@@ -1,0 +1,21 @@
+schema_version: 1
+id: protobuf
+name: Protocol Buffers compiler
+category: api.protobuf
+description: Protocol Buffers compiler for generating source code from schemas.
+tags: [protobuf, api, compiler]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [protoc]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: protobuf
+    scope: user
+    source: homebrew-core
