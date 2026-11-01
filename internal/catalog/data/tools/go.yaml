@@ -1,0 +1,64 @@
+schema_version: 1
+id: go
+name: Go
+category: go.runtime
+description: Go programming language toolchain.
+tags: [go, compiler, runtime]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [go]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+  bsd: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: GoLang.Go
+    scope: system
+    source: winget
+  - platform: macos
+    manager: homebrew
+    package_id: go
+    scope: user
+    source: homebrew-core
+  - platform: macos
+    manager: macports
+    package_id: go
+    scope: system
+    source: macports-ports
+  - platform: linux
+    manager: apt
+    package_id: golang-go
+    scope: system
+    source: configured-apt-repositories
+  - platform: linux
+    manager: dnf
+    package_id: golang
+    scope: system
+    source: configured-dnf-repositories
+  - platform: linux
+    manager: pacman
+    package_id: go
+    scope: system
+    source: configured-pacman-repositories
+  - platform: linux
+    manager: zypper
+    package_id: go
+    scope: system
+    source: configured-zypper-repositories
+  - platform: linux
+    manager: apk
+    package_id: go
+    scope: system
+    source: configured-apk-repositories
+  - platform: bsd
+    manager: freebsd-pkg
+    package_id: go
+    scope: system
+    source: configured-freebsd-repository
