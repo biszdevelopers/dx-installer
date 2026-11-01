@@ -1,0 +1,27 @@
+schema_version: 1
+id: pandoc
+name: Pandoc
+category: documentation.conversion
+description: Convert between Markdown, document, and publishing formats.
+tags: [documentation, conversion, markdown]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [pandoc]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: pandoc
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: pandoc
+    scope: user
+    source: homebrew-core
