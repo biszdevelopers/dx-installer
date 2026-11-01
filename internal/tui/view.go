@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
@@ -136,13 +137,32 @@ func (m *Model) renderCatalog(maxRows int) []string {
 	}
 	item := tools[min(max(m.cursor, 0), len(tools)-1)]
 	lines = append(lines, "", strongStyle.Render(item.Name+" details"), item.Description, "Category: "+item.Category)
+	lines = append(lines, "Version channel: "+item.Version.Channel)
 	if len(item.Dependencies) > 0 {
 		lines = append(lines, "Dependencies: "+strings.Join(item.Dependencies, ", "))
 	}
-	lines = append(lines, "Supported here: "+yesNo(item.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture)))
+	if len(item.Conflicts) > 0 {
+		lines = append(lines, "Conflicts: "+strings.Join(item.Conflicts, ", "))
+	}
+	platforms := make([]string, 0, len(item.Platforms))
+	for operatingSystem, architectures := range item.Platforms {
+		architecturesText := make([]string, len(architectures))
+		for index, architecture := range architectures {
+			architecturesText[index] = string(architecture)
+		}
+		platforms = append(platforms, string(operatingSystem)+"/"+strings.Join(architecturesText, ", "))
+	}
+	sort.Strings(platforms)
+	lines = append(lines, "Supported platforms: "+strings.Join(platforms, "; "), "Supported here: "+yesNo(item.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture)))
+	verification := make([]string, len(item.Executables))
+	for index, executable := range item.Executables {
+		verification[index] = executable + " " + strings.Join(item.VersionArgs, " ")
+	}
+	lines = append(lines, "Verification: "+strings.Join(verification, "; "))
 	if detected, ok := m.inventory.Tools[item.ID]; ok && len(detected.Instances) > 0 {
-		instance := detected.Instances[0]
-		lines = append(lines, "Existing: "+valueOr(instance.Version, string(instance.State))+" at "+instance.Path)
+		for _, instance := range detected.Instances {
+			lines = append(lines, "Existing: "+valueOr(instance.Version, string(instance.State))+" at "+instance.Path+" ["+display.ArchitectureVerification(instance)+"]")
+		}
 	}
 	if detected, ok := m.inventory.Tools[item.ID]; ok {
 		for _, installed := range detected.Packages {
@@ -153,6 +173,9 @@ func (m *Model) renderCatalog(maxRows int) []string {
 		lines = append(lines, fmt.Sprintf("Proposed source: %s / %s (%s)", installer.Manager, installer.PackageID, installer.Source))
 	} else {
 		lines = append(lines, warningStyle.Render("No installer is available through detected package managers."))
+	}
+	for _, installer := range item.Installers {
+		lines = append(lines, fmt.Sprintf("Installer: %s / %s / %s / %s / %s", installer.Platform, installer.Manager, installer.PackageID, installer.Scope, installer.Source))
 	}
 	return lines
 }
