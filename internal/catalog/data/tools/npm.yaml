@@ -1,0 +1,18 @@
+schema_version: 1
+id: npm
+name: npm
+category: javascript.package-manager
+description: Node.js package manager, included with the supported Node.js distribution.
+tags: [javascript, package-management, nodejs]
+version:
+  channel: bundled-with-nodejs-lts
+  upgrade_policy: never_automatically
+executables: [npm]
+version_args: [--version]
+dependencies: [nodejs-lts]
+provided_by: nodejs-lts
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
