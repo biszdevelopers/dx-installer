@@ -1,0 +1,27 @@
+schema_version: 1
+id: ruby
+name: Ruby
+category: ruby.runtime
+description: Object-oriented scripting language with an extensible ecosystem.
+tags: [ruby, scripting, web]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [ruby]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: ruby
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: ruby
+    scope: system
+    source: configured-apt-repositories
