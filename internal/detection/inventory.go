@@ -81,6 +81,10 @@ type scanResult struct {
 	state     State
 }
 
+const maxDiscoveredInstallDirectories = 512
+
+var installDirectoryCache sync.Map
+
 func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (Inventory, error) {
 	inventory := Inventory{
 		Platform: machine,
@@ -305,6 +309,7 @@ func knownExecutableDirectories() []string {
 		appendHome(".cargo", "bin")
 		appendHome("go", "bin")
 	}
+	directories = append(directories, discoveredInstallDirectories(home)...)
 	seen := make(map[string]bool, len(directories))
 	unique := make([]string, 0, len(directories))
 	for _, directory := range directories {
@@ -320,6 +325,109 @@ func knownExecutableDirectories() []string {
 		unique = append(unique, directory)
 	}
 	return unique
+}
+
+func discoveredInstallDirectories(home string) []string {
+	cacheParts := []string{runtime.GOOS, home}
+	for _, name := range []string{"ProgramFiles", "ProgramFiles(x86)", "ProgramData", "LOCALAPPDATA", "SCOOP", "SCOOP_GLOBAL"} {
+		cacheParts = append(cacheParts, os.Getenv(name))
+	}
+	cacheKey := strings.Join(cacheParts, "\x00")
+	if cached, exists := installDirectoryCache.Load(cacheKey); exists {
+		return append([]string(nil), cached.([]string)...)
+	}
+	directories := scanKnownInstallDirectories(home)
+	actual, _ := installDirectoryCache.LoadOrStore(cacheKey, directories)
+	return append([]string(nil), actual.([]string)...)
+}
+
+func scanKnownInstallDirectories(home string) []string {
+	var patterns []string
+	appendHomePattern := func(relative ...string) {
+		if home != "" {
+			patterns = append(patterns, filepath.Join(append([]string{home}, relative...)...))
+		}
+	}
+	switch runtime.GOOS {
+	case "windows":
+		for _, environment := range []string{"ProgramFiles", "ProgramFiles(x86)"} {
+			root := os.Getenv(environment)
+			if root == "" {
+				continue
+			}
+			for _, vendor := range []string{"Java", filepath.Join("Eclipse Adoptium"), "Microsoft", "Zulu"} {
+				patterns = append(patterns, filepath.Join(root, vendor, "jdk-*", "bin"))
+			}
+			patterns = append(patterns,
+				filepath.Join(root, "Zulu", "zulu-*", "bin"),
+				filepath.Join(root, "Amazon Corretto", "jdk*", "bin"),
+				filepath.Join(root, "Python*"),
+				filepath.Join(root, "Python*", "Scripts"),
+			)
+		}
+		appendHomePattern("AppData", "Local", "Programs", "Python", "Python*")
+		appendHomePattern("AppData", "Local", "Programs", "Python", "Python*", "Scripts")
+		for _, root := range []string{os.Getenv("SCOOP"), os.Getenv("SCOOP_GLOBAL")} {
+			if root != "" {
+				patterns = append(patterns, filepath.Join(root, "apps", "*", "*"), filepath.Join(root, "apps", "*", "*", "bin"), filepath.Join(root, "apps", "*", "*", "cmd"))
+			}
+		}
+		if os.Getenv("SCOOP") == "" && home != "" {
+			patterns = append(patterns, filepath.Join(home, "scoop", "apps", "*", "*"), filepath.Join(home, "scoop", "apps", "*", "*", "bin"), filepath.Join(home, "scoop", "apps", "*", "*", "cmd"))
+		}
+		if os.Getenv("SCOOP_GLOBAL") == "" && os.Getenv("ProgramData") != "" {
+			root := filepath.Join(os.Getenv("ProgramData"), "scoop")
+			patterns = append(patterns, filepath.Join(root, "apps", "*", "*"), filepath.Join(root, "apps", "*", "*", "bin"), filepath.Join(root, "apps", "*", "*", "cmd"))
+		}
+	case "darwin":
+		patterns = append(patterns,
+			"/Library/Java/JavaVirtualMachines/*/Contents/Home/bin",
+			"/System/Library/Frameworks/JavaVM.framework/Versions/Current/Commands",
+		)
+		appendHomePattern("Library", "Java", "JavaVirtualMachines", "*", "Contents", "Home", "bin")
+		appendHomePattern(".nvm", "versions", "node", "*", "bin")
+		appendHomePattern(".pyenv", "versions", "*", "bin")
+		appendHomePattern(".asdf", "installs", "*", "*", "bin")
+		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
+		patterns = append(patterns, "/usr/local/Cellar/*/*/bin", "/opt/homebrew/Cellar/*/*/bin")
+	case "freebsd", "openbsd", "netbsd", "dragonfly":
+		patterns = append(patterns, "/usr/local/openjdk*/bin", "/usr/local/lib/nodejs/node-v*/bin")
+		appendHomePattern(".nvm", "versions", "node", "*", "bin")
+		appendHomePattern(".pyenv", "versions", "*", "bin")
+		appendHomePattern(".asdf", "installs", "*", "*", "bin")
+		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
+	default:
+		patterns = append(patterns, "/usr/lib/jvm/*/bin", "/usr/lib/jvm/*/jre/bin", "/usr/local/lib/nodejs/node-v*/bin")
+		appendHomePattern(".nvm", "versions", "node", "*", "bin")
+		appendHomePattern(".pyenv", "versions", "*", "bin")
+		appendHomePattern(".asdf", "installs", "*", "*", "bin")
+		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
+	}
+
+	directories := make([]string, 0, min(len(patterns), maxDiscoveredInstallDirectories))
+	seen := make(map[string]bool)
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			continue
+		}
+		for _, match := range matches {
+			info, err := os.Stat(match)
+			if err != nil || !info.IsDir() {
+				continue
+			}
+			match = filepath.Clean(match)
+			if seen[match] {
+				continue
+			}
+			seen[match] = true
+			directories = append(directories, match)
+			if len(directories) >= maxDiscoveredInstallDirectories {
+				return directories
+			}
+		}
+	}
+	return directories
 }
 
 func installedPackagesFor(manifest tool.Manifest, operatingSystem tool.OperatingSystem, managers []packagemanager.Detected, installed []packagemanager.InstalledPackage) []PackageOwnership {
