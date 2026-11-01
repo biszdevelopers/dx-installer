@@ -139,6 +139,31 @@ func TestCatalogDetailsShowCompatibilityDependenciesConflictsAndVerification(t *
 	}
 }
 
+func TestCatalogDetailsHonorPreferredManager(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.MacOS, Architecture: tool.ARM64},
+		Managers: []packagemanager.Detected{
+			{Manager: tool.Homebrew, Path: "/opt/homebrew/bin/brew"},
+			{Manager: tool.MacPorts, Path: "/opt/local/bin/port"},
+		},
+	}, nil)
+	model.SetPreferredManager(tool.MacPorts)
+	for index, item := range items.Tools() {
+		if item.ID == "git" {
+			model.cursor = index
+			break
+		}
+	}
+	output := strings.Join(model.renderCatalog(80), "\n")
+	if !strings.Contains(output, "Proposed source: macports / git (macports-ports)") {
+		t.Fatalf("catalog details ignored the selected manager preference:\n%s", output)
+	}
+}
+
 func TestPlanSignatureIncludesPreservedPackageOwnership(t *testing.T) {
 	base := planning.Plan{Items: []planning.Item{{
 		ToolID:        "git",
