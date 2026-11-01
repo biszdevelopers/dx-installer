@@ -1,0 +1,28 @@
+schema_version: 1
+id: temurin-jdk-25
+name: Eclipse Temurin JDK 25
+category: java.runtime
+description: OpenJDK 25 LTS distribution from Eclipse Adoptium.
+tags: [java, jdk, jvm]
+version:
+  channel: lts-25
+  upgrade_policy: never_automatically
+executables: [java, javac]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: EclipseAdoptium.Temurin.25.JDK
+    scope: system
+    source: winget
+  - platform: macos
+    manager: homebrew
+    package_id: temurin@25
+    kind: cask
+    scope: user
+    source: homebrew-cask
