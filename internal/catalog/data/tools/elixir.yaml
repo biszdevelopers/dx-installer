@@ -1,0 +1,27 @@
+schema_version: 1
+id: elixir
+name: Elixir
+category: elixir.runtime
+description: Functional language for scalable applications on the Erlang virtual machine.
+tags: [elixir, functional, otp, distributed-systems]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [elixir]
+version_args: [--version]
+dependencies: [erlang]
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: elixir
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: elixir
+    scope: system
+    source: configured-apt-repositories
