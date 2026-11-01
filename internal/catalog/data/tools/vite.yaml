@@ -1,0 +1,27 @@
+schema_version: 1
+id: vite
+name: Vite
+category: javascript.development
+description: Frontend development server and build tool.
+tags: [javascript, typescript, build, frontend]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [vite]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: vite
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: vite
+    scope: user
+    source: homebrew-core
