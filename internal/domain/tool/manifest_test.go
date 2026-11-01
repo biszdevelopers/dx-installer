@@ -19,6 +19,31 @@ func TestManifestAcceptsTypedWindowsInstaller(t *testing.T) {
 	}
 }
 
+func TestManifestAcceptsScopedNPMRegistryPackages(t *testing.T) {
+	manifest := Manifest{
+		SchemaVersion: 1,
+		ID:            "changesets-cli",
+		Name:          "Changesets CLI",
+		Category:      "javascript.release",
+		Description:   "Version and changelog management for monorepositories.",
+		Version:       VersionPolicy{Channel: "stable", UpgradePolicy: "never_automatically"},
+		Executables:   []string{"changeset"},
+		VersionArgs:   []string{"--version"},
+		Dependencies:  []string{"nodejs-lts"},
+		Platforms:     map[OperatingSystem][]Architecture{Windows: {AMD64}},
+		RegistryInstallers: []RegistryInstaller{{
+			Platform: Windows, Ecosystem: NPMRegistry, PackageID: "@changesets/cli", Version: "3.0.3", Scope: UserScope, Source: "https://registry.npmjs.org/",
+		}},
+	}
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("scoped npm package manifest was rejected: %v", err)
+	}
+	manifest.RegistryInstallers[0].PackageID = "@scope/../escape"
+	if err := manifest.Validate(); err == nil {
+		t.Fatal("unsafe scoped npm package path was accepted")
+	}
+}
+
 func TestManifestRejectsExecutableCodeAndUnmanagedUpgradePolicy(t *testing.T) {
 	cases := []struct {
 		name   string
