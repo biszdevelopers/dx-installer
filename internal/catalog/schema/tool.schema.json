@@ -69,7 +69,7 @@
       "properties": {
         "platform": { "enum": ["windows", "macos", "linux", "bsd"] },
         "ecosystem": { "enum": ["npm", "pypi", "go-modules"] },
-        "package_id": { "type": "string", "pattern": "^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?|[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127})$" },
+        "package_id": { "type": "string", "pattern": "^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?|[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127})(?:\\[[A-Za-z0-9][A-Za-z0-9._-]*(?:,[A-Za-z0-9][A-Za-z0-9._-]*)*\\])?$" },
         "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$" },
         "scope": { "const": "user" },
         "source": { "type": "string", "format": "uri", "pattern": "^https://" }
