@@ -69,6 +69,31 @@ func TestManifestAcceptsSafePyPIExtras(t *testing.T) {
 	}
 }
 
+func TestManifestAcceptsCargoCrateRegistryInstallers(t *testing.T) {
+	manifest := Manifest{
+		SchemaVersion: 1,
+		ID:            "cargo-nextest",
+		Name:          "cargo-nextest",
+		Category:      "rust.testing",
+		Description:   "Next-generation Rust test runner.",
+		Version:       VersionPolicy{Channel: "stable", UpgradePolicy: "never_automatically"},
+		Executables:   []string{"cargo"},
+		VersionArgs:   []string{"nextest", "--version"},
+		Dependencies:  []string{"rustup"},
+		Platforms:     map[OperatingSystem][]Architecture{Windows: {AMD64}},
+		RegistryInstallers: []RegistryInstaller{{
+			Platform: Windows, Ecosystem: CargoRegistry, PackageID: "cargo-nextest", Version: "0.9.131", Scope: UserScope, Source: "https://index.crates.io/",
+		}},
+	}
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("cargo crate manifest was rejected: %v", err)
+	}
+	manifest.RegistryInstallers[0].PackageID = "../cargo-nextest"
+	if err := manifest.Validate(); err == nil {
+		t.Fatal("unsafe cargo crate package ID was accepted")
+	}
+}
+
 func TestManifestRejectsExecutableCodeAndUnmanagedUpgradePolicy(t *testing.T) {
 	cases := []struct {
 		name   string
