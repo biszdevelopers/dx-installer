@@ -218,6 +218,26 @@ func TestManifestAcceptsLinuxHomebrewInstallers(t *testing.T) {
 	}
 }
 
+func TestManifestValidatesHomebrewFormulaRelativePATHEntries(t *testing.T) {
+	manifest := validManifest()
+	manifest.Platforms = map[OperatingSystem][]Architecture{MacOS: {ARM64}}
+	manifest.Installers = []Installer{{
+		Platform: MacOS, Manager: Homebrew, PackageID: "python@3.15", Scope: UserScope, Source: "homebrew-core", PathEntries: []string{"bin", "libexec/bin"},
+	}}
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("valid formula-relative PATH entries were rejected: %v", err)
+	}
+	manifest.Installers[0].PathEntries = []string{"../outside"}
+	if err := manifest.Validate(); err == nil {
+		t.Fatal("formula-relative PATH traversal was accepted")
+	}
+	manifest.Installers[0].PathEntries = []string{"bin"}
+	manifest.Installers[0].Manager = Winget
+	if err := manifest.Validate(); err == nil {
+		t.Fatal("formula-relative PATH entry was accepted for a non-Homebrew manager")
+	}
+}
+
 func validManifest() Manifest {
 	return Manifest{
 		SchemaVersion: 1,
