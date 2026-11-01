@@ -1,0 +1,97 @@
+package planning
+
+import (
+	"testing"
+
+	"developers-club-dx/internal/adapters/packagemanager"
+	"developers-club-dx/internal/catalog"
+	"developers-club-dx/internal/detection"
+	"developers-club-dx/internal/domain/tool"
+	"developers-club-dx/internal/platform"
+)
+
+func TestPlanAddsDependenciesInInstallOrderAndPreservesExistingTools(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := windowsInventory(
+		[]packagemanager.Detected{{Manager: tool.Winget, Path: `C:\Windows\winget.exe`}, {Manager: tool.Scoop, Path: `C:\scoop\shims\scoop.exe`}},
+		detection.Tool{ID: "git", Name: "Git", State: detection.Healthy},
+		detection.Tool{ID: "github-cli", Name: "GitHub CLI", State: detection.Missing},
+	)
+	plan, err := Build(items, current, []string{"github-cli"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Blocked {
+		t.Fatalf("plan should be executable: %#v", plan.Issues)
+	}
+	if len(plan.Items) != 2 || plan.Items[0].ToolID != "git" || plan.Items[0].Action != Preserve || plan.Items[1].ToolID != "github-cli" || plan.Items[1].Action != Install {
+		t.Fatalf("dependency and preservation order is wrong: %#v", plan.Items)
+	}
+	if plan.Items[1].Manager != tool.Winget || plan.Items[1].PackageID != "GitHub.cli" {
+		t.Fatalf("unexpected selected installer: %#v", plan.Items[1])
+	}
+}
+
+func TestPlanBlocksMissingManagerAndPreservesUnverifiedExistingTool(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := windowsInventory(nil,
+		detection.Tool{ID: "git", Name: "Git", State: detection.Unknown},
+	)
+	plan, err := Build(items, current, []string{"git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Blocked || len(plan.Items) != 1 || plan.Items[0].Action != Preserve {
+		t.Fatalf("unknown existing tool should be preserved: %#v", plan)
+	}
+
+	current.Tools["git"] = detection.Tool{ID: "git", Name: "Git", State: detection.Missing}
+	plan, err = Build(items, current, []string{"git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Blocked {
+		t.Fatal("plan without a detected package manager should be blocked")
+	}
+}
+
+func TestPlanRejectsBrokenInstallationWithoutReplacingIt(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := windowsInventory([]packagemanager.Detected{{Manager: tool.Winget}},
+		detection.Tool{ID: "git", Name: "Git", State: detection.Broken},
+	)
+	plan, err := Build(items, current, []string{"git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Blocked || len(plan.InstallItems()) != 0 || len(plan.Items) != 1 || plan.Items[0].Action != Preserve {
+		t.Fatalf("broken installation was not safely blocked: %#v", plan)
+	}
+}
+
+func windowsInventory(managers []packagemanager.Detected, tools ...detection.Tool) detection.Inventory {
+	inventory := detection.Inventory{
+		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
+		Managers: managers,
+		Tools:    make(map[string]detection.Tool, len(tools)),
+	}
+	for _, entry := range tools {
+		inventory.Tools[entry.ID] = entry
+	}
+	if _, exists := inventory.Tools["git"]; !exists {
+		inventory.Tools["git"] = detection.Tool{ID: "git", Name: "Git", State: detection.Missing}
+	}
+	if _, exists := inventory.Tools["github-cli"]; !exists {
+		inventory.Tools["github-cli"] = detection.Tool{ID: "github-cli", Name: "GitHub CLI", State: detection.Missing}
+	}
+	return inventory
+}
