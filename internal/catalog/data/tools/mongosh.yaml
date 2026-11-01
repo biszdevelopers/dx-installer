@@ -1,0 +1,27 @@
+schema_version: 1
+id: mongosh
+name: MongoDB Shell
+category: database.client
+description: MongoDB Shell for connecting to and querying MongoDB deployments.
+tags: [database, mongodb, shell]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [mongosh]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: mongosh
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: mongosh
+    scope: user
+    source: homebrew-core
