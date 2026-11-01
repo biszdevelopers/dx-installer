@@ -63,6 +63,22 @@ jobs:
       - name: Validate embedded manifests
         run: go run ./cmd/catalog-check
 
+      - name: Parse generated PowerShell bootstrap template
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $template = Get-Content internal/release/templates/install.ps1.tmpl -Raw
+          $digest = '0' * 64
+          $target = "    'windows-amd64' = @{ Name = 'dx-bootstrap-windows-amd64.exe'; SHA256 = '$digest' }"
+          $script = $template.Replace('@@VERSION@@', 'v1.0.0').Replace('@@ORIGIN@@', 'https://example.invalid').Replace('@@POWERSHELL_TARGETS@@', $target)
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseInput($script, [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
       - name: Check deployment script syntax
         shell: bash
         run: bash -n deployment/scripts/publish-release.sh deployment/scripts/rollback-release.sh deployment/scripts/check-published-release.sh
