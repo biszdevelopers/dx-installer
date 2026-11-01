@@ -12,10 +12,31 @@ version_args: [--version]
 dependencies: [nodejs-lts]
 conflicts: []
 platforms:
+  windows: [amd64, arm64]
   macos: [amd64, arm64]
+  linux: [amd64, arm64]
 installers:
   - platform: macos
     manager: homebrew
     package_id: typescript
     scope: user
     source: homebrew-core
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: typescript
+    version: 7.0.2
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: typescript
+    version: 7.0.2
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: typescript
+    version: 7.0.2
+    scope: user
+    source: https://registry.npmjs.org/
