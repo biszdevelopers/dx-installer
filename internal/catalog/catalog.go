@@ -140,6 +140,16 @@ func (c *Catalog) validateGraph() error {
 				return fmt.Errorf("tool %q references unknown dependency %q", id, dependency)
 			}
 		}
+		dependencies := make(map[string]bool, len(manifest.Dependencies))
+		for _, dependency := range manifest.Dependencies {
+			dependencies[dependency] = true
+		}
+		for _, installer := range manifest.RegistryInstallers {
+			runtimeTool := tool.RegistryRuntimeTool(installer.Ecosystem)
+			if runtimeTool == "" || !dependencies[runtimeTool] {
+				return fmt.Errorf("tool %q registry installer %q requires declared dependency %q", id, installer.Ecosystem, runtimeTool)
+			}
+		}
 		for _, conflict := range manifest.Conflicts {
 			if _, exists := c.tools[conflict]; !exists {
 				return fmt.Errorf("tool %q references unknown conflict %q", id, conflict)
