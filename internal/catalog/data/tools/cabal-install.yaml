@@ -1,0 +1,27 @@
+schema_version: 1
+id: cabal-install
+name: Cabal
+category: haskell.package-manager
+description: Command-line build and package management tool for Haskell.
+tags: [haskell, build, package-management]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [cabal]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: cabal-install
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: cabal-install
+    scope: user
+    source: homebrew-core
