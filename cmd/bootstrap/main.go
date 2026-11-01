@@ -233,7 +233,7 @@ func printPlan(output *os.File, plan planning.Plan) {
 		if item.Action == planning.Preserve {
 			fmt.Fprintf(output, "  PRESERVE %s (%s)\n", item.Name, item.ExistingState)
 			for _, installed := range item.ExistingPackages {
-				fmt.Fprintf(output, "    package: %s / %s %s (%s)\n", installed.Manager, installed.ID, installed.Version, installed.Source)
+				fmt.Fprintf(output, "    package: %s\n", display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 			}
 			continue
 		}
