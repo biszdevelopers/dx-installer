@@ -143,6 +143,11 @@ func (m *Model) renderCatalog(maxRows int) []string {
 		instance := detected.Instances[0]
 		lines = append(lines, "Existing: "+valueOr(instance.Version, string(instance.State))+" at "+instance.Path)
 	}
+	if detected, ok := m.inventory.Tools[item.ID]; ok {
+		for _, installed := range detected.Packages {
+			lines = append(lines, fmt.Sprintf("Package record: %s / %s %s (%s)", installed.Manager, installed.ID, installed.Version, installed.Source))
+		}
+	}
 	if installer, ok := item.InstallerFor(m.inventory.Platform.OS, m.inventory.ManagerOrder()); ok {
 		lines = append(lines, fmt.Sprintf("Proposed source: %s / %s (%s)", installer.Manager, installer.PackageID, installer.Source))
 	} else {
@@ -176,6 +181,13 @@ func (m *Model) renderEnvironment(maxRows int) []string {
 	ids := m.inventory.ToolIDs()
 	start, end := visibleWindow(len(ids), m.cursor, maxRows)
 	lines := []string{strongStyle.Render("Existing environment"), "Each detected executable is checked with its declared version command."}
+	warningCount := min(len(m.inventory.Warnings), 3)
+	for _, warning := range m.inventory.Warnings[:warningCount] {
+		lines = append(lines, warningStyle.Render("Inventory warning: "+warning))
+	}
+	if len(m.inventory.Warnings) > warningCount {
+		lines = append(lines, mutedStyle.Render(fmt.Sprintf("%d additional inventory warning(s) omitted", len(m.inventory.Warnings)-warningCount)))
+	}
 	for index := start; index < end; index++ {
 		item := m.inventory.Tools[ids[index]]
 		row := fmt.Sprintf("%-18s %-28s %s", item.ID, item.Name, stateLabel(item.State))
@@ -194,6 +206,12 @@ func (m *Model) renderEnvironment(maxRows int) []string {
 				lines = append(lines, warningStyle.Render("Diagnostic: "+instance.Diagnostic))
 			}
 		}
+		for _, installed := range item.Packages {
+			lines = append(lines, fmt.Sprintf("Package: %s / %s %s (%s)", installed.Manager, installed.ID, valueOr(installed.Version, "version unknown"), installed.Source))
+		}
+		if len(item.Packages) > 0 && len(item.Instances) == 0 {
+			lines = append(lines, warningStyle.Render("Package database record found, but its executable was not found on PATH; it will be preserved."))
+		}
 	}
 	return lines
 }
@@ -210,6 +228,9 @@ func (m *Model) renderPlan(maxRows int) []string {
 	for _, item := range m.plan.Items {
 		if item.Action == planning.Preserve {
 			rows = append(rows, fmt.Sprintf("PRESERVE  %-18s %s", item.ToolID, item.ExistingState))
+			for _, installed := range item.ExistingPackages {
+				rows = append(rows, fmt.Sprintf("          package: %s / %s %s (%s)", installed.Manager, installed.ID, valueOr(installed.Version, "version unknown"), installed.Source))
+			}
 			continue
 		}
 		privilege := "user scope"
