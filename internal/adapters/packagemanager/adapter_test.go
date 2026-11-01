@@ -72,6 +72,17 @@ func TestBuildCommandRejectsUnsupportedScopeAndManager(t *testing.T) {
 	}
 }
 
+func TestBSDManagerOrderOnlyEnablesFreeBSDPkgOnFreeBSD(t *testing.T) {
+	if got := managerOrder(tool.BSD, "freebsd"); !reflect.DeepEqual(got, []tool.PackageManager{tool.FreeBSDPkg}) {
+		t.Fatalf("FreeBSD manager order = %#v", got)
+	}
+	for _, distribution := range []string{"openbsd", "netbsd", "dragonfly", "unknown"} {
+		if got := managerOrder(tool.BSD, distribution); len(got) != 0 {
+			t.Errorf("%s manager order = %#v, want no unsupported package manager", distribution, got)
+		}
+	}
+}
+
 func TestCommandDisplayQuotesArgumentsAndArgvDoesNotUseShell(t *testing.T) {
 	command := Command{Executable: "winget", Arguments: []string{"install", "Vendor.Product with spaces"}}
 	argv := command.Argv()
