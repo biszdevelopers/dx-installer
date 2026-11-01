@@ -202,7 +202,11 @@ func (m *Model) renderCatalog(maxRows int) []string {
 	if installer, ok := item.InstallerFor(m.inventory.Platform.OS, m.managerOrder()); ok {
 		lines = append(lines, fmt.Sprintf("Proposed source: %s / %s (%s)", installer.Manager, installer.PackageID, installer.Source))
 	} else {
-		lines = append(lines, warningStyle.Render("No installer is available through detected package managers."))
+		if artifact, exists := item.ArtifactFor(m.inventory.Platform.OS, m.inventory.Platform.Architecture); exists {
+			lines = append(lines, "Proposed method: verified official archive", "Artifact version: "+artifact.Version, "Official source: "+artifact.URL, "SHA-256: "+artifact.SHA256)
+		} else {
+			lines = append(lines, warningStyle.Render("No installer or verified archive is available here."))
+		}
 	}
 	for _, installer := range item.Installers {
 		lines = append(lines, fmt.Sprintf("Installer: %s / %s / %s / %s / %s", installer.Platform, installer.Manager, installer.PackageID, installer.Scope, installer.Source))
@@ -299,7 +303,27 @@ func (m *Model) renderPlan(maxRows int) []string {
 		if item.RequiresPrivilege || item.Scope == "system" {
 			privilege = "system scope / privilege may be required"
 		}
-		rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s  %s", item.ToolID, item.Manager, item.PackageID, privilege), "          source: "+item.Source, "          command: "+item.Command.Display())
+		if item.Artifact != nil {
+			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s", item.ToolID, item.Version, privilege),
+				"          official source: "+item.Source,
+				"          SHA-256: "+item.Artifact.SHA256,
+				"          approximate download: "+approximateSize(item.ApproximateSize),
+				"          install path: "+item.InstallPath)
+			if item.RegionalFallback && item.Artifact.RegionalURL != "" {
+				rows = append(rows, "          verified regional fallback after retryable official failures: "+item.Artifact.RegionalURL)
+			}
+			for _, change := range item.PathChanges {
+				if change.Manual {
+					rows = append(rows, "          PATH requires manual setup: "+change.Target, "          manual command: "+change.ManualCommand)
+				} else if change.AlreadyConfigured {
+					rows = append(rows, "          PATH already configured in "+change.Target+"; add to this session")
+				} else {
+					rows = append(rows, "          persistent PATH change: add "+change.Directory+" to "+change.Target)
+				}
+			}
+		} else {
+			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s  %s", item.ToolID, item.Manager, item.PackageID, privilege), "          source: "+item.Source, "          command: "+item.Command.Display())
+		}
 	}
 	for _, issue := range m.plan.Issues {
 		rows = append(rows, fmt.Sprintf("%s  %s: %s", strings.ToUpper(string(issue.Severity)), issue.ToolID, issue.Message))
@@ -317,7 +341,7 @@ func (m *Model) renderPlan(maxRows int) []string {
 
 func (m *Model) renderSources(maxRows int) []string {
 	managers := m.inventory.Managers
-	lines := []string{strongStyle.Render("Download sources"), "DX uses package managers already detected on this machine.", "It does not add repositories or change package-manager configuration.", "A preferred manager is selected when it has a compatible catalog entry.", ""}
+	lines := []string{strongStyle.Render("Download sources"), "Package managers already on this machine are preferred when they support the selected tool.", "Direct archives use pinned publisher digests; regional mirrors must match that digest.", "Source policy: " + m.sourceMode, "Press o for official-only, m for official-first with verified fallback, or 0 for automatic.", "A preferred detected package manager is selected when it has a compatible catalog entry.", ""}
 	if len(managers) == 0 {
 		return append(lines, warningStyle.Render("No supported package manager was detected."))
 	}
@@ -347,7 +371,12 @@ func (m *Model) renderProgress(maxRows int) []string {
 	results := m.session.Report()
 	lines = append(lines, fmt.Sprintf("Completed tasks: %d of %d", len(results), len(m.plan.Items)))
 	if m.activeItem.ToolID != "" {
-		lines = append(lines, "Current operation: "+m.activeItem.Name, "Source: "+m.activeItem.Source, "Command: "+m.activeItem.Command.Display())
+		lines = append(lines, "Current operation: "+m.activeItem.Name)
+		if m.activeItem.Artifact != nil {
+			lines = append(lines, "Download source: "+m.activeItem.Source, "Verifying SHA-256 and extracting the archive.")
+		} else {
+			lines = append(lines, "Source: "+m.activeItem.Source, "Command: "+m.activeItem.Command.Display())
+		}
 	}
 	for _, result := range results {
 		lines = append(lines, fmt.Sprintf("%-22s %s", result.Name, result.State))
@@ -385,6 +414,25 @@ func (m *Model) renderResults(maxRows int) []string {
 	if result.Source != "" {
 		lines = append(lines, "Source: "+result.Source)
 	}
+	if result.SourceURL != "" {
+		lines = append(lines, "Download URL: "+result.SourceURL)
+	}
+	if result.InstallPath != "" {
+		lines = append(lines, "Installed at: "+result.InstallPath)
+	}
+	if result.SHA256 != "" {
+		lines = append(lines, "SHA-256: "+result.SHA256)
+	}
+	for _, change := range result.PathChanges {
+		if change.Manual {
+			lines = append(lines, warningStyle.Render("Manual PATH setup: "+change.ManualCommand))
+		} else if change.Persist {
+			lines = append(lines, "PATH change: "+change.Directory+" → "+change.Target)
+		}
+	}
+	if result.CleanupNotice != "" {
+		lines = append(lines, warningStyle.Render("Temporary cleanup: "+result.CleanupNotice))
+	}
 	if result.Diagnostic != "" {
 		lines = append(lines, warningStyle.Render("Diagnostic: "+result.Diagnostic))
 	}
@@ -393,8 +441,30 @@ func (m *Model) renderResults(maxRows int) []string {
 }
 
 func (m *Model) renderApproval() string {
-	lines := []string{strongStyle.Render("Approve installation plan?"), fmt.Sprintf("This will run %d package-manager command(s).", len(m.plan.InstallItems())), "Review the listed package IDs, sources, scopes, and commands before continuing.", warningStyle.Render(m.plan.TransactionDisclosure)}
+	packageCount, archiveCount := 0, 0
 	for _, item := range m.plan.InstallItems() {
+		if item.Artifact == nil {
+			packageCount++
+		} else {
+			archiveCount++
+		}
+	}
+	lines := []string{strongStyle.Render("Approve installation plan?"), fmt.Sprintf("This will run %d package-manager command(s) and install %d verified archive(s).", packageCount, archiveCount), "Review each source, version, integrity digest, install path, and persistent PATH change before continuing."}
+	if m.plan.TransactionDisclosure != "" {
+		lines = append(lines, warningStyle.Render(m.plan.TransactionDisclosure))
+	}
+	for _, item := range m.plan.InstallItems() {
+		if item.Artifact != nil {
+			lines = append(lines, fmt.Sprintf("%s  version %s  SHA-256 %s  %s", item.ToolID, item.Version, item.Artifact.SHA256, item.InstallPath))
+			for _, change := range item.PathChanges {
+				if change.Manual {
+					lines = append(lines, "  PATH manual command: "+change.ManualCommand)
+				} else if change.Persist {
+					lines = append(lines, "  PATH change: add "+change.Directory+" to "+change.Target)
+				}
+			}
+			continue
+		}
 		lines = append(lines, fmt.Sprintf("%s  %s  %s  %s", item.ToolID, item.Manager, item.PackageID, item.Scope))
 	}
 	lines = append(lines, warningStyle.Render("Press y to refresh inventory and continue. Any plan change requires approval again."), mutedStyle.Render("Press n or Esc to cancel without changes."))
