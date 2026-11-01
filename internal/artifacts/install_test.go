@@ -108,6 +108,34 @@ func TestArchiveInstallerRefusesExistingTargetsBeforeDownloading(t *testing.T) {
 	}
 }
 
+func TestArchiveLayoutCanPlaceCommandLineToolsAtExpectedSDKPath(t *testing.T) {
+	root := t.TempDir()
+	staging := filepath.Join(root, "staging")
+	if err := os.Mkdir(staging, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(staging, "bin"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(staging, "bin", "sdkmanager"), []byte("sdkmanager"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := placeInSubdirectory(staging, root, "cmdline-tools/latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(layout, "cmdline-tools", "latest", "bin", "sdkmanager")); err != nil {
+		t.Fatalf("SDK command-line tool was not placed in the expected layout: %v", err)
+	}
+	remaining, err := os.ReadDir(staging)
+	if err != nil || len(remaining) != 0 {
+		t.Fatalf("original staging directory is not empty after layout creation: %v, %v", remaining, err)
+	}
+	if _, err := placeInSubdirectory(staging, root, "../escape"); err == nil {
+		t.Fatal("traversing install subdirectory was accepted")
+	}
+}
+
 func sampleGoArchive(t *testing.T) ([]byte, string, tool.ArchiveFormat) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
