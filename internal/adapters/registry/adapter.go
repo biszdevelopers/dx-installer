@@ -63,6 +63,26 @@ func BuildCommand(installer tool.RegistryInstaller, installPath, source string) 
 			"GOTOOLCHAIN": "local",
 		}
 		pathEntries = []string{filepath.Join(installPath, "bin")}
+	case tool.CargoRegistry:
+		command.Executable = "cargo"
+		command.Arguments = []string{"install", "--root", installPath, "--locked", "--version", installer.Version, installer.PackageID}
+		rustupHome := os.Getenv("RUSTUP_HOME")
+		if !filepath.IsAbs(rustupHome) {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return packagemanager.Command{}, nil, fmt.Errorf("find Rustup home: %w", err)
+			}
+			rustupHome = filepath.Join(home, ".rustup")
+		}
+		command.Environment = map[string]string{
+			"CARGO_HOME":                       filepath.Join(cache, "cargo-home"),
+			"CARGO_TARGET_DIR":                 filepath.Join(cache, "cargo-target"),
+			"CARGO_INCREMENTAL":                "0",
+			"CARGO_REGISTRIES_CRATES_IO_INDEX": "sparse+" + source,
+			"CARGO_TERM_COLOR":                 "never",
+			"RUSTUP_HOME":                      rustupHome,
+		}
+		pathEntries = []string{filepath.Join(installPath, "bin")}
 	default:
 		return packagemanager.Command{}, nil, fmt.Errorf("unsupported registry ecosystem %q", installer.Ecosystem)
 	}
