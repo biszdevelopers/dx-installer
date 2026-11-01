@@ -1,10 +1,14 @@
 package packagemanager
 
 import (
+	"context"
+	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,6 +18,97 @@ import (
 
 const maxWindowsPackageRecords = 50000
 const maxNuspecBytes = 1 << 20
+const maxWingetExportBytes = 8 << 20
+
+type wingetExport struct {
+	Sources []struct {
+		Packages []struct {
+			Identifier string `json:"PackageIdentifier"`
+			Version    string `json:"Version"`
+		} `json:"Packages"`
+	} `json:"Sources"`
+}
+
+func queryWingetExport(ctx context.Context, executablePath string) (packages []packageRecord, resultErr error) {
+	if runtime.GOOS != "windows" {
+		return nil, fmt.Errorf("WinGet local inventory is available only on Windows")
+	}
+	if executablePath == "" {
+		return nil, fmt.Errorf("WinGet executable path is unavailable")
+	}
+	directory, err := os.MkdirTemp("", "dx-winget-inventory-")
+	if err != nil {
+		return nil, fmt.Errorf("create temporary WinGet inventory workspace: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(directory); err != nil {
+			packages = nil
+			resultErr = errors.Join(resultErr, fmt.Errorf("remove temporary WinGet inventory workspace: %w", err))
+		}
+	}()
+
+	outputPath := filepath.Join(directory, "packages.json")
+	command := exec.CommandContext(ctx, executablePath,
+		"export", "--output", outputPath, "--include-versions", "--disable-interactivity")
+	command.Stdout = &boundedOutput{limit: 16 << 10}
+	command.Stderr = &boundedOutput{limit: 16 << 10}
+	if err := command.Run(); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, fmt.Errorf("WinGet export failed or requires an unaccepted source agreement")
+	}
+	info, err := os.Lstat(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("read temporary WinGet export: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("WinGet export did not create a regular JSON file")
+	}
+	if info.Size() > maxWingetExportBytes {
+		return nil, fmt.Errorf("WinGet export exceeds the %d byte safety limit", maxWingetExportBytes)
+	}
+	file, err := os.Open(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("open temporary WinGet export: %w", err)
+	}
+	contents, readErr := io.ReadAll(io.LimitReader(file, maxWingetExportBytes+1))
+	closeErr := file.Close()
+	if readErr != nil {
+		return nil, fmt.Errorf("read temporary WinGet export: %w", readErr)
+	}
+	if closeErr != nil {
+		return nil, fmt.Errorf("close temporary WinGet export: %w", closeErr)
+	}
+	if len(contents) > maxWingetExportBytes {
+		return nil, fmt.Errorf("WinGet export exceeds the %d byte safety limit", maxWingetExportBytes)
+	}
+	return parseWingetExport(contents)
+}
+
+func parseWingetExport(contents []byte) ([]packageRecord, error) {
+	var exported wingetExport
+	if err := json.Unmarshal(contents, &exported); err != nil {
+		return nil, fmt.Errorf("decode WinGet export: %w", err)
+	}
+	if len(exported.Sources) == 0 {
+		return nil, fmt.Errorf("WinGet export contains no sources")
+	}
+	packages := make([]packageRecord, 0)
+	for _, source := range exported.Sources {
+		for _, entry := range source.Packages {
+			identifier := strings.TrimSpace(entry.Identifier)
+			if identifier == "" {
+				return nil, fmt.Errorf("WinGet export contains a package without an identifier")
+			}
+			packages = append(packages, packageRecord{ID: identifier, Version: strings.TrimSpace(entry.Version)})
+			if len(packages) > maxWindowsPackageRecords {
+				return nil, fmt.Errorf("WinGet inventory exceeds the %d package limit", maxWindowsPackageRecords)
+			}
+		}
+	}
+	return packages, nil
+}
 
 type nuspecMetadata struct {
 	XMLName  xml.Name `xml:"package"`
