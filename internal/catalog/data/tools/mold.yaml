@@ -1,0 +1,27 @@
+schema_version: 1
+id: mold
+name: mold
+category: cpp.linker
+description: Modern linker for supported ELF development toolchains.
+tags: [c, cpp, linker, linux]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [mold]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: mold
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: mold
+    scope: user
+    source: homebrew-core
