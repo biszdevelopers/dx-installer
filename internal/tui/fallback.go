@@ -5,12 +5,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
+	"developers-club-dx/internal/artifacts"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/display"
 	"developers-club-dx/internal/installation"
+	"developers-club-dx/internal/pathconfig"
 	"developers-club-dx/internal/planning"
 )
 
@@ -43,7 +46,7 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 			model.selected[id] = true
 		}
 	}
-	plan, err := planning.BuildWithOptions(model.catalog, model.inventory, model.selectedIDs(), planning.Options{PreferredManager: model.preferredManager})
+	plan, err := planning.BuildWithOptions(model.catalog, model.inventory, model.selectedIDs(), planning.Options{PreferredManager: model.preferredManager, AllowRegionalFallback: model.sourceMode == "official-first"})
 	if err != nil {
 		return err
 	}
@@ -75,7 +78,7 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 		if scanErr != nil {
 			return fmt.Errorf("could not refresh inventory before execution: %w", scanErr)
 		}
-		updated, buildErr := planning.BuildWithOptions(model.catalog, inventory, model.selectedIDs(), planning.Options{PreferredManager: model.preferredManager})
+		updated, buildErr := planning.BuildWithOptions(model.catalog, inventory, model.selectedIDs(), planning.Options{PreferredManager: model.preferredManager, AllowRegionalFallback: model.sourceMode == "official-first"})
 		if buildErr != nil {
 			return buildErr
 		}
@@ -116,29 +119,53 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 		if !ok {
 			break
 		}
-		fmt.Fprintf(output, "\nInstalling %s from %s with %s\n", item.Name, item.Source, item.Command.Display())
-		command, startErr := item.Command.ExecContext(ctx)
-		if startErr != nil {
-			_ = session.Record(item, startErr, detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing})
-			continue
+		var operationErr error
+		details := installation.ExecutionDetails{PathChanges: item.PathChanges}
+		if item.Artifact != nil {
+			fmt.Fprintf(output, "\nDownloading and installing %s %s from %s\n", item.Name, item.Version, item.Source)
+			home, homeErr := os.UserHomeDir()
+			if homeErr != nil {
+				operationErr = homeErr
+			} else {
+				result, installErr := artifacts.NewArchiveInstaller().Install(ctx, item.ToolID, home, *item.Artifact, item.RegionalFallback)
+				operationErr = installErr
+				details.Source = result.SourceName
+				details.SourceURL = result.SourceURL
+				details.InstallPath = result.Path
+				details.SHA256 = result.SHA256
+				details.CleanupNotice = result.CleanupNotice
+				if installErr == nil {
+					if pathErr := pathconfig.Apply(item.PathChanges); pathErr != nil {
+						details.PathError = pathErr.Error()
+						fmt.Fprintln(output, "PATH update needs attention:", pathErr)
+					}
+				}
+			}
+		} else {
+			fmt.Fprintf(output, "\nInstalling %s from %s with %s\n", item.Name, item.Source, item.Command.Display())
+			command, startErr := item.Command.ExecContext(ctx)
+			if startErr != nil {
+				operationErr = startErr
+			} else {
+				command.Stdin = reader
+				command.Stdout = output
+				command.Stderr = output
+				operationErr = command.Run()
+			}
 		}
-		command.Stdin = reader
-		command.Stdout = output
-		command.Stderr = output
-		commandErr := command.Run()
 		scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 		inventory, scanErr := detection.Scan(scanCtx, model.catalog, model.inventory.Platform)
 		cancel()
 		actual := inventory.Tools[item.ToolID]
 		if scanErr != nil {
 			actual = detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Unknown}
-			if commandErr == nil {
-				commandErr = fmt.Errorf("post-install verification failed: %w", scanErr)
+			if operationErr == nil {
+				operationErr = fmt.Errorf("post-install verification failed: %w", scanErr)
 			}
 		} else {
 			model.inventory = inventory
 		}
-		if err := session.Record(item, commandErr, actual); err != nil {
+		if err := session.RecordWithDetails(item, operationErr, actual, details); err != nil {
 			return err
 		}
 		result, exists := session.Result(item.ToolID)
@@ -146,6 +173,15 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 			fmt.Fprintf(output, "Result: %s | verification: %s\n", result.State, result.Verification)
 			if result.Diagnostic != "" {
 				fmt.Fprintln(output, "Diagnostic: "+result.Diagnostic)
+			}
+			if result.InstallPath != "" {
+				fmt.Fprintln(output, "Installed at:", result.InstallPath)
+			}
+			if result.SourceURL != "" {
+				fmt.Fprintln(output, "Download URL:", result.SourceURL)
+			}
+			if result.SHA256 != "" {
+				fmt.Fprintln(output, "SHA-256:", result.SHA256)
 			}
 		}
 	}
@@ -169,6 +205,22 @@ func printPlan(output io.Writer, plan planning.Plan) {
 			}
 			continue
 		}
+		if item.Artifact != nil {
+			fmt.Fprintf(output, "  INSTALL %s %s\n    official source: %s\n    SHA-256: %s\n    approximate download: %s\n    install path: %s\n", item.Name, item.Version, item.Source, item.Artifact.SHA256, approximateSize(item.ApproximateSize), item.InstallPath)
+			for _, change := range item.PathChanges {
+				if change.Manual {
+					fmt.Fprintf(output, "    PATH: manual update required (%s)\n    command: %s\n", change.Target, change.ManualCommand)
+				} else if change.AlreadyConfigured {
+					fmt.Fprintf(output, "    PATH: already configured in %s; update current session\n", change.Target)
+				} else {
+					fmt.Fprintf(output, "    PATH: add %s to %s\n", change.Directory, change.Target)
+				}
+			}
+			if item.RegionalFallback && item.Artifact.RegionalURL != "" {
+				fmt.Fprintf(output, "    verified regional fallback: %s (only after retryable official-source failures)\n", item.Artifact.RegionalURL)
+			}
+			continue
+		}
 		fmt.Fprintf(output, "  INSTALL %s\n    source: %s (%s)\n    scope: %s\n    command: %s\n", item.Name, item.Source, item.Manager, item.Scope, item.Command.Display())
 	}
 	for _, issue := range plan.Issues {
@@ -177,6 +229,13 @@ func printPlan(output io.Writer, plan planning.Plan) {
 	if len(plan.InstallItems()) > 0 {
 		fmt.Fprintf(output, "  NOTICE %s\n", plan.TransactionDisclosure)
 	}
+}
+
+func approximateSize(bytes int64) string {
+	if bytes <= 0 {
+		return "unknown"
+	}
+	return fmt.Sprintf("about %.0f MB", float64(bytes)/1_000_000)
 }
 
 func readLine(reader *bufio.Reader) (string, error) {
