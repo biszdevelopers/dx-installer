@@ -2,9 +2,13 @@ package planning
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"developers-club-dx/internal/adapters/packagemanager"
+	"developers-club-dx/internal/artifacts"
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/domain/tool"
@@ -44,6 +48,12 @@ type Item struct {
 	Scope             tool.Scope
 	Command           packagemanager.Command
 	RequiresPrivilege bool
+	Artifact          *tool.Artifact
+	Version           string
+	ApproximateSize   int64
+	InstallPath       string
+	PathAdditions     []string
+	RegionalFallback  bool
 }
 
 type Plan struct {
@@ -61,7 +71,8 @@ func Build(items *catalog.Catalog, current detection.Inventory, selected []strin
 }
 
 type Options struct {
-	PreferredManager tool.PackageManager
+	PreferredManager      tool.PackageManager
+	AllowRegionalFallback bool
 }
 
 func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selected []string, options Options) (Plan, error) {
@@ -112,9 +123,13 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State})
 			plan.add(Blocking, id, fmt.Sprintf("an existing %s installation needs manual review; DX will not replace it", entry.State))
 		case detection.Missing:
-			installer, exists := manifest.InstallerFor(current.Platform.OS, managerOrder)
-			if !exists {
-				plan.add(Blocking, id, "no supported installer is available through the detected package managers")
+			installer, managerAvailable := manifest.InstallerFor(current.Platform.OS, managerOrder)
+			if !managerAvailable {
+				if artifact, exists := manifest.ArtifactFor(current.Platform.OS, current.Platform.Architecture); exists {
+					plan.addArtifact(current, id, manifest, entry, artifact, options.AllowRegionalFallback)
+					continue
+				}
+				plan.add(Blocking, id, "no supported installer is available through detected package managers and no verified archive exists")
 				continue
 			}
 			command, err := packagemanager.BuildCommand(installer, current.Platform.OS)
@@ -141,11 +156,76 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 	}
 	for _, item := range plan.Items {
 		if item.Action == Install {
-			plan.TransactionDisclosure = TransactionDisclosure
-			break
+			if item.Artifact == nil {
+				plan.TransactionDisclosure = TransactionDisclosure
+				break
+			}
 		}
 	}
 	return plan, nil
+}
+
+func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool.Manifest, entry detection.Tool, artifact tool.Artifact, allowRegionalFallback bool) {
+	home, err := os.UserHomeDir()
+	if err != nil || !filepath.IsAbs(home) {
+		p.add(Blocking, id, "could not determine an absolute user home directory for the user-level archive installation")
+		return
+	}
+	installPath, err := artifacts.InstallationPath(current.Platform.OS, id, artifact.Version, home)
+	if err != nil {
+		p.add(Blocking, id, err.Error())
+		return
+	}
+	if _, err := os.Lstat(installPath); err == nil {
+		p.add(Blocking, id, "the versioned user-level installation target already exists and will not be replaced")
+		return
+	} else if !os.IsNotExist(err) {
+		p.add(Blocking, id, "the versioned user-level installation target could not be inspected: "+err.Error())
+		return
+	}
+	manifestCopy := artifact
+	pathAdditions := make([]string, 0, len(artifact.PathEntries))
+	for _, relative := range artifact.PathEntries {
+		candidate := filepath.Join(installPath, filepath.FromSlash(relative))
+		if !pathContains(os.Getenv("PATH"), candidate, current.Platform.OS) {
+			pathAdditions = append(pathAdditions, candidate)
+		}
+	}
+	p.Items = append(p.Items, Item{
+		ToolID:           id,
+		Name:             manifest.Name,
+		Dependencies:     append([]string(nil), manifest.Dependencies...),
+		Action:           Install,
+		ExistingState:    entry.State,
+		Source:           artifact.URL,
+		Artifact:         &manifestCopy,
+		Version:          artifact.Version,
+		ApproximateSize:  artifact.ApproximateSize,
+		InstallPath:      installPath,
+		PathAdditions:    pathAdditions,
+		RegionalFallback: allowRegionalFallback && artifact.RegionalURL != "",
+	})
+}
+
+func pathContains(pathValue, candidate string, operatingSystem tool.OperatingSystem) bool {
+	separator := ":"
+	if operatingSystem == tool.Windows {
+		separator = ";"
+	}
+	normalizedCandidate := filepath.Clean(candidate)
+	for _, existing := range strings.Split(pathValue, separator) {
+		if existing == "" {
+			continue
+		}
+		if operatingSystem == tool.Windows {
+			if strings.EqualFold(filepath.Clean(existing), normalizedCandidate) {
+				return true
+			}
+		} else if filepath.Clean(existing) == normalizedCandidate {
+			return true
+		}
+	}
+	return false
 }
 
 func PreferredManagerOrder(managers []tool.PackageManager, preferred tool.PackageManager) []tool.PackageManager {
