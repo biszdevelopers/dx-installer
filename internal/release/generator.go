@@ -60,6 +60,7 @@ func DefaultTargets() []Target {
 		{Platform: "macos", Architecture: "arm64"},
 		{Platform: "linux", Architecture: "amd64"},
 		{Platform: "linux", Architecture: "arm64"},
+		{Platform: "freebsd", Architecture: "amd64"},
 	}
 }
 
