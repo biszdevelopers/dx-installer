@@ -1,0 +1,27 @@
+schema_version: 1
+id: haskell-stack
+name: Stack
+category: haskell.build
+description: Cross-platform Haskell project build tool.
+tags: [haskell, build, package-management]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [stack]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: haskell-stack
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: haskell-stack
+    scope: user
+    source: homebrew-core
