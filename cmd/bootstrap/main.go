@@ -20,6 +20,7 @@ import (
 	"developers-club-dx/internal/installation"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/platform"
+	"developers-club-dx/internal/regional"
 	"developers-club-dx/internal/temporary"
 	"developers-club-dx/internal/tui"
 )
@@ -125,6 +126,7 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 	flags := flag.NewFlagSet("plan", flag.ContinueOnError)
 	toolsFlag := flags.String("tools", "", "comma-separated tool IDs to include")
 	managerFlag := flags.String("manager", "", "prefer a detected package manager")
+	sourcePolicyFlag := flags.String("source-policy", string(regional.Automatic), "automatic, official-only, official-first, mainland-china, or global")
 	jsonOutput := flags.Bool("json", false, "write the plan as JSON")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -141,7 +143,11 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 	if err != nil {
 		return err
 	}
-	plan, err := planning.BuildWithOptions(items, inventory, selected, planning.Options{PreferredManager: preferredManager})
+	allowRegionalFallback, err := sourceFallback(inventory.Platform, *sourcePolicyFlag)
+	if err != nil {
+		return err
+	}
+	plan, err := planning.BuildWithOptions(items, inventory, selected, planning.Options{PreferredManager: preferredManager, AllowRegionalFallback: allowRegionalFallback})
 	if err != nil {
 		return err
 	}
@@ -162,6 +168,7 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	flags := flag.NewFlagSet("install", flag.ContinueOnError)
 	toolsFlag := flags.String("tools", "", "preselect comma-separated tool IDs")
 	managerFlag := flags.String("manager", "", "prefer a detected package manager")
+	sourcePolicyFlag := flags.String("source-policy", string(regional.Automatic), "automatic, official-only, official-first, mainland-china, or global")
 	approveFlag := flags.Bool("yes", false, "approve and execute the preselected plan in line mode")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -201,6 +208,9 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	}
 	model := tui.NewModel(ctx, items, inventory, selected)
 	model.SetPreferredManager(preferredManager)
+	if err := model.SetSourceMode(*sourcePolicyFlag); err != nil {
+		return err
+	}
 	if *approveFlag {
 		lineErr := tui.RunLineFallback(ctx, model, io.MultiReader(strings.NewReader("yes\n"), os.Stdin), os.Stdout)
 		printSummary(model.SessionReport())
@@ -241,6 +251,14 @@ func detectedManagerPreference(inventory detection.Inventory, requested string) 
 	return "", fmt.Errorf("package manager %q is not detected on this machine", requested)
 }
 
+func sourceFallback(machine platform.Info, requested string) (bool, error) {
+	preference := regional.Preference(requested)
+	if preference != regional.Automatic && preference != regional.China && preference != regional.Worldwide && preference != regional.OfficialOnly && preference != regional.OfficialFirst {
+		return false, fmt.Errorf("unsupported source policy %q", requested)
+	}
+	return regional.Detect(machine).UseRegionalFallback(preference)
+}
+
 func printSummary(results []installation.Result) {
 	if len(results) == 0 {
 		return
@@ -267,6 +285,21 @@ func printPlan(output *os.File, plan planning.Plan) {
 		if item.RequiresPrivilege || item.Scope == "system" {
 			privilege = "system scope; privilege may be required"
 		}
+		if item.Artifact != nil {
+			fmt.Fprintf(output, "  INSTALL %s %s\n    source: %s\n    SHA-256: %s\n    approximate download: %s\n    install path: %s\n",
+				item.Name, item.Version, item.Source, item.Artifact.SHA256, approxBytes(item.ApproximateSize), item.InstallPath)
+			for _, change := range item.PathChanges {
+				if change.Manual {
+					fmt.Fprintf(output, "    PATH: manual setup (%s)\n    command: %s\n", change.Target, change.ManualCommand)
+				} else if change.Persist {
+					fmt.Fprintf(output, "    PATH: add %s to %s\n", change.Directory, change.Target)
+				}
+			}
+			if item.RegionalFallback && item.Artifact.RegionalURL != "" {
+				fmt.Fprintf(output, "    verified regional fallback: %s (after retryable official-source failures)\n", item.Artifact.RegionalURL)
+			}
+			continue
+		}
 		fmt.Fprintf(output, "  INSTALL %s\n    package: %s (%s)\n    source: %s\n    scope: %s\n    command: %s\n",
 			item.Name, item.PackageID, item.Manager, item.Source, privilege, item.Command.Display())
 	}
@@ -276,6 +309,13 @@ func printPlan(output *os.File, plan planning.Plan) {
 	if len(plan.InstallItems()) > 0 {
 		fmt.Fprintf(output, "  NOTICE %s\n", plan.TransactionDisclosure)
 	}
+}
+
+func approxBytes(bytes int64) string {
+	if bytes <= 0 {
+		return "unknown"
+	}
+	return fmt.Sprintf("about %.0f MB", float64(bytes)/1_000_000)
 }
 
 func parseIDs(value string) []string {
