@@ -2,6 +2,7 @@ package planning
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -52,6 +53,52 @@ func TestPlanPrefersTheRequestedDetectedManager(t *testing.T) {
 	}
 	if plan.Blocked || len(plan.Items) != 1 || plan.Items[0].Manager != tool.Scoop {
 		t.Fatalf("plan did not honor the detected manager preference: %#v", plan)
+	}
+}
+
+func TestPlanUsesVerifiedArchiveWhenNoPackageManagerIsAvailable(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	localAppData := filepath.Join(home, "LocalAppData")
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("LOCALAPPDATA", localAppData)
+	t.Setenv("PATH", "")
+	current := windowsInventory(nil, detection.Tool{ID: "go", Name: "Go", State: detection.Missing})
+	plan, err := Build(items, current, []string{"go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Blocked || len(plan.Items) != 1 {
+		t.Fatalf("archive plan is blocked or has unexpected items: %#v", plan)
+	}
+	item := plan.Items[0]
+	if item.Artifact == nil || item.Version != "1.27.3" || item.ApproximateSize != 75_000_000 || item.Source != "https://go.dev/dl/go1.27.3.windows-amd64.zip" {
+		t.Fatalf("plan omitted verified artifact details: %#v", item)
+	}
+	wantTarget := filepath.Join(localAppData, "Programs", "go", "1.27.3")
+	if item.InstallPath != wantTarget || len(item.PathAdditions) != 1 || item.PathAdditions[0] != filepath.Join(wantTarget, "bin") {
+		t.Fatalf("plan target/PATH additions = %q / %#v, want %q / bin", item.InstallPath, item.PathAdditions, wantTarget)
+	}
+	if item.Command.Display() != "" || item.Manager != "" || plan.TransactionDisclosure != "" {
+		t.Fatalf("direct archive install was represented as a package-manager transaction: %#v", item)
+	}
+}
+
+func TestPlanPrefersAnExistingPackageManagerOverTheStandaloneArchive(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := windowsInventory([]packagemanager.Detected{{Manager: tool.Winget}}, detection.Tool{ID: "go", Name: "Go", State: detection.Missing})
+	plan, err := Build(items, current, []string{"go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Blocked || len(plan.Items) != 1 || plan.Items[0].Artifact != nil || plan.Items[0].Manager != tool.Winget {
+		t.Fatalf("available package manager was not preferred: %#v", plan)
 	}
 }
 
