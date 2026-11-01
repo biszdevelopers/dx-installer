@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"developers-club-dx/internal/domain/tool"
@@ -189,11 +191,64 @@ func (i *ArchiveInstaller) extractAndPublish(toolID string, download sources.Dow
 	if err := Extract(download.Path, staging, artifact.ArchiveRoot, artifact.Format, Limits{}); err != nil {
 		return result, fmt.Errorf("extract %s %s: %w", toolID, artifact.Version, err)
 	}
+	if artifact.InstallSubdirectory != "" {
+		layout, err := placeInSubdirectory(staging, parent, artifact.InstallSubdirectory)
+		if err != nil {
+			return result, fmt.Errorf("prepare %s installation layout: %w", toolID, err)
+		}
+		if err := os.RemoveAll(staging); err != nil {
+			_ = os.RemoveAll(layout)
+			return result, fmt.Errorf("remove extracted staging directory: %w", err)
+		}
+		staging = layout
+	}
 	if err := publishDirectory(staging, target); err != nil {
 		return result, fmt.Errorf("publish user-level installation: %w", err)
 	}
 	staging = ""
 	return InstallResult{Path: target, Version: artifact.Version, SourceName: download.SourceName, SourceURL: download.URL, SHA256: download.SHA256}, nil
+}
+
+func placeInSubdirectory(staging, parent, subdirectory string) (string, error) {
+	clean := path.Clean(subdirectory)
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || clean != subdirectory || strings.HasPrefix(subdirectory, "/") || strings.Contains(subdirectory, "\\") {
+		return "", errors.New("install subdirectory must be a safe relative path")
+	}
+	for _, segment := range strings.Split(subdirectory, "/") {
+		if hasUnsafeSegment(segment) || (runtime.GOOS == "windows" && hasWindowsDeviceName(segment)) {
+			return "", errors.New("install subdirectory contains an unsafe path segment")
+		}
+	}
+	layout, err := os.MkdirTemp(parent, ".tool-layout-*")
+	if err != nil {
+		return "", fmt.Errorf("create wrapped installation directory: %w", err)
+	}
+	keep := false
+	defer func() {
+		if !keep {
+			_ = os.RemoveAll(layout)
+		}
+	}()
+	target := filepath.Join(layout, filepath.FromSlash(subdirectory))
+	if err := os.MkdirAll(target, 0o700); err != nil {
+		return "", fmt.Errorf("create install subdirectory: %w", err)
+	}
+	entries, err := os.ReadDir(staging)
+	if err != nil {
+		return "", fmt.Errorf("read extracted files: %w", err)
+	}
+	if len(entries) == 0 {
+		return "", errors.New("extracted archive is empty")
+	}
+	for _, entry := range entries {
+		from := filepath.Join(staging, entry.Name())
+		to := filepath.Join(target, entry.Name())
+		if err := os.Rename(from, to); err != nil {
+			return "", fmt.Errorf("place extracted entry %q: %w", entry.Name(), err)
+		}
+	}
+	keep = true
+	return layout, nil
 }
 
 func installParent(machine tool.OperatingSystem, toolID, home string) (string, error) {
