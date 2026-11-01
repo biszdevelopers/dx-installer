@@ -1,0 +1,21 @@
+schema_version: 1
+id: ansible
+name: Ansible CLI
+category: devops.configuration
+description: Command-line automation tools for configuration and deployment.
+tags: [ansible, devops, automation]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [ansible]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: ansible
+    scope: user
+    source: homebrew-core
