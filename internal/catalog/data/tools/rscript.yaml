@@ -1,0 +1,17 @@
+schema_version: 1
+id: rscript
+name: Rscript
+category: r.runtime
+description: R command-line script runner supplied by the R distribution.
+tags: [r, scripting, statistics]
+version:
+  channel: provided-by-runtime
+  upgrade_policy: never_automatically
+executables: [Rscript]
+version_args: [--version]
+dependencies: [r]
+provided_by: r
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
