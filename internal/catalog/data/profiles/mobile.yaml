@@ -1,0 +1,5 @@
+schema_version: 1
+id: mobile
+name: Mobile development
+description: Android platform tools and Flutter SDK for mobile development.
+tools: [adb, flutter]
