@@ -1,0 +1,27 @@
+schema_version: 1
+id: odin
+name: Odin
+category: odin.compiler
+description: Systems programming language focused on simplicity and performance.
+tags: [odin, compiler, systems]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [odin]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: odin
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: odin
+    scope: user
+    source: homebrew-core
