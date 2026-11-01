@@ -101,6 +101,10 @@ func showInventory(ctx context.Context, items *catalog.Catalog, args []string) e
 		fmt.Fprintf(os.Stdout, "%-18s %-28s %s\n", item.ID, item.Name, item.State)
 		for _, instance := range item.Instances {
 			fmt.Fprintf(os.Stdout, "  %s  %s\n", instance.Version, instance.Path)
+			fmt.Fprintf(os.Stdout, "  architecture: %s\n", display.ArchitectureVerification(instance))
+			if instance.ArchitectureDiagnostic != "" {
+				fmt.Fprintf(os.Stdout, "  architecture diagnostic: %s\n", instance.ArchitectureDiagnostic)
+			}
 			if instance.Diagnostic != "" {
 				fmt.Fprintf(os.Stdout, "  diagnostic: %s\n", instance.Diagnostic)
 			}
