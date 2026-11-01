@@ -1,0 +1,27 @@
+schema_version: 1
+id: esbuild
+name: esbuild
+category: javascript.build
+description: Fast JavaScript bundler and minifier.
+tags: [javascript, typescript, bundler]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [esbuild]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: esbuild
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: esbuild
+    scope: user
+    source: homebrew-core
