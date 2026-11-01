@@ -1,0 +1,21 @@
+schema_version: 1
+id: shfmt
+name: shfmt
+category: quality.shell
+description: Formatter for shell scripts.
+tags: [shell, formatter, quality]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [shfmt]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: shfmt
+    scope: user
+    source: homebrew-core
