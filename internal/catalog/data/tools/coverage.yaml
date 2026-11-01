@@ -1,0 +1,36 @@
+schema_version: 1
+id: coverage
+name: Coverage.py
+category: python.testing
+description: Measures Python test coverage.
+tags: [python, testing, coverage]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [coverage]
+version_args: [--version]
+dependencies: [python, uv]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: pypi
+    package_id: coverage
+    version: 7.17.0
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: macos
+    ecosystem: pypi
+    package_id: coverage
+    version: 7.17.0
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: linux
+    ecosystem: pypi
+    package_id: coverage
+    version: 7.17.0
+    scope: user
+    source: https://pypi.org/simple/
