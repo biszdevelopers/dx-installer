@@ -1,0 +1,27 @@
+schema_version: 1
+id: ocaml
+name: OCaml
+category: ocaml.compiler
+description: General-purpose functional language with bytecode and native compilers.
+tags: [ocaml, compiler, functional]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [ocaml]
+version_args: [-version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: ocaml
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: ocaml
+    scope: system
+    source: configured-apt-repositories
