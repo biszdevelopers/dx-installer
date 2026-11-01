@@ -1,5 +1,5 @@
 schema_version: 1
 id: database
 name: Database clients
-description: Command-line clients for SQLite, PostgreSQL, and DuckDB.
-tools: [sqlite, postgresql-client, duckdb]
+description: Database clients only; no database servers are selected.
+tools: [sqlite, postgresql-client, mysql-client, mariadb-client, redis-cli, mongosh, duckdb]
