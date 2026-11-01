@@ -265,7 +265,7 @@ func registryInstallerAvailableInClosure(installer tool.RegistryInstaller, closu
 }
 
 func firstRegistryInstaller(manifest tool.Manifest, operatingSystem tool.OperatingSystem) (tool.RegistryInstaller, bool) {
-	for _, ecosystem := range []tool.RegistryEcosystem{tool.NPMRegistry, tool.PyPIRegistry, tool.GoModuleRegistry} {
+	for _, ecosystem := range []tool.RegistryEcosystem{tool.NPMRegistry, tool.PyPIRegistry, tool.GoModuleRegistry, tool.CargoRegistry} {
 		if installer, exists := manifest.RegistryInstallerFor(operatingSystem, ecosystem); exists {
 			return installer, true
 		}
