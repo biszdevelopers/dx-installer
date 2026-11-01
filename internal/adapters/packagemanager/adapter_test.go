@@ -1,0 +1,84 @@
+package packagemanager
+
+import (
+	"reflect"
+	"strings"
+	"testing"
+
+	"developers-club-dx/internal/domain/tool"
+)
+
+func TestBuildCommandUsesTypedArgumentsWithoutSilentAcceptance(t *testing.T) {
+	cases := []struct {
+		name      string
+		installer tool.Installer
+		os        tool.OperatingSystem
+		want      []string
+		privilege bool
+	}{
+		{
+			name:      "winget user scope",
+			installer: tool.Installer{Manager: tool.Winget, PackageID: "Git.Git", Platform: tool.Windows, Scope: tool.UserScope},
+			os:        tool.Windows,
+			want:      []string{"install", "--id", "Git.Git", "--exact", "--scope", "user"},
+		},
+		{
+			name:      "scoop user scope",
+			installer: tool.Installer{Manager: tool.Scoop, PackageID: "git", Platform: tool.Windows, Scope: tool.UserScope},
+			os:        tool.Windows,
+			want:      []string{"install", "git"},
+		},
+		{
+			name:      "homebrew cask",
+			installer: tool.Installer{Manager: tool.Homebrew, PackageID: "visual-studio-code", Platform: tool.MacOS, Scope: tool.UserScope, Kind: "cask"},
+			os:        tool.MacOS,
+			want:      []string{"install", "--cask", "visual-studio-code"},
+		},
+		{
+			name:      "apt system scope",
+			installer: tool.Installer{Manager: tool.APT, PackageID: "git", Platform: tool.Linux, Scope: tool.SystemScope},
+			os:        tool.Linux,
+			want:      []string{"install", "--no-install-recommends", "git"},
+			privilege: true,
+		},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			command, err := BuildCommand(test.installer, test.os)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(command.Arguments, test.want) {
+				t.Fatalf("arguments = %#v, want %#v", command.Arguments, test.want)
+			}
+			if command.RequiresPrivilege != test.privilege {
+				t.Fatalf("RequiresPrivilege = %v, want %v", command.RequiresPrivilege, test.privilege)
+			}
+			for _, arg := range command.Arguments {
+				if strings.Contains(strings.ToLower(arg), "accept") || strings.Contains(strings.ToLower(arg), "agree") {
+					t.Fatalf("command silently accepts a prompt or license: %#v", command.Arguments)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildCommandRejectsUnsupportedScopeAndManager(t *testing.T) {
+	if _, err := BuildCommand(tool.Installer{Manager: tool.Scoop, PackageID: "git", Scope: tool.SystemScope}, tool.Windows); err == nil {
+		t.Fatal("system-scoped Scoop installation was accepted")
+	}
+	if _, err := BuildCommand(tool.Installer{Manager: "unknown", PackageID: "bad"}, tool.Linux); err == nil {
+		t.Fatal("unknown package manager was accepted")
+	}
+}
+
+func TestCommandDisplayQuotesArgumentsAndArgvDoesNotUseShell(t *testing.T) {
+	command := Command{Executable: "winget", Arguments: []string{"install", "Vendor.Product with spaces"}}
+	argv := command.Argv()
+	if !reflect.DeepEqual(argv, []string{"winget", "install", "Vendor.Product with spaces"}) {
+		t.Fatalf("argv = %#v", argv)
+	}
+	if !strings.Contains(command.Display(), `"Vendor.Product with spaces"`) {
+		t.Fatalf("display did not quote the package identifier: %s", command.Display())
+	}
+}
