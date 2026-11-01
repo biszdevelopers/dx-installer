@@ -1,0 +1,27 @@
+schema_version: 1
+id: clang-tidy
+name: clang-tidy
+category: cpp.analysis
+description: LLVM-based C and C++ static analysis tool.
+tags: [c, cpp, static-analysis, llvm]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [clang-tidy]
+version_args: [--version]
+dependencies: [clang]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: llvm
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: llvm
+    scope: user
+    source: homebrew-core
