@@ -74,7 +74,10 @@ func managerOrder(os tool.OperatingSystem, distribution string) []tool.PackageMa
 		}
 		return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK}
 	case tool.BSD:
-		return []tool.PackageManager{tool.FreeBSDPkg}
+		if strings.EqualFold(strings.TrimSpace(distribution), "freebsd") {
+			return []tool.PackageManager{tool.FreeBSDPkg}
+		}
+		return nil
 	default:
 		return nil
 	}
