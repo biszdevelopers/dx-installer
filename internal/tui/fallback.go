@@ -3,12 +3,14 @@ package tui
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"time"
 
+	registryadapter "developers-club-dx/internal/adapters/registry"
 	"developers-club-dx/internal/artifacts"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/display"
@@ -152,14 +154,31 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 			}
 		} else {
 			fmt.Fprintf(output, "\nInstalling %s from %s with %s\n", item.Name, item.Source, item.Command.Display())
-			command, startErr := item.Command.ExecContext(ctx)
+			commandSpec := item.Command
+			temporaryDirectory := ""
+			if item.RegistryInstaller != nil {
+				var temporaryErr error
+				temporaryDirectory, temporaryErr = registryadapter.NewTemporaryDirectory()
+				if temporaryErr != nil {
+					operationErr = temporaryErr
+				} else {
+					commandSpec, operationErr = registryadapter.PrepareCommand(commandSpec, temporaryDirectory)
+				}
+			}
+			command, startErr := commandSpec.ExecContext(ctx)
 			if startErr != nil {
 				operationErr = startErr
-			} else {
+			} else if operationErr == nil {
 				command.Stdin = reader
 				command.Stdout = output
 				command.Stderr = output
 				operationErr = command.Run()
+			}
+			if temporaryDirectory != "" {
+				if cleanupErr := os.RemoveAll(temporaryDirectory); cleanupErr != nil {
+					details.CleanupNotice = "temporary registry workspace cleanup failed: " + cleanupErr.Error()
+					operationErr = errors.Join(operationErr, cleanupErr)
+				}
 			}
 		}
 		scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
@@ -173,6 +192,15 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 			}
 		} else {
 			model.inventory = inventory
+		}
+		if item.RegistryInstaller != nil && actual.State == detection.Healthy {
+			if pathErr := pathconfig.Apply(item.PathChanges); pathErr != nil {
+				details.PathError = pathErr.Error()
+				fmt.Fprintln(output, "PATH update needs attention:", pathErr)
+			}
+			details.Source = string(item.RegistryInstaller.Ecosystem) + " registry"
+			details.SourceURL = item.Source
+			details.InstallPath = item.InstallPath
 		}
 		if err := session.RecordWithDetails(item, operationErr, actual, details); err != nil {
 			return err
@@ -227,6 +255,19 @@ func printPlan(output io.Writer, plan planning.Plan) {
 			}
 			if item.RegionalFallback && item.Artifact.RegionalURL != "" {
 				fmt.Fprintf(output, "    verified regional fallback: %s (only after retryable official-source failures)\n", item.Artifact.RegionalURL)
+			}
+			continue
+		}
+		if item.RegistryInstaller != nil {
+			fmt.Fprintf(output, "  INSTALL %s %s\n    registry package: %s (%s)\n    source: %s\n    install path: %s\n    command: %s\n", item.Name, item.Version, item.PackageID, item.RegistryInstaller.Ecosystem, item.Source, item.InstallPath, item.Command.Display())
+			for _, change := range item.PathChanges {
+				if change.Manual {
+					fmt.Fprintf(output, "    PATH: manual update required (%s)\n    command: %s\n", change.Target, change.ManualCommand)
+				} else if change.AlreadyConfigured {
+					fmt.Fprintf(output, "    PATH: already configured in %s; update current session\n", change.Target)
+				} else {
+					fmt.Fprintf(output, "    PATH: add %s to %s\n", change.Directory, change.Target)
+				}
 			}
 			continue
 		}
