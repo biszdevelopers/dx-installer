@@ -53,6 +53,27 @@ func TestPlanPrefersTheRequestedDetectedManager(t *testing.T) {
 	}
 }
 
+func TestPreferredManagerOrderMovesOnlyDetectedPreferenceToFront(t *testing.T) {
+	managers := []tool.PackageManager{tool.Winget, tool.Scoop, tool.Chocolatey}
+	ordered := PreferredManagerOrder(managers, tool.Scoop)
+	want := []tool.PackageManager{tool.Scoop, tool.Winget, tool.Chocolatey}
+	if len(ordered) != len(want) {
+		t.Fatalf("ordered managers = %#v, want %#v", ordered, want)
+	}
+	for index := range want {
+		if ordered[index] != want[index] {
+			t.Fatalf("ordered managers = %#v, want %#v", ordered, want)
+		}
+	}
+	if managers[0] != tool.Winget {
+		t.Fatalf("original manager order was mutated: %#v", managers)
+	}
+	missing := PreferredManagerOrder(managers, tool.Homebrew)
+	if len(missing) != len(managers) || missing[0] != tool.Winget {
+		t.Fatalf("undetected preference changed manager order: %#v", missing)
+	}
+}
+
 func TestPlanBlocksMissingManagerAndPreservesUnverifiedExistingTool(t *testing.T) {
 	items, err := catalog.LoadEmbedded()
 	if err != nil {
