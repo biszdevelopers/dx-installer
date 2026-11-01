@@ -1,0 +1,21 @@
+schema_version: 1
+id: duckdb
+name: DuckDB
+category: database.client
+description: Embedded analytical database with a developer-focused command-line client.
+tags: [database, analytics, sql]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [duckdb]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: duckdb
+    scope: user
+    source: homebrew-core
