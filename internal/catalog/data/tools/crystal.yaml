@@ -1,0 +1,27 @@
+schema_version: 1
+id: crystal
+name: Crystal
+category: crystal.compiler
+description: Compiled language with Ruby-like syntax and static types.
+tags: [crystal, compiler]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [crystal]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: crystal
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: crystal
+    scope: user
+    source: homebrew-core
