@@ -1,6 +1,7 @@
 package sources
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
@@ -12,6 +13,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -53,6 +56,59 @@ func TestDownloadVerifiesHashAndEd25519Signature(t *testing.T) {
 	}
 	if string(got) != string(contents) {
 		t.Fatalf("downloaded bytes = %q, want %q", got, contents)
+	}
+}
+
+func TestCopyLocalVerifiesPinnedDigestWithoutChangingTheBundle(t *testing.T) {
+	contents := []byte("offline archive payload")
+	digest := sha256.Sum256(contents)
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "tool.tar.gz")
+	if err := os.WriteFile(sourcePath, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	result, err := NewDownloader(DownloadOptions{}).CopyLocal(context.Background(), sourcePath, hex.EncodeToString(digest[:]), workspace, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.SourceKind != Offline || result.Size != int64(len(contents)) || result.SHA256 != hex.EncodeToString(digest[:]) || !strings.HasPrefix(result.URL, "file:") {
+		t.Fatalf("offline result = %#v", result)
+	}
+	if got, err := os.ReadFile(sourcePath); err != nil || !bytes.Equal(got, contents) {
+		t.Fatalf("user bundle file changed: %q, %v", got, err)
+	}
+	if got, err := os.ReadFile(result.Path); err != nil || !bytes.Equal(got, contents) {
+		t.Fatalf("temporary copied archive = %q, %v", got, err)
+	}
+}
+
+func TestCopyLocalRejectsSymlinksAndDigestMismatch(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "archive.zip")
+	if err := os.WriteFile(source, []byte("trusted bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	wrong := strings.Repeat("0", sha256.Size*2)
+	if _, err := NewDownloader(DownloadOptions{}).CopyLocal(context.Background(), source, wrong, workspace, nil, nil); !errors.Is(err, ErrIntegrity) {
+		t.Fatalf("digest mismatch error = %v", err)
+	}
+	if runtime.GOOS != "windows" {
+		link := filepath.Join(root, "archive-link.zip")
+		if err := os.Symlink(source, link); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewDownloader(DownloadOptions{}).CopyLocal(context.Background(), link, wrong, workspace, nil, nil); err == nil {
+			t.Fatal("symlink archive was accepted")
+		}
+	}
+	entries, err := os.ReadDir(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("failed local verification left temporary files: %#v", entries)
 	}
 }
 
