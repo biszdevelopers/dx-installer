@@ -1,0 +1,426 @@
+package tui
+
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+
+	lipgloss "charm.land/lipgloss/v2"
+	"developers-club-dx/internal/detection"
+	"developers-club-dx/internal/planning"
+)
+
+var (
+	brandStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	activeStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	selectedStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42"))
+	mutedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	warningStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	goodStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	strongStyle   = lipgloss.NewStyle().Bold(true)
+)
+
+var screenNames = []string{"Overview", "Catalog", "Profiles", "Environment", "Plan", "Sources", "Progress", "Results"}
+
+func (m *Model) render() string {
+	width := min(max(m.width, 24), 140)
+	height := min(max(m.height, 12), 60)
+	lines := []string{brandStyle.Render("Developers' Club DX  /  Bootstrap"), mutedStyle.Render(m.platformLabel()), m.renderNavigation(width), strings.Repeat("-", width)}
+	switch {
+	case m.pathMode != "":
+		lines = append(lines, m.renderPathPrompt())
+	case m.help:
+		lines = append(lines, renderHelp())
+	case m.approval:
+		lines = append(lines, m.renderApproval())
+	default:
+		lines = append(lines, m.renderScreen(height-10)...)
+	}
+	lines = append(lines, strings.Repeat("-", width))
+	if m.planReady && m.plan.Blocked {
+		lines = append(lines, warningStyle.Render(m.status))
+	} else {
+		lines = append(lines, mutedStyle.Render(m.status))
+	}
+	lines = append(lines, mutedStyle.Render(m.keyHelp()))
+	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+}
+
+func (m *Model) renderNavigation(width int) string {
+	if width < 70 {
+		return activeStyle.Render(fmt.Sprintf("%d %s", m.screen+1, screenNames[m.screen])) + mutedStyle.Render("  |  Tab to navigate")
+	}
+	parts := make([]string, 0, len(screenNames))
+	for index, name := range screenNames {
+		label := fmt.Sprintf("%d %s", index+1, name)
+		if Screen(index) == m.screen {
+			parts = append(parts, activeStyle.Render("["+label+"]"))
+		} else {
+			parts = append(parts, mutedStyle.Render(label))
+		}
+	}
+	return strings.Join(parts, "   ")
+}
+
+func (m *Model) renderScreen(maxRows int) []string {
+	switch m.screen {
+	case OverviewScreen:
+		return m.renderOverview()
+	case CatalogScreen:
+		return m.renderCatalog(maxRows)
+	case ProfilesScreen:
+		return m.renderProfiles(maxRows)
+	case EnvironmentScreen:
+		return m.renderEnvironment(maxRows)
+	case PlanScreen:
+		return m.renderPlan(maxRows)
+	case SourcesScreen:
+		return m.renderSources(maxRows)
+	case ProgressScreen:
+		return m.renderProgress(maxRows)
+	case ResultsScreen:
+		return m.renderResults(maxRows)
+	default:
+		return []string{"Unknown screen."}
+	}
+}
+
+func (m *Model) renderOverview() []string {
+	states := make(map[detection.State]int)
+	for _, item := range m.inventory.Tools {
+		states[item.State]++
+	}
+	managers := make([]string, 0, len(m.inventory.Managers))
+	for _, manager := range m.inventory.Managers {
+		managers = append(managers, string(manager.Manager))
+	}
+	if len(managers) == 0 {
+		managers = append(managers, "none detected")
+	}
+	return []string{
+		strongStyle.Render("Machine overview"),
+		fmt.Sprintf("Operating system  %s", m.inventory.Platform.OS),
+		fmt.Sprintf("Architecture      %s", m.inventory.Platform.Architecture),
+		fmt.Sprintf("Distribution      %s", valueOr(m.inventory.Platform.Distribution, "not applicable")),
+		fmt.Sprintf("Shell             %s", valueOr(m.inventory.Platform.Shell, "unknown")),
+		fmt.Sprintf("Package managers  %s", strings.Join(managers, ", ")),
+		fmt.Sprintf("Existing tools    %d healthy  %d missing  %d needing review", states[detection.Healthy], states[detection.Missing], states[detection.Unknown]+states[detection.Broken]+states[detection.Partial]+states[detection.Conflicting]),
+		fmt.Sprintf("Selected tools    %d", len(m.selectedIDs())),
+		"",
+		mutedStyle.Render("No machine health score is calculated. Existing installations are preserved unless a reviewed plan says otherwise."),
+	}
+}
+
+func (m *Model) renderCatalog(maxRows int) []string {
+	tools := m.filteredTools()
+	if len(tools) == 0 {
+		return []string{"No catalog entries match these filters.", "Press a to clear search and filters."}
+	}
+	start, end := visibleWindow(len(tools), m.cursor, maxRows)
+	lines := []string{strongStyle.Render("Tool catalog"), mutedStyle.Render(fmt.Sprintf("Search: %s   Category: %s   State: %s", valueOr(m.filter, "all"), valueOr(m.categoryFilter, "all"), m.stateFilter))}
+	for index := start; index < end; index++ {
+		item := tools[index]
+		selection := "[ ]"
+		if m.selected[item.ID] {
+			selection = selectedStyle.Render("[x]")
+		}
+		row := fmt.Sprintf("%s %-18s %-24s %s", selection, item.ID, item.Name, stateLabel(m.inventory.Tools[item.ID].State))
+		if index == m.cursor {
+			row = activeStyle.Render("> ") + row
+		} else {
+			row = "  " + row
+		}
+		lines = append(lines, row)
+	}
+	item := tools[min(max(m.cursor, 0), len(tools)-1)]
+	lines = append(lines, "", strongStyle.Render(item.Name+" details"), item.Description, "Category: "+item.Category)
+	if len(item.Dependencies) > 0 {
+		lines = append(lines, "Dependencies: "+strings.Join(item.Dependencies, ", "))
+	}
+	lines = append(lines, "Supported here: "+yesNo(item.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture)))
+	if detected, ok := m.inventory.Tools[item.ID]; ok && len(detected.Instances) > 0 {
+		instance := detected.Instances[0]
+		lines = append(lines, "Existing: "+valueOr(instance.Version, string(instance.State))+" at "+instance.Path)
+	}
+	if installer, ok := item.InstallerFor(m.inventory.Platform.OS, m.inventory.ManagerOrder()); ok {
+		lines = append(lines, fmt.Sprintf("Proposed source: %s / %s (%s)", installer.Manager, installer.PackageID, installer.Source))
+	} else {
+		lines = append(lines, warningStyle.Render("No installer is available through detected package managers."))
+	}
+	return lines
+}
+
+func (m *Model) renderProfiles(maxRows int) []string {
+	profiles := m.catalog.Profiles()
+	start, end := visibleWindow(len(profiles), m.cursor, maxRows/2)
+	lines := []string{strongStyle.Render("Profiles"), "Select multiple profiles to combine them, then press Enter to apply."}
+	for index := start; index < end; index++ {
+		profile := profiles[index]
+		selection := "[ ]"
+		if m.selectedProfiles[profile.ID] {
+			selection = selectedStyle.Render("[x]")
+		}
+		row := fmt.Sprintf("%s %-24s %d tools", selection, profile.Name, len(profile.Tools))
+		if index == m.cursor {
+			row = activeStyle.Render("> ") + row
+		} else {
+			row = "  " + row
+		}
+		lines = append(lines, row, "    "+mutedStyle.Render(profile.Description))
+	}
+	return lines
+}
+
+func (m *Model) renderEnvironment(maxRows int) []string {
+	ids := m.inventory.ToolIDs()
+	start, end := visibleWindow(len(ids), m.cursor, maxRows)
+	lines := []string{strongStyle.Render("Existing environment"), "Each detected executable is checked with its declared version command."}
+	for index := start; index < end; index++ {
+		item := m.inventory.Tools[ids[index]]
+		row := fmt.Sprintf("%-18s %-28s %s", item.ID, item.Name, stateLabel(item.State))
+		if index == m.cursor {
+			row = activeStyle.Render("> ") + row
+		} else {
+			row = "  " + row
+		}
+		lines = append(lines, row)
+	}
+	if len(ids) > 0 {
+		item := m.inventory.Tools[ids[min(max(m.cursor, 0), len(ids)-1)]]
+		for _, instance := range item.Instances {
+			lines = append(lines, "Path: "+instance.Path, "Version: "+valueOr(instance.Version, "unknown"))
+			if instance.Diagnostic != "" {
+				lines = append(lines, warningStyle.Render("Diagnostic: "+instance.Diagnostic))
+			}
+		}
+	}
+	return lines
+}
+
+func (m *Model) renderPlan(maxRows int) []string {
+	lines := []string{strongStyle.Render("Installation plan"), "Every install is explicit. Existing tools are preserved and no upgrades are planned."}
+	if !m.planReady {
+		return append(lines, "No plan yet. Select tools, then press p to create a dry run.")
+	}
+	if m.plan.Blocked {
+		lines = append(lines, warningStyle.Render("Execution is blocked until every blocking issue is resolved."))
+	}
+	rows := make([]string, 0, len(m.plan.Items)+len(m.plan.Issues))
+	for _, item := range m.plan.Items {
+		if item.Action == planning.Preserve {
+			rows = append(rows, fmt.Sprintf("PRESERVE  %-18s %s", item.ToolID, item.ExistingState))
+			continue
+		}
+		privilege := "user scope"
+		if item.RequiresPrivilege || item.Scope == "system" {
+			privilege = "system scope / privilege may be required"
+		}
+		rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s  %s", item.ToolID, item.Manager, item.PackageID, privilege), "          source: "+item.Source, "          command: "+item.Command.Display())
+	}
+	for _, issue := range m.plan.Issues {
+		rows = append(rows, fmt.Sprintf("%s  %s: %s", strings.ToUpper(string(issue.Severity)), issue.ToolID, issue.Message))
+	}
+	if len(rows) == 0 {
+		rows = append(rows, "No package-manager operations are required.")
+	}
+	start, end := visibleWindow(len(rows), m.cursor, maxRows-3)
+	lines = append(lines, rows[start:end]...)
+	if !m.plan.Blocked && len(m.plan.InstallItems()) > 0 {
+		lines = append(lines, warningStyle.Render("Package managers may ask about licenses or dependencies; their prompts remain visible."))
+	}
+	return lines
+}
+
+func (m *Model) renderSources(maxRows int) []string {
+	managers := m.inventory.Managers
+	lines := []string{strongStyle.Render("Download sources"), "DX uses package managers already detected on this machine.", "It does not add repositories or change package-manager configuration.", "A preferred manager is selected when it has a compatible catalog entry.", ""}
+	if len(managers) == 0 {
+		return append(lines, warningStyle.Render("No supported package manager was detected."))
+	}
+	start, end := visibleWindow(len(managers), m.cursor, maxRows-5)
+	for index := start; index < end; index++ {
+		manager := managers[index]
+		label := string(manager.Manager)
+		if manager.Manager == m.preferredManager {
+			label += "  (preferred)"
+		}
+		row := fmt.Sprintf("%-22s %s", label, filepath.Base(manager.Path))
+		if index == m.cursor {
+			row = activeStyle.Render("> ") + row
+		} else {
+			row = "  " + row
+		}
+		lines = append(lines, row)
+	}
+	return lines
+}
+
+func (m *Model) renderProgress(maxRows int) []string {
+	lines := []string{strongStyle.Render("Installation progress")}
+	if m.session == nil {
+		return append(lines, "Approve a reviewed plan to begin installation.")
+	}
+	results := m.session.Report()
+	lines = append(lines, fmt.Sprintf("Completed tasks: %d of %d", len(results), len(m.plan.Items)))
+	if m.activeItem.ToolID != "" {
+		lines = append(lines, "Current operation: "+m.activeItem.Name, "Source: "+m.activeItem.Source, "Command: "+m.activeItem.Command.Display())
+	}
+	for _, result := range results {
+		lines = append(lines, fmt.Sprintf("%-22s %s", result.Name, result.State))
+	}
+	if len(lines) > maxRows {
+		lines = lines[:maxRows]
+	}
+	return lines
+}
+
+func (m *Model) renderResults(maxRows int) []string {
+	lines := []string{strongStyle.Render("Results and diagnostics")}
+	if m.session == nil {
+		return append(lines, "No installation session has run.")
+	}
+	results := m.session.Report()
+	if len(results) == 0 {
+		return append(lines, "No operations were completed.")
+	}
+	start, end := visibleWindow(len(results), m.cursor, maxRows-2)
+	for index := start; index < end; index++ {
+		result := results[index]
+		row := fmt.Sprintf("%-22s %s", result.Name, result.State)
+		if index == m.cursor {
+			row = activeStyle.Render("> ") + row
+		} else {
+			row = "  " + row
+		}
+		lines = append(lines, row)
+	}
+	result := results[min(max(m.cursor, 0), len(results)-1)]
+	if result.Verification != "" {
+		lines = append(lines, "Verification: "+result.Verification)
+	}
+	if result.Source != "" {
+		lines = append(lines, "Source: "+result.Source)
+	}
+	if result.Diagnostic != "" {
+		lines = append(lines, warningStyle.Render("Diagnostic: "+result.Diagnostic))
+	}
+	lines = append(lines, mutedStyle.Render("Temporary bootstrap artifacts are removed when the application exits."))
+	return lines
+}
+
+func (m *Model) renderApproval() string {
+	lines := []string{strongStyle.Render("Approve installation plan?"), fmt.Sprintf("This will run %d package-manager command(s).", len(m.plan.InstallItems())), "Review the listed package IDs, sources, scopes, and commands before continuing."}
+	for _, item := range m.plan.InstallItems() {
+		lines = append(lines, fmt.Sprintf("%s  %s  %s  %s", item.ToolID, item.Manager, item.PackageID, item.Scope))
+	}
+	lines = append(lines, warningStyle.Render("Press y to refresh inventory and continue. Any plan change requires approval again."), mutedStyle.Render("Press n or Esc to cancel without changes."))
+	return strings.Join(lines, "\n")
+}
+
+func (m *Model) renderPathPrompt() string {
+	label := "Export selected tools to a new JSON file"
+	if m.pathMode == "import" {
+		label = "Import selected tools from a JSON file"
+	}
+	return strings.Join([]string{strongStyle.Render(label), "Path: " + m.pathInput + "_", mutedStyle.Render("Enter confirms  |  Esc cancels")}, "\n")
+}
+
+func (m *Model) platformLabel() string {
+	parts := []string{string(m.inventory.Platform.OS), string(m.inventory.Platform.Architecture)}
+	if m.inventory.Platform.Distribution != "" {
+		parts = append(parts, m.inventory.Platform.Distribution)
+	}
+	if m.inventory.Platform.Shell != "" {
+		parts = append(parts, m.inventory.Platform.Shell)
+	}
+	return strings.Join(parts, "  /  ")
+}
+
+func (m *Model) keyHelp() string {
+	if m.pathMode != "" {
+		return "Enter confirm  |  Esc cancel"
+	}
+	if m.approval {
+		return "y approve  |  n cancel"
+	}
+	if m.searching {
+		return "Type to search  |  Enter finish  |  Esc keep current search"
+	}
+	switch m.screen {
+	case CatalogScreen:
+		return "Space select  |  f search  |  [ ] category  |  s state filter  |  p plan"
+	case ProfilesScreen:
+		return "Space combine profiles  |  Enter apply  |  e export  |  o import"
+	case PlanScreen:
+		return "p rebuild  |  i review approval  |  r refresh inventory"
+	case SourcesScreen:
+		return "Space or Enter prefer manager  |  0 clear preference"
+	case ResultsScreen:
+		return "j/k inspect results  |  4 environment  |  q exit"
+	default:
+		return "Tab navigate  |  j/k move  |  r refresh  |  ? help  |  q exit"
+	}
+}
+
+func renderHelp() string {
+	return strings.Join([]string{
+		strongStyle.Render("Keyboard help"),
+		"1-8       Open Overview, Catalog, Profiles, Environment, Plan, Sources, Progress, Results",
+		"Tab       Move to the next section",
+		"j / k     Move through lists",
+		"Space     Select a tool, profile, or source manager",
+		"f         Search the catalog",
+		"[ / ]     Change catalog category; s cycles the installation-state filter",
+		"p         Generate a dry-run plan",
+		"i         Review and approve a plan",
+		"r         Refresh inventory",
+		"e / o     Export or import an explicit selection file",
+		"q         Exit",
+		"",
+		mutedStyle.Render("No installation runs until the complete plan is approved. Package-manager prompts remain visible."),
+	}, "\n")
+}
+
+func stateLabel(state detection.State) string {
+	switch state {
+	case detection.Healthy:
+		return goodStyle.Render(string(state))
+	case detection.Broken, detection.Partial, detection.Conflicting:
+		return errorStyle.Render(string(state))
+	case detection.Missing:
+		return mutedStyle.Render(string(state))
+	case detection.Unknown, detection.Unsupported:
+		return warningStyle.Render(string(state))
+	default:
+		return string(state)
+	}
+}
+
+func visibleWindow(length, cursor, maxRows int) (int, int) {
+	if maxRows < 1 {
+		maxRows = 1
+	}
+	if length <= maxRows {
+		return 0, length
+	}
+	start := max(0, cursor-maxRows/2)
+	if start+maxRows > length {
+		start = length - maxRows
+	}
+	return start, start + maxRows
+}
+
+func valueOr(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func yesNo(value bool) string {
+	if value {
+		return "yes"
+	}
+	return "no"
+}
