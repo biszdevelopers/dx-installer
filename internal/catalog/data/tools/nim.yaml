@@ -1,0 +1,27 @@
+schema_version: 1
+id: nim
+name: Nim
+category: nim.compiler
+description: Statically typed compiled systems programming language.
+tags: [nim, compiler, systems]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [nim]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: nim
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: nim
+    scope: user
+    source: homebrew-core
