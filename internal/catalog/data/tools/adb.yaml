@@ -1,0 +1,28 @@
+schema_version: 1
+id: adb
+name: Android Platform Tools
+category: mobile.android
+description: Android Debug Bridge and device communication utilities.
+tags: [android, mobile, debugging, adb]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [adb]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: android-platform-tools
+    kind: cask
+    scope: user
+    source: homebrew-cask
+  - platform: linux
+    manager: apt
+    package_id: adb
+    scope: system
+    source: configured-apt-repositories
