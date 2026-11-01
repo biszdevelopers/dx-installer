@@ -3,9 +3,11 @@ package packagemanager
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"os/user"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -21,6 +23,7 @@ type Detected struct {
 type Command struct {
 	Executable        string
 	Arguments         []string
+	Environment       map[string]string
 	RequiresPrivilege bool
 	PrivilegeWrapper  string
 }
@@ -201,11 +204,46 @@ func (c Command) Exec() (*exec.Cmd, error) {
 }
 
 func (c Command) ExecContext(ctx context.Context) (*exec.Cmd, error) {
+	var command *exec.Cmd
 	if c.PrivilegeWrapper != "" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("Unix privilege wrapper cannot run on Windows")
 		}
-		return exec.CommandContext(ctx, c.PrivilegeWrapper, append([]string{c.Executable}, c.Arguments...)...), nil
+		command = exec.CommandContext(ctx, c.PrivilegeWrapper, append([]string{c.Executable}, c.Arguments...)...)
+	} else {
+		command = exec.CommandContext(ctx, c.Executable, c.Arguments...)
 	}
-	return exec.CommandContext(ctx, c.Executable, c.Arguments...), nil
+	if len(c.Environment) > 0 {
+		command.Env = mergedEnvironment(os.Environ(), c.Environment)
+	}
+	return command, nil
+}
+
+func mergedEnvironment(base []string, overrides map[string]string) []string {
+	values := make(map[string]string, len(base)+len(overrides))
+	normalize := func(key string) string {
+		if runtime.GOOS == "windows" {
+			return strings.ToUpper(key)
+		}
+		return key
+	}
+	for _, entry := range base {
+		key, value, found := strings.Cut(entry, "=")
+		if found {
+			values[normalize(key)] = key + "=" + value
+		}
+	}
+	for key, value := range overrides {
+		values[normalize(key)] = key + "=" + value
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]string, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, values[key])
+	}
+	return result
 }
