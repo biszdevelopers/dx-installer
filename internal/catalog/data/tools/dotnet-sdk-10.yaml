@@ -1,0 +1,29 @@
+schema_version: 1
+id: dotnet-sdk-10
+name: .NET SDK 10
+category: dotnet.sdk
+description: .NET 10 SDK for building .NET applications.
+tags: [dotnet, csharp, fsharp, sdk]
+version:
+  channel: lts-10
+  upgrade_policy: never_automatically
+executables: [dotnet]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: Microsoft.DotNet.SDK.10
+    scope: system
+    source: winget
+  - platform: macos
+    manager: homebrew
+    package_id: dotnet-sdk
+    kind: cask
+    scope: user
+    source: homebrew-cask
