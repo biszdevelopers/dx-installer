@@ -5,7 +5,7 @@ DX is split into four parts: a static release origin, a short-lived Go program, 
 ## Runtime flow
 
 1. `cmd/bootstrap` loads the embedded catalog and detects OS, architecture, distribution, shell, and installed package managers.
-2. `internal/detection` checks each declared executable on `PATH` with a bounded version command. It uses at most eight workers, caps command output, and applies a three-second timeout per version check.
+2. `internal/detection` checks each declared executable on `PATH` with a bounded version command and queries supported local package databases with 15-second timeouts and an 8 MiB output cap. It uses at most eight executable-check workers and preserves a package-owned install as unknown when its executable is not discoverable.
 3. `internal/tui` presents the machine state, catalog, profiles, manager preference, and a dry-run plan. The line-oriented UI is available if Bubble Tea cannot render.
 4. `internal/planning` expands dependency edges in deterministic topological order. Healthy and unknown existing installations are preserved; broken, partial, conflicting, unsupported, and un-installable selections block execution.
 5. After approval, the application rescans inventory. A changed plan returns to the review screen. Commands are argument arrays produced by typed package-manager adapters; they are not shell strings.
@@ -17,8 +17,8 @@ DX is split into four parts: a static release origin, a short-lived Go program, 
 - `internal/domain/tool`: manifest types, identifiers, platforms, managers, scopes, and validation.
 - `internal/catalog`: strict YAML decoding, embedded tools and profiles, dependency graph validation, and explicit selection import/export.
 - `internal/platform`: OS/architecture/shell detection and Windows process-PATH refresh.
-- `internal/adapters/packagemanager`: existing manager discovery, typed argument construction, display, and process creation.
-- `internal/detection`: executable inventory with bounded concurrency and diagnostics.
+- `internal/adapters/packagemanager`: existing manager discovery, typed argument construction, display, process creation, and local package inventory queries for APT, DNF, Pacman, Zypper, APK, Homebrew, MacPorts, and FreeBSD `pkg`.
+- `internal/detection`: executable and supported package-database inventory with bounded output, timeouts, and diagnostics.
 - `internal/planning`: selection closure, dependency ordering, preservation, and blockers.
 - `internal/installation`: serialized execution results and dependency failure handling.
 - `internal/tui`: screen state, review/approval, terminal rendering, and fallback input.
@@ -34,6 +34,6 @@ DX is split into four parts: a static release origin, a short-lived Go program, 
 
 ## Boundaries and current gaps
 
-Inventory is executable-on-PATH detection, not a complete operating-system package database query. A tool installed outside `PATH` may not be discovered. Package-manager adapters cover listed managers, but the repository does not currently include direct vendor archive installers, regional source fallback, custom source configuration, or offline bundles. These features must be added with publisher-verified identifiers and integrity metadata before being represented as supported behavior.
+Inventory combines PATH checks with supported local package-database queries. Windows package databases and arbitrary filesystem discovery are not implemented, so installs there may not be discovered. Package-manager adapters cover the listed managers, but the repository does not currently include direct vendor archive installers, regional source fallback, custom source configuration, or offline bundles. These features must be added with publisher-verified identifiers and integrity metadata before being represented as supported behavior.
 
 The default release matrix is Windows, macOS, and Linux on amd64 and arm64. BSD platform identifiers and a FreeBSD package-manager adapter exist in the client code, but BSD is not in default release generation or the hosted integration matrix.
