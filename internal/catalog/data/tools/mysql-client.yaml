@@ -1,0 +1,27 @@
+schema_version: 1
+id: mysql-client
+name: MySQL client
+category: database.client
+description: MySQL command-line client utilities without installing or starting a database server.
+tags: [database, mysql, client]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [mysql, mysqldump]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: mysql-client
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: mysql-client
+    scope: user
+    source: homebrew-core
