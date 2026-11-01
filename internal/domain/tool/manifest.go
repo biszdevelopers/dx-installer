@@ -87,6 +87,7 @@ const (
 	NPMRegistry      RegistryEcosystem = "npm"
 	PyPIRegistry     RegistryEcosystem = "pypi"
 	GoModuleRegistry RegistryEcosystem = "go-modules"
+	CargoRegistry    RegistryEcosystem = "cargo"
 )
 
 type RegistryInstaller struct {
@@ -131,12 +132,13 @@ type Profile struct {
 }
 
 var (
-	identifierPattern  = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
-	executablePattern  = regexp.MustCompile(`^[A-Za-z0-9_.+-]+$`)
-	packageIDPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$`)
-	versionArgPattern  = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._=:+/-]*$`)
-	npmPackagePattern  = regexp.MustCompile(`^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/)?[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`)
-	pypiPackagePattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,127})(?:\[[A-Za-z0-9][A-Za-z0-9._-]*(?:,[A-Za-z0-9][A-Za-z0-9._-]*)*\])?$`)
+	identifierPattern   = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
+	executablePattern   = regexp.MustCompile(`^[A-Za-z0-9_.+-]+$`)
+	packageIDPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$`)
+	versionArgPattern   = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._=:+/-]*$`)
+	npmPackagePattern   = regexp.MustCompile(`^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/)?[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`)
+	pypiPackagePattern  = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,127})(?:\[[A-Za-z0-9][A-Za-z0-9._-]*(?:,[A-Za-z0-9][A-Za-z0-9._-]*)*\])?$`)
+	cargoPackagePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
 )
 
 func (m Manifest) Supports(os OperatingSystem, architecture Architecture) bool {
@@ -340,7 +342,7 @@ func (m Manifest) Validate() error {
 
 func validRegistryEcosystem(ecosystem RegistryEcosystem) bool {
 	switch ecosystem {
-	case NPMRegistry, PyPIRegistry, GoModuleRegistry:
+	case NPMRegistry, PyPIRegistry, GoModuleRegistry, CargoRegistry:
 		return true
 	default:
 		return false
@@ -355,6 +357,8 @@ func validRegistryPackageID(ecosystem RegistryEcosystem, packageID string) bool 
 		return pypiPackagePattern.MatchString(packageID)
 	case GoModuleRegistry:
 		return packageIDPattern.MatchString(packageID) && !strings.Contains(packageID, "@")
+	case CargoRegistry:
+		return cargoPackagePattern.MatchString(packageID)
 	default:
 		return false
 	}
@@ -368,6 +372,8 @@ func RegistryRuntimeTool(ecosystem RegistryEcosystem) string {
 		return "uv"
 	case GoModuleRegistry:
 		return "go"
+	case CargoRegistry:
+		return "rustup"
 	default:
 		return ""
 	}
