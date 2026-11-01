@@ -1,0 +1,36 @@
+schema_version: 1
+id: webpack
+name: Webpack CLI
+category: javascript.build
+description: Webpack command-line tooling for building JavaScript applications.
+tags: [javascript, typescript, bundler, build]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [webpack]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: webpack-cli
+    version: 7.3.1
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: webpack-cli
+    version: 7.3.1
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: webpack-cli
+    version: 7.3.1
+    scope: user
+    source: https://registry.npmjs.org/
