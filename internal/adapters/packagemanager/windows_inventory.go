@@ -1,0 +1,238 @@
+package packagemanager
+
+import (
+	"encoding/xml"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
+	"developers-club-dx/internal/domain/tool"
+)
+
+const maxWindowsPackageRecords = 50000
+const maxNuspecBytes = 1 << 20
+
+type nuspecMetadata struct {
+	XMLName  xml.Name `xml:"package"`
+	Metadata struct {
+		ID      string `xml:"id"`
+		Version string `xml:"version"`
+	} `xml:"metadata"`
+}
+
+func queryWindowsPackageManager(manager tool.PackageManager, executablePath string) ([]packageRecord, error) {
+	if runtime.GOOS != "windows" {
+		return nil, fmt.Errorf("%s local inventory is available only on Windows", manager)
+	}
+	switch manager {
+	case tool.Scoop:
+		for _, configuredRoot := range []string{os.Getenv("SCOOP"), os.Getenv("SCOOP_GLOBAL")} {
+			if configuredRoot == "" {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(configuredRoot, "apps")); err != nil {
+				return nil, fmt.Errorf("configured Scoop apps directory is unavailable: %w", err)
+			}
+		}
+		roots := scoopRoots(executablePath)
+		packages := make([]packageRecord, 0)
+		databaseFound := false
+		for _, root := range roots {
+			if _, err := os.Stat(filepath.Join(root, "apps")); err == nil {
+				databaseFound = true
+			} else if !os.IsNotExist(err) {
+				return nil, fmt.Errorf("inspect Scoop apps directory: %w", err)
+			}
+			entries, err := scanScoopRoot(root)
+			if err != nil {
+				return nil, err
+			}
+			packages = append(packages, entries...)
+			if len(packages) > maxWindowsPackageRecords {
+				return nil, fmt.Errorf("Scoop inventory exceeds the %d package limit", maxWindowsPackageRecords)
+			}
+		}
+		if !databaseFound {
+			return nil, fmt.Errorf("Scoop apps directory could not be found in its configured roots")
+		}
+		return packages, nil
+	case tool.Chocolatey:
+		return scanChocolateyRoot(chocolateyRoot(executablePath))
+	default:
+		return nil, fmt.Errorf("%s does not expose a supported local inventory query", manager)
+	}
+}
+
+func scoopRoots(executablePath string) []string {
+	var roots []string
+	if root := os.Getenv("SCOOP"); root != "" {
+		roots = append(roots, root)
+	} else if home, err := os.UserHomeDir(); err == nil && home != "" {
+		roots = append(roots, filepath.Join(home, "scoop"))
+	}
+	if root := os.Getenv("SCOOP_GLOBAL"); root != "" {
+		roots = append(roots, root)
+	} else if programData := os.Getenv("ProgramData"); programData != "" {
+		roots = append(roots, filepath.Join(programData, "scoop"))
+	}
+	if executablePath != "" {
+		root := filepath.Dir(filepath.Dir(executablePath))
+		if strings.EqualFold(filepath.Base(filepath.Dir(executablePath)), "shims") {
+			roots = append(roots, root)
+		}
+	}
+	unique := make([]string, 0, len(roots))
+	seen := make(map[string]bool, len(roots))
+	for _, root := range roots {
+		if root == "" {
+			continue
+		}
+		key := strings.ToLower(filepath.Clean(root))
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		unique = append(unique, filepath.Clean(root))
+	}
+	return unique
+}
+
+func chocolateyRoot(executablePath string) string {
+	if root := os.Getenv("ChocolateyInstall"); root != "" {
+		return root
+	}
+	if executablePath != "" {
+		binDirectory := filepath.Dir(executablePath)
+		if strings.EqualFold(filepath.Base(binDirectory), "bin") {
+			return filepath.Dir(binDirectory)
+		}
+	}
+	if programData := os.Getenv("ProgramData"); programData != "" {
+		return filepath.Join(programData, "chocolatey")
+	}
+	return ""
+}
+
+func scanScoopRoot(root string) ([]packageRecord, error) {
+	appsDirectory := filepath.Join(root, "apps")
+	apps, err := os.ReadDir(appsDirectory)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read Scoop apps directory: %w", err)
+	}
+	if len(apps) > maxWindowsPackageRecords {
+		return nil, fmt.Errorf("Scoop inventory exceeds the %d package limit", maxWindowsPackageRecords)
+	}
+	packages := make([]packageRecord, 0, len(apps))
+	for _, app := range apps {
+		appInfo, err := os.Lstat(filepath.Join(appsDirectory, app.Name()))
+		if err != nil || !appInfo.IsDir() || appInfo.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		versions, err := os.ReadDir(filepath.Join(appsDirectory, app.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("read Scoop app %q: %w", app.Name(), err)
+		}
+		if len(versions) > maxWindowsPackageRecords {
+			return nil, fmt.Errorf("Scoop app %q exceeds the version limit", app.Name())
+		}
+		addedVersion := false
+		for _, version := range versions {
+			if strings.EqualFold(version.Name(), "current") {
+				continue
+			}
+			versionInfo, err := os.Lstat(filepath.Join(appsDirectory, app.Name(), version.Name()))
+			if err != nil || !versionInfo.IsDir() || versionInfo.Mode()&os.ModeSymlink != 0 {
+				continue
+			}
+			packages = append(packages, packageRecord{ID: app.Name(), Version: version.Name()})
+			addedVersion = true
+		}
+		if !addedVersion && len(versions) > 0 {
+			packages = append(packages, packageRecord{ID: app.Name()})
+		}
+		if len(packages) > maxWindowsPackageRecords {
+			return nil, fmt.Errorf("Scoop inventory exceeds the %d package limit", maxWindowsPackageRecords)
+		}
+	}
+	return packages, nil
+}
+
+func scanChocolateyRoot(root string) ([]packageRecord, error) {
+	if root == "" {
+		return nil, fmt.Errorf("Chocolatey installation root could not be determined")
+	}
+	libDirectory := filepath.Join(root, "lib")
+	packages, err := os.ReadDir(libDirectory)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("Chocolatey lib directory could not be found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read Chocolatey lib directory: %w", err)
+	}
+	if len(packages) > maxWindowsPackageRecords {
+		return nil, fmt.Errorf("Chocolatey inventory exceeds the %d package limit", maxWindowsPackageRecords)
+	}
+	installed := make([]packageRecord, 0, len(packages))
+	for _, packageDirectory := range packages {
+		packagePath := filepath.Join(libDirectory, packageDirectory.Name())
+		info, err := os.Lstat(packagePath)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		entry := packageRecord{ID: packageDirectory.Name()}
+		files, err := os.ReadDir(packagePath)
+		if err != nil {
+			return nil, fmt.Errorf("read Chocolatey package %q: %w", packageDirectory.Name(), err)
+		}
+		if len(files) > maxWindowsPackageRecords {
+			return nil, fmt.Errorf("Chocolatey package %q exceeds the file limit", packageDirectory.Name())
+		}
+		for _, file := range files {
+			if !strings.EqualFold(filepath.Ext(file.Name()), ".nuspec") {
+				continue
+			}
+			nuspecPath := filepath.Join(packagePath, file.Name())
+			nuspecInfo, err := os.Lstat(nuspecPath)
+			if err != nil || !nuspecInfo.Mode().IsRegular() || nuspecInfo.Size() > maxNuspecBytes {
+				continue
+			}
+			nuspecFile, err := os.Open(nuspecPath)
+			if err != nil {
+				continue
+			}
+			metadata, parseErr := parseChocolateyNuspec(nuspecFile)
+			_ = nuspecFile.Close()
+			if parseErr == nil {
+				entry = metadata
+				break
+			}
+		}
+		installed = append(installed, entry)
+	}
+	return installed, nil
+}
+
+func parseChocolateyNuspec(reader io.Reader) (packageRecord, error) {
+	limited := io.LimitReader(reader, maxNuspecBytes+1)
+	contents, err := io.ReadAll(limited)
+	if err != nil {
+		return packageRecord{}, err
+	}
+	if len(contents) > maxNuspecBytes {
+		return packageRecord{}, fmt.Errorf("nuspec exceeds the %d byte safety limit", maxNuspecBytes)
+	}
+	var metadata nuspecMetadata
+	if err := xml.Unmarshal(contents, &metadata); err != nil {
+		return packageRecord{}, fmt.Errorf("parse Chocolatey nuspec: %w", err)
+	}
+	if metadata.Metadata.ID == "" {
+		return packageRecord{}, fmt.Errorf("Chocolatey nuspec has no package id")
+	}
+	return packageRecord{ID: metadata.Metadata.ID, Version: metadata.Metadata.Version}, nil
+}
