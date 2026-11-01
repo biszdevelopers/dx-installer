@@ -1,0 +1,21 @@
+schema_version: 1
+id: riscv-gnu-toolchain
+name: RISC-V GNU Toolchain
+category: embedded.toolchain
+description: Bare-metal RISC-V GNU C and C++ cross-compilers for embedded targets.
+tags: [embedded, riscv, gcc, cross-compiler]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [riscv64-unknown-elf-gcc, riscv64-unknown-elf-g++]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  linux: [amd64, arm64]
+installers:
+  - platform: linux
+    manager: apt
+    package_id: gcc-riscv64-unknown-elf
+    scope: system
+    source: configured-apt-repositories
