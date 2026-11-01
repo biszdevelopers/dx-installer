@@ -159,10 +159,6 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 	if err != nil {
 		return err
 	}
-	allowRegionalFallback, err := sourceFallback(inventory.Platform, *sourcePolicyFlag)
-	if err != nil {
-		return err
-	}
 	customSources, err := parseSourceAssignments(customSourceFlags, "custom source")
 	if err != nil {
 		return err
@@ -172,6 +168,10 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 		return err
 	}
 	offlineArchives, err = addBundleArchives(*offlineBundleFlag, items, inventory.Platform, customSources, offlineArchives)
+	if err != nil {
+		return err
+	}
+	allowRegionalFallback, err := sourceFallbackForSelection(inventory.Platform, *sourcePolicyFlag, items, inventory, selected, customSources, offlineArchives)
 	if err != nil {
 		return err
 	}
@@ -369,6 +369,29 @@ func sourceFallback(machine platform.Info, requested string) (bool, error) {
 		return false, fmt.Errorf("unsupported source policy %q", requested)
 	}
 	return regional.Detect(machine).UseRegionalFallback(preference)
+}
+
+func sourceFallbackForSelection(machine platform.Info, requested string, items *catalog.Catalog, inventory detection.Inventory, selected []string, customSources, offlineArchives map[string]string) (bool, error) {
+	allow, err := sourceFallback(machine, requested)
+	if err == nil || requested != string(regional.Automatic) {
+		return allow, err
+	}
+	for _, id := range selected {
+		if inventory.Tools[id].State != detection.Missing {
+			continue
+		}
+		if customSources[id] == "" && offlineArchives[id] == "" {
+			return false, err
+		}
+		manifest, exists := items.Tool(id)
+		if !exists {
+			return false, fmt.Errorf("unknown tool %q", id)
+		}
+		if _, hasArchive := manifest.ArtifactFor(machine.OS, machine.Architecture); !hasArchive {
+			return false, fmt.Errorf("%s has no catalog-pinned archive for this platform", id)
+		}
+	}
+	return false, nil
 }
 
 func printSummary(results []installation.Result) {
