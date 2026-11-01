@@ -1,5 +1,5 @@
 schema_version: 1
 id: additional-languages
 name: Additional languages
-description: Selectable Lua, OCaml, Clojure, Haskell, Nim, Crystal, Odin, Groovy, and Zig editor tools.
-tools: [lua, luarocks, opam, clojure, leiningen, cabal-install, haskell-stack, nim, crystal, odin, groovy, zls, mix, rscript, fsharp]
+description: Selectable language runtimes, compilers, package tooling, and language servers beyond the core profiles.
+tools: [lua, luarocks, opam, clojure, leiningen, cabal-install, haskell-stack, nim, crystal, odin, groovy, zls, mix, r, rscript, perl, cpanminus, gfortran, flang, vlang, fsharp]
