@@ -1,0 +1,21 @@
+schema_version: 1
+id: fastboot
+name: Fastboot
+category: mobile.android
+description: Android bootloader communication utility; does not install drivers or modify devices unless you run it.
+tags: [android, mobile, embedded, device]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [fastboot]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  linux: [amd64, arm64]
+installers:
+  - platform: linux
+    manager: apt
+    package_id: fastboot
+    scope: system
+    source: configured-apt-repositories
