@@ -1,0 +1,5 @@
+schema_version: 1
+id: systems-programming
+name: Systems programming
+description: C and C++ compilers with common build tools.
+tools: [gcc, clang, cmake, ninja]
