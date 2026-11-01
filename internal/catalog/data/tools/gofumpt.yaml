@@ -1,0 +1,27 @@
+schema_version: 1
+id: gofumpt
+name: gofumpt
+category: go.formatting
+description: Stricter Go formatter that remains compatible with gofmt.
+tags: [go, formatter]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [gofumpt]
+version_args: [-version]
+dependencies: [go]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: gofumpt
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: gofumpt
+    scope: user
+    source: homebrew-core
