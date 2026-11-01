@@ -59,6 +59,19 @@ func TestManagerSelectionPrefersUserScopeOverSystemScope(t *testing.T) {
 	}
 }
 
+func TestManagerPreferenceTakesPriorityOverScope(t *testing.T) {
+	manifest := validManifest()
+	manifest.Platforms = map[OperatingSystem][]Architecture{MacOS: {AMD64}}
+	manifest.Installers = []Installer{
+		{Platform: MacOS, Manager: Homebrew, PackageID: "sample", Scope: UserScope, Source: "homebrew-core"},
+		{Platform: MacOS, Manager: MacPorts, PackageID: "sample", Scope: SystemScope, Source: "macports-ports"},
+	}
+	installer, exists := manifest.InstallerFor(MacOS, []PackageManager{MacPorts, Homebrew})
+	if !exists || installer.Manager != MacPorts || installer.Scope != SystemScope {
+		t.Fatalf("requested package manager was not preferred over another manager's user scope: %#v, %v", installer, exists)
+	}
+}
+
 func validManifest() Manifest {
 	return Manifest{
 		SchemaVersion: 1,
