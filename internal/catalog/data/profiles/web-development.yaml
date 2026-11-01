@@ -2,4 +2,4 @@ schema_version: 1
 id: web-development
 name: Web development
 description: Selectable JavaScript runtimes, package managers, compiler, and Python project tooling.
-tools: [nodejs-lts, pnpm, yarn, typescript, bun, python, uv]
+tools: [nodejs-lts, pnpm, yarn, typescript, bun, vite, esbuild, oxlint, oxfmt, python, uv]
