@@ -349,7 +349,7 @@ func (m *Model) renderPlan(maxRows int) []string {
 
 func (m *Model) renderSources(maxRows int) []string {
 	managers := m.inventory.Managers
-	lines := []string{strongStyle.Render("Download sources"), "Package managers already on this machine are preferred when they support the selected tool.", "Direct archives use pinned publisher digests; regional mirrors must match that digest.", "Region signals: " + regionLabel(m.regionDetection.Region), "Source policy: " + m.sourceMode, "Keys: a automatic  |  c Mainland China  |  g global  |  o official-only  |  m official-first  |  u custom HTTPS  |  l local archive  |  b signed bundle  |  x clear overrides  |  0 clear manager", "A preferred detected package manager is selected when it has a compatible catalog entry.", ""}
+	lines := []string{strongStyle.Render("Download sources"), "Package managers already on this machine are preferred when they support the selected tool.", "Direct archives use pinned publisher digests; regional mirrors must match that digest.", "Region signals: " + regionLabel(m.regionDetection.Region), "Source policy: " + m.sourceMode, "Keys: a automatic  |  c Mainland China  |  g global  |  o official-only  |  m official-first  |  u custom HTTPS  |  l local archive  |  b signed bundle  |  x clear overrides  |  Space/Enter manager  |  0 reset", "A preferred detected package manager is selected when it has a compatible catalog entry.", ""}
 	if m.offlineBundlePath != "" {
 		lines = append(lines, "Verified signed offline bundle: "+m.offlineBundlePath)
 	}
@@ -558,7 +558,7 @@ func (m *Model) keyHelp() string {
 	case PlanScreen:
 		return "p rebuild  |  i review approval  |  r refresh inventory"
 	case SourcesScreen:
-		return "a/c/g region  |  o official-only  |  m official-first  |  u custom URL  |  l local archive  |  b signed bundle  |  x clear sources"
+		return "a/c/g region  |  o official-only  |  m official-first  |  u custom URL  |  l local archive  |  b signed bundle  |  Space/Enter manager  |  x clear sources"
 	case ResultsScreen:
 		return "j/k inspect results  |  d save redacted report  |  4 environment  |  q exit"
 	default:
