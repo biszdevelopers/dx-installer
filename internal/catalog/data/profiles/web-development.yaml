@@ -1,0 +1,5 @@
+schema_version: 1
+id: web-development
+name: Web development
+description: Selectable JavaScript runtimes and Python project tooling.
+tools: [nodejs-lts, bun, python, uv]
