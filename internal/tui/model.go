@@ -105,6 +105,14 @@ type artifactInstallMsg struct {
 	verifyError error
 }
 
+func searchDirectories(changes []pathconfig.Change) []string {
+	directories := make([]string, 0, len(changes))
+	for _, change := range changes {
+		directories = append(directories, change.Directory)
+	}
+	return directories
+}
+
 func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inventory, selected []string) *Model {
 	selection := make(map[string]bool, len(selected))
 	for _, id := range selected {
@@ -1078,16 +1086,19 @@ func (m *Model) startNext() tea.Cmd {
 			if installErr != nil {
 				return artifactInstallMsg{item: item, result: result, installErr: installErr, actual: detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing}}
 			}
-			pathErr := pathconfig.Apply(item.PathChanges)
 			scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 			defer cancel()
-			inventory, verifyError := detection.Scan(scanCtx, catalogItems, machine)
+			inventory, verifyError := detection.ScanWithSearchPaths(scanCtx, catalogItems, machine, searchDirectories(item.PathChanges))
 			actual, ok := inventory.Tools[item.ToolID]
 			if verifyError == nil && !ok {
 				verifyError = fmt.Errorf("inventory did not return %s", item.ToolID)
 			}
 			if verifyError != nil {
 				actual = detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Unknown}
+			}
+			var pathErr error
+			if verifyError == nil && actual.State == detection.Healthy {
+				pathErr = pathconfig.Apply(item.PathChanges)
 			}
 			return artifactInstallMsg{item: item, result: result, pathErr: pathErr, inventory: inventory, actual: actual, verifyError: verifyError}
 		}
@@ -1171,7 +1182,7 @@ func (m *Model) verifyCommand(processErr error) tea.Cmd {
 	return func() tea.Msg {
 		scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 		defer cancel()
-		inventory, err := detection.Scan(scanCtx, items, machine)
+		inventory, err := detection.ScanWithSearchPaths(scanCtx, items, machine, searchDirectories(item.PathChanges))
 		if err != nil {
 			return verificationMsg{item: item, processErr: processErr, verifyError: err}
 		}
