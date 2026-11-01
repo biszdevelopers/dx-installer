@@ -1,0 +1,27 @@
+schema_version: 1
+id: lld
+name: LLD
+category: cpp.linker
+description: LLVM linker tools for ELF, Mach-O, COFF, and WebAssembly.
+tags: [c, cpp, linker, llvm]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [ld.lld]
+version_args: [--version]
+dependencies: [clang]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: lld
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: lld
+    scope: user
+    source: homebrew-core
