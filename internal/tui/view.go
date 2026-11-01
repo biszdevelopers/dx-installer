@@ -169,7 +169,7 @@ func (m *Model) renderCatalog(maxRows int) []string {
 			lines = append(lines, "Package record: "+display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 		}
 	}
-	if installer, ok := item.InstallerFor(m.inventory.Platform.OS, m.inventory.ManagerOrder()); ok {
+	if installer, ok := item.InstallerFor(m.inventory.Platform.OS, m.managerOrder()); ok {
 		lines = append(lines, fmt.Sprintf("Proposed source: %s / %s (%s)", installer.Manager, installer.PackageID, installer.Source))
 	} else {
 		lines = append(lines, warningStyle.Render("No installer is available through detected package managers."))
