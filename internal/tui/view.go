@@ -310,7 +310,7 @@ func (m *Model) renderPlan(maxRows int) []string {
 	start, end := visibleWindow(len(rows), m.cursor, maxRows-3)
 	lines = append(lines, rows[start:end]...)
 	if !m.plan.Blocked && len(m.plan.InstallItems()) > 0 {
-		lines = append(lines, warningStyle.Render(planning.TransactionDisclosure))
+		lines = append(lines, warningStyle.Render(m.plan.TransactionDisclosure))
 	}
 	return lines
 }
@@ -393,7 +393,7 @@ func (m *Model) renderResults(maxRows int) []string {
 }
 
 func (m *Model) renderApproval() string {
-	lines := []string{strongStyle.Render("Approve installation plan?"), fmt.Sprintf("This will run %d package-manager command(s).", len(m.plan.InstallItems())), "Review the listed package IDs, sources, scopes, and commands before continuing.", warningStyle.Render(planning.TransactionDisclosure)}
+	lines := []string{strongStyle.Render("Approve installation plan?"), fmt.Sprintf("This will run %d package-manager command(s).", len(m.plan.InstallItems())), "Review the listed package IDs, sources, scopes, and commands before continuing.", warningStyle.Render(m.plan.TransactionDisclosure)}
 	for _, item := range m.plan.InstallItems() {
 		lines = append(lines, fmt.Sprintf("%s  %s  %s  %s", item.ToolID, item.Manager, item.PackageID, item.Scope))
 	}
