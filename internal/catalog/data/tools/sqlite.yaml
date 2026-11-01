@@ -17,6 +17,11 @@ platforms:
   linux: [amd64, arm64]
   bsd: [amd64, arm64]
 installers:
+  - platform: windows
+    manager: chocolatey
+    package_id: sqlite
+    scope: system
+    source: chocolatey-community
   - platform: macos
     manager: homebrew
     package_id: sqlite
