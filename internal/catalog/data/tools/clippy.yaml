@@ -1,0 +1,18 @@
+schema_version: 1
+id: clippy
+name: Clippy
+category: rust.linter
+description: Rust lint collection supplied by Rustup.
+tags: [rust, lint, static-analysis]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [cargo]
+version_args: [clippy, --version]
+dependencies: [rustup]
+provided_by: rustup
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
