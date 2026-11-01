@@ -11,6 +11,7 @@ import (
 
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/installation"
+	"developers-club-dx/internal/pathconfig"
 	"developers-club-dx/internal/platform"
 )
 
@@ -30,13 +31,25 @@ type Host struct {
 }
 
 type ToolState struct {
-	ID           string                   `json:"id"`
-	Name         string                   `json:"name"`
-	State        installation.ResultState `json:"state"`
-	Manager      string                   `json:"manager,omitempty"`
-	Source       string                   `json:"source,omitempty"`
-	Verification string                   `json:"verification,omitempty"`
-	Diagnostic   string                   `json:"diagnostic,omitempty"`
+	ID            string                   `json:"id"`
+	Name          string                   `json:"name"`
+	State         installation.ResultState `json:"state"`
+	Manager       string                   `json:"manager,omitempty"`
+	Source        string                   `json:"source,omitempty"`
+	SourceURL     string                   `json:"source_url,omitempty"`
+	InstallPath   string                   `json:"install_path,omitempty"`
+	SHA256        string                   `json:"sha256,omitempty"`
+	PathChanges   []PathChange             `json:"path_changes,omitempty"`
+	CleanupNotice string                   `json:"cleanup_notice,omitempty"`
+	Verification  string                   `json:"verification,omitempty"`
+	Diagnostic    string                   `json:"diagnostic,omitempty"`
+}
+
+type PathChange struct {
+	Directory string `json:"directory"`
+	Target    string `json:"target"`
+	Shell     string `json:"shell,omitempty"`
+	Manual    bool   `json:"manual,omitempty"`
 }
 
 var (
@@ -68,13 +81,18 @@ func New(machine platform.Info, selected []string, warnings []string, results []
 	}
 	for _, result := range results {
 		document.Results = append(document.Results, ToolState{
-			ID:           result.ToolID,
-			Name:         result.Name,
-			State:        result.State,
-			Manager:      result.Manager,
-			Source:       result.Source,
-			Verification: sanitize(result.Verification),
-			Diagnostic:   sanitize(result.Diagnostic),
+			ID:            result.ToolID,
+			Name:          result.Name,
+			State:         result.State,
+			Manager:       result.Manager,
+			Source:        sanitize(result.Source),
+			SourceURL:     sanitize(result.SourceURL),
+			InstallPath:   sanitize(result.InstallPath),
+			SHA256:        result.SHA256,
+			PathChanges:   sanitizePathChanges(result.PathChanges),
+			CleanupNotice: sanitize(result.CleanupNotice),
+			Verification:  sanitize(result.Verification),
+			Diagnostic:    sanitize(result.Diagnostic),
 		})
 	}
 	return document
@@ -109,4 +127,20 @@ func sanitize(value string) string {
 		value = string([]rune(value)[:4096]) + "…"
 	}
 	return strings.TrimSpace(value)
+}
+
+func sanitizePathChanges(changes []pathconfig.Change) []PathChange {
+	if len(changes) == 0 {
+		return nil
+	}
+	output := make([]PathChange, 0, len(changes))
+	for _, change := range changes {
+		output = append(output, PathChange{
+			Directory: sanitize(change.Directory),
+			Target:    sanitize(change.Target),
+			Shell:     sanitize(change.Shell),
+			Manual:    change.Manual,
+		})
+	}
+	return output
 }
