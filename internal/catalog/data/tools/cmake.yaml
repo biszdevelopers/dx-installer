@@ -1,0 +1,64 @@
+schema_version: 1
+id: cmake
+name: CMake
+category: cpp.build-system
+description: Cross-platform build-system generator for native projects.
+tags: [c, cpp, build]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [cmake]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+  bsd: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: Kitware.CMake
+    scope: system
+    source: winget
+  - platform: windows
+    manager: scoop
+    package_id: cmake
+    scope: user
+    source: scoop-bucket
+  - platform: macos
+    manager: homebrew
+    package_id: cmake
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: cmake
+    scope: system
+    source: configured-apt-repositories
+  - platform: linux
+    manager: dnf
+    package_id: cmake
+    scope: system
+    source: configured-dnf-repositories
+  - platform: linux
+    manager: pacman
+    package_id: cmake
+    scope: system
+    source: configured-pacman-repositories
+  - platform: linux
+    manager: zypper
+    package_id: cmake
+    scope: system
+    source: configured-zypper-repositories
+  - platform: linux
+    manager: apk
+    package_id: cmake
+    scope: system
+    source: configured-apk-repositories
+  - platform: bsd
+    manager: freebsd-pkg
+    package_id: cmake
+    scope: system
+    source: configured-freebsd-repository
