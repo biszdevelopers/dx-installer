@@ -18,7 +18,7 @@ Use `--json` with `catalog` or `inventory` for structured output. Inventory repo
 go run ./cmd/bootstrap plan --tools git,github-cli
 ```
 
-Planning is read-only. A plan lists dependencies, manager, package identifier, configured manager source, scope, command, and blocking issues. If inventory is uncertain or a tool is already installed, the tool is preserved. A plan with a blocker exits without executing anything.
+Planning is read-only. A plan lists dependencies, manager, package identifier, configured manager source, scope, command, and blocking issues. DX does not yet query candidate package versions or simulate the package manager's full transaction; the plan discloses this uncertainty, and any manager confirmation should be reviewed before it is accepted. If inventory is uncertain or a tool is already installed, the tool is preserved. A plan with a blocker exits without executing anything.
 
 ## Install interactively
 
