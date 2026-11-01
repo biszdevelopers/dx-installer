@@ -25,3 +25,8 @@ installers:
     package_id: gradle
     scope: system
     source: configured-apt-repositories
+  - platform: linux
+    manager: pacman
+    package_id: gradle
+    scope: system
+    source: configured-pacman-repositories
