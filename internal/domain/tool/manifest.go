@@ -1,8 +1,12 @@
 package tool
 
 import (
+	"encoding/hex"
 	"fmt"
+	"net/url"
+	"path"
 	"regexp"
+	"strings"
 )
 
 type OperatingSystem string
@@ -56,6 +60,26 @@ type Installer struct {
 	Source    string          `yaml:"source"`
 }
 
+type ArchiveFormat string
+
+const (
+	TarGzip ArchiveFormat = "tar.gz"
+	Zip     ArchiveFormat = "zip"
+)
+
+type Artifact struct {
+	Platform             OperatingSystem `yaml:"platform"`
+	Architecture         Architecture    `yaml:"architecture"`
+	Version              string          `yaml:"version"`
+	URL                  string          `yaml:"url"`
+	RegionalURL          string          `yaml:"regional_url,omitempty"`
+	SHA256               string          `yaml:"sha256"`
+	Size                 int64           `yaml:"size"`
+	Format               ArchiveFormat   `yaml:"format"`
+	ArchiveRoot          string          `yaml:"archive_root"`
+	AllowedRedirectHosts []string        `yaml:"allowed_redirect_hosts,omitempty"`
+}
+
 type VersionPolicy struct {
 	Channel       string `yaml:"channel"`
 	UpgradePolicy string `yaml:"upgrade_policy"`
@@ -75,6 +99,7 @@ type Manifest struct {
 	Conflicts     []string                           `yaml:"conflicts"`
 	Platforms     map[OperatingSystem][]Architecture `yaml:"platforms"`
 	Installers    []Installer                        `yaml:"installers"`
+	Artifacts     []Artifact                         `yaml:"artifacts,omitempty"`
 }
 
 type Profile struct {
@@ -111,6 +136,15 @@ func (m Manifest) InstallerFor(os OperatingSystem, managers []PackageManager) (I
 		}
 	}
 	return Installer{}, false
+}
+
+func (m Manifest) ArtifactFor(os OperatingSystem, architecture Architecture) (Artifact, bool) {
+	for _, artifact := range m.Artifacts {
+		if artifact.Platform == os && artifact.Architecture == architecture {
+			return artifact, true
+		}
+	}
+	return Artifact{}, false
 }
 
 func (m Manifest) Validate() error {
@@ -183,10 +217,66 @@ func (m Manifest) Validate() error {
 		}
 		seenInstallers[key] = true
 	}
-	if len(m.Installers) == 0 {
-		return fmt.Errorf("at least one trusted package-manager installer is required")
+	if len(m.Installers) == 0 && len(m.Artifacts) == 0 {
+		return fmt.Errorf("at least one package-manager installer or verified archive source is required")
+	}
+	seenArtifacts := make(map[string]bool, len(m.Artifacts))
+	for _, artifact := range m.Artifacts {
+		key := string(artifact.Platform) + "/" + string(artifact.Architecture)
+		if !validPlatform(artifact.Platform) || !validArchitecture(artifact.Architecture) || !m.Supports(artifact.Platform, artifact.Architecture) {
+			return fmt.Errorf("artifact %q has an invalid or undeclared platform and architecture", key)
+		}
+		if seenArtifacts[key] {
+			return fmt.Errorf("duplicate artifact for %s", key)
+		}
+		seenArtifacts[key] = true
+		if artifact.Version == "" || !artifactVersionPattern.MatchString(artifact.Version) {
+			return fmt.Errorf("artifact %s must declare a safe exact version", key)
+		}
+		if err := validateHTTPSURL(artifact.URL); err != nil {
+			return fmt.Errorf("artifact %s has an invalid official URL: %w", key, err)
+		}
+		if artifact.RegionalURL != "" {
+			if err := validateHTTPSURL(artifact.RegionalURL); err != nil {
+				return fmt.Errorf("artifact %s has an invalid regional URL: %w", key, err)
+			}
+		}
+		if len(artifact.SHA256) != 64 {
+			return fmt.Errorf("artifact %s must declare a SHA-256 digest", key)
+		}
+		if _, err := hex.DecodeString(artifact.SHA256); err != nil {
+			return fmt.Errorf("artifact %s has an invalid SHA-256 digest", key)
+		}
+		if artifact.Size < 1 || artifact.Size > 1<<30 {
+			return fmt.Errorf("artifact %s size must be between 1 byte and 1 GiB", key)
+		}
+		if artifact.Format != TarGzip && artifact.Format != Zip {
+			return fmt.Errorf("artifact %s has unsupported archive format %q", key, artifact.Format)
+		}
+		if artifact.ArchiveRoot == "" || path.Clean(artifact.ArchiveRoot) != artifact.ArchiveRoot || strings.HasPrefix(artifact.ArchiveRoot, "/") || strings.Contains(artifact.ArchiveRoot, "\\") || artifact.ArchiveRoot == "." || artifact.ArchiveRoot == ".." || strings.HasPrefix(artifact.ArchiveRoot, "../") {
+			return fmt.Errorf("artifact %s must declare a safe archive root", key)
+		}
+		for _, host := range artifact.AllowedRedirectHosts {
+			if !validRedirectHost(host) {
+				return fmt.Errorf("artifact %s has an invalid redirect host %q", key, host)
+			}
+		}
 	}
 	return nil
+}
+
+var artifactVersionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$`)
+
+func validateHTTPSURL(value string) error {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
+		return fmt.Errorf("URL must use HTTPS and contain no credentials or fragment")
+	}
+	return nil
+}
+
+func validRedirectHost(host string) bool {
+	return host != "" && strings.TrimSpace(host) == host && !strings.ContainsAny(host, "/:@?#*")
 }
 
 func dangerousVersionArgument(arg string) bool {
