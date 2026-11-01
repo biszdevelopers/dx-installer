@@ -181,6 +181,7 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 
 func findExecutables(name string) []string {
 	searchPath := filepath.SplitList(os.Getenv("PATH"))
+	searchPath = append(searchPath, knownExecutableDirectories()...)
 	if len(searchPath) == 0 {
 		return nil
 	}
@@ -227,6 +228,72 @@ func findExecutables(name string) []string {
 	}
 	sort.Strings(paths)
 	return paths
+}
+
+func knownExecutableDirectories() []string {
+	home, _ := os.UserHomeDir()
+	var directories []string
+	appendHome := func(relative ...string) {
+		if home != "" {
+			directories = append(directories, filepath.Join(append([]string{home}, relative...)...))
+		}
+	}
+	switch runtime.GOOS {
+	case "windows":
+		for _, environment := range []string{"ProgramFiles", "ProgramFiles(x86)"} {
+			root := os.Getenv(environment)
+			if root != "" {
+				directories = append(directories, filepath.Join(root, "Git", "cmd"), filepath.Join(root, "Git", "bin"), filepath.Join(root, "nodejs"), filepath.Join(root, "dotnet"))
+			}
+		}
+		localAppData := os.Getenv("LOCALAPPDATA")
+		if localAppData != "" {
+			directories = append(directories,
+				filepath.Join(localAppData, "Programs", "Git", "cmd"),
+				filepath.Join(localAppData, "Programs", "Git", "bin"),
+				filepath.Join(localAppData, "Microsoft", "WinGet", "Links"),
+			)
+		}
+		appendHome(".cargo", "bin")
+		appendHome(".dotnet")
+		appendHome("scoop", "shims")
+		if scoopRoot := os.Getenv("SCOOP"); scoopRoot != "" {
+			directories = append(directories, filepath.Join(scoopRoot, "shims"))
+		}
+	case "darwin":
+		directories = append(directories, "/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin")
+		appendHome(".local", "bin")
+		appendHome("bin")
+		appendHome(".cargo", "bin")
+		appendHome("go", "bin")
+	case "freebsd", "openbsd", "netbsd", "dragonfly":
+		directories = append(directories, "/usr/local/bin", "/usr/bin")
+		appendHome(".local", "bin")
+		appendHome("bin")
+		appendHome(".cargo", "bin")
+		appendHome("go", "bin")
+	default:
+		directories = append(directories, "/usr/local/bin", "/usr/bin", "/bin", "/snap/bin")
+		appendHome(".local", "bin")
+		appendHome("bin")
+		appendHome(".cargo", "bin")
+		appendHome("go", "bin")
+	}
+	seen := make(map[string]bool, len(directories))
+	unique := make([]string, 0, len(directories))
+	for _, directory := range directories {
+		directory = filepath.Clean(directory)
+		key := directory
+		if runtime.GOOS == "windows" {
+			key = strings.ToLower(key)
+		}
+		if directory == "." || seen[key] {
+			continue
+		}
+		seen[key] = true
+		unique = append(unique, directory)
+	}
+	return unique
 }
 
 func installedPackagesFor(manifest tool.Manifest, operatingSystem tool.OperatingSystem, managers []packagemanager.Detected, installed []packagemanager.InstalledPackage) []PackageOwnership {
