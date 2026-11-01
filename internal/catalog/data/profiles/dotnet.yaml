@@ -1,0 +1,5 @@
+schema_version: 1
+id: dotnet
+name: .NET development
+description: .NET SDK, F# compiler, formatter, NuGet commands, and Roslyn tooling. Selecting the SDK also provides the corresponding runtime.
+tools: [dotnet-sdk-10, fsharp, dotnet-format, nuget-tooling, roslyn-tools, powershell]
