@@ -13,8 +13,9 @@ import (
 )
 
 type Detected struct {
-	Manager tool.PackageManager
-	Path    string
+	Manager         tool.PackageManager
+	Path            string
+	OperatingSystem tool.OperatingSystem
 }
 
 type Command struct {
@@ -31,7 +32,7 @@ func Detect(os tool.OperatingSystem, distribution string) []Detected {
 		if err != nil {
 			continue
 		}
-		return append([]Detected{{Manager: manager, Path: path}}, detectRemaining(os, distribution, manager)...)
+		return append([]Detected{{Manager: manager, Path: path, OperatingSystem: os}}, detectRemaining(os, distribution, manager)...)
 	}
 	return nil
 }
@@ -44,7 +45,7 @@ func detectRemaining(os tool.OperatingSystem, distribution string, first tool.Pa
 		}
 		path, err := exec.LookPath(managerExecutable(manager))
 		if err == nil {
-			found = append(found, Detected{Manager: manager, Path: path})
+			found = append(found, Detected{Manager: manager, Path: path, OperatingSystem: os})
 		}
 	}
 	return found
@@ -61,18 +62,18 @@ func managerOrder(os tool.OperatingSystem, distribution string) []tool.PackageMa
 		if len(id) > 0 {
 			switch id[0] {
 			case "debian", "ubuntu", "linuxmint", "pop", "elementary", "raspbian":
-				return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK}
+				return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew}
 			case "fedora", "rhel", "centos", "rocky", "almalinux":
-				return []tool.PackageManager{tool.DNF, tool.APT, tool.Pacman, tool.Zypper, tool.APK}
+				return []tool.PackageManager{tool.DNF, tool.APT, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew}
 			case "arch", "manjaro", "endeavouros":
-				return []tool.PackageManager{tool.Pacman, tool.APT, tool.DNF, tool.Zypper, tool.APK}
+				return []tool.PackageManager{tool.Pacman, tool.APT, tool.DNF, tool.Zypper, tool.APK, tool.Homebrew}
 			case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "sles":
-				return []tool.PackageManager{tool.Zypper, tool.APT, tool.DNF, tool.Pacman, tool.APK}
+				return []tool.PackageManager{tool.Zypper, tool.APT, tool.DNF, tool.Pacman, tool.APK, tool.Homebrew}
 			case "alpine":
-				return []tool.PackageManager{tool.APK, tool.APT, tool.DNF, tool.Pacman, tool.Zypper}
+				return []tool.PackageManager{tool.APK, tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.Homebrew}
 			}
 		}
-		return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK}
+		return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew}
 	case tool.BSD:
 		if strings.EqualFold(strings.TrimSpace(distribution), "freebsd") {
 			return []tool.PackageManager{tool.FreeBSDPkg}
