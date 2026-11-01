@@ -151,7 +151,7 @@ func runInventoryCommand(ctx context.Context, command string, args []string, man
 func inventoryCommand(manager tool.PackageManager) (string, []string, error) {
 	switch manager {
 	case tool.APT:
-		return "dpkg-query", []string{"-W", "-f=${binary:Package}\\t${Version}\\n"}, nil
+		return "dpkg-query", []string{"-W", "-f=${db:Status-Abbrev}\\t${binary:Package}\\t${Version}\\n"}, nil
 	case tool.DNF, tool.Zypper:
 		return "rpm", []string{"-qa", "--qf=%{NAME}\\t%{VERSION}-%{RELEASE}\\n"}, nil
 	case tool.Pacman:
@@ -180,15 +180,22 @@ func parsePackageInventory(manager tool.PackageManager, output []byte, cask bool
 		}
 		var id, version string
 		switch manager {
-		case tool.APT, tool.DNF, tool.Zypper, tool.Pacman, tool.FreeBSDPkg:
+		case tool.APT:
+			fields := strings.Fields(line)
+			if len(fields) < 3 {
+				return nil, errors.New("malformed dpkg-query package inventory row")
+			}
+			if len(fields[0]) < 2 || !strings.ContainsRune("iUHFWt", rune(fields[0][1])) {
+				continue
+			}
+			id, version = fields[1], fields[2]
+			id = strings.SplitN(id, ":", 2)[0]
+		case tool.DNF, tool.Zypper, tool.Pacman, tool.FreeBSDPkg:
 			fields := strings.Fields(line)
 			if len(fields) < 2 {
 				return nil, fmt.Errorf("malformed %s package inventory row", manager)
 			}
 			id, version = fields[0], fields[1]
-			if manager == tool.APT {
-				id = strings.SplitN(id, ":", 2)[0]
-			}
 		case tool.APK:
 			id, version = splitAPKPackage(line)
 			if id == "" {
@@ -197,7 +204,10 @@ func parsePackageInventory(manager tool.PackageManager, output []byte, cask bool
 		case tool.MacPorts:
 			id, version = parseMacPortsRow(line)
 			if id == "" {
-				continue // port prints a descriptive heading before its package rows.
+				if strings.HasPrefix(line, "The following ports are currently installed:") || line == "No ports are installed." {
+					continue
+				}
+				return nil, errors.New("malformed MacPorts package inventory row")
 			}
 		default:
 			return nil, fmt.Errorf("%s inventory output is unsupported", manager)
