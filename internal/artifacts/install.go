@@ -189,7 +189,7 @@ func (i *ArchiveInstaller) extractAndPublish(toolID string, download sources.Dow
 	if err := Extract(download.Path, staging, artifact.ArchiveRoot, artifact.Format, Limits{}); err != nil {
 		return result, fmt.Errorf("extract %s %s: %w", toolID, artifact.Version, err)
 	}
-	if err := os.Rename(staging, target); err != nil {
+	if err := publishDirectory(staging, target); err != nil {
 		return result, fmt.Errorf("publish user-level installation: %w", err)
 	}
 	staging = ""
