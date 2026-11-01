@@ -94,7 +94,7 @@ func (s *Session) Next() (planning.Item, bool) {
 	for s.next < len(s.items) {
 		item := s.items[s.next]
 		s.next++
-		if item.Action != planning.Install {
+		if item.Action != planning.Install && item.Action != planning.Provided {
 			continue
 		}
 		if failedDependency := s.failedDependency(item); failedDependency != "" {
@@ -111,6 +111,35 @@ func (s *Session) Next() (planning.Item, bool) {
 		return item, true
 	}
 	return planning.Item{}, false
+}
+
+func (s *Session) RecordProvided(item planning.Item, actual detection.Tool) error {
+	if item.Action != planning.Provided {
+		return fmt.Errorf("tool %q is not provided by a dependency", item.ToolID)
+	}
+	if s.running == "" || s.running != item.ToolID {
+		return fmt.Errorf("tool %q is not the active provided component", item.ToolID)
+	}
+	result := Result{ToolID: item.ToolID, Name: item.Name, Manager: "dependency", Source: item.ProvidedBy, Verification: string(actual.State)}
+	if actual.State == detection.Healthy {
+		result.State = AlreadySatisfied
+		result.Diagnostic = fmt.Sprintf("provided and verified by dependency %q", item.ProvidedBy)
+		for _, instance := range actual.Instances {
+			if instance.State == detection.Healthy && instance.Version != "" {
+				result.Verification = instance.Version
+				break
+			}
+		}
+	} else if actual.State == detection.Missing {
+		result.State = Failed
+		result.Diagnostic = fmt.Sprintf("dependency %q was installed but did not provide the required executable", item.ProvidedBy)
+	} else {
+		result.State = PartiallyInstalled
+		result.Diagnostic = fmt.Sprintf("dependency %q did not provide a healthy executable (state: %s)", item.ProvidedBy, actual.State)
+	}
+	s.results[item.ToolID] = result
+	s.running = ""
+	return nil
 }
 
 func (s *Session) failedDependency(item planning.Item) string {
@@ -220,7 +249,7 @@ func (s *Session) Complete() bool {
 		return false
 	}
 	for _, item := range s.items {
-		if item.Action == planning.Install {
+		if item.Action == planning.Install || item.Action == planning.Provided {
 			if _, done := s.results[item.ToolID]; !done {
 				return false
 			}
@@ -231,7 +260,7 @@ func (s *Session) Complete() bool {
 
 func (s *Session) Cancel() {
 	for _, item := range s.items {
-		if item.Action != planning.Install {
+		if item.Action != planning.Install && item.Action != planning.Provided {
 			continue
 		}
 		if _, exists := s.results[item.ToolID]; exists {
