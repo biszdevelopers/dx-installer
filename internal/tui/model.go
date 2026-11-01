@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -10,10 +11,12 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"developers-club-dx/internal/artifacts"
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/installation"
+	"developers-club-dx/internal/pathconfig"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/reporting"
 )
@@ -39,6 +42,8 @@ type Model struct {
 	selected             map[string]bool
 	selectedProfiles     map[string]bool
 	preferredManager     tool.PackageManager
+	sourceMode           string
+	archiveInstaller     *artifacts.ArchiveInstaller
 	plan                 planning.Plan
 	planReady            bool
 	approval             bool
@@ -79,6 +84,16 @@ type verificationMsg struct {
 	verifyError error
 }
 
+type artifactInstallMsg struct {
+	item        planning.Item
+	result      artifacts.InstallResult
+	installErr  error
+	pathErr     error
+	inventory   detection.Inventory
+	actual      detection.Tool
+	verifyError error
+}
+
 func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inventory, selected []string) *Model {
 	selection := make(map[string]bool, len(selected))
 	for _, id := range selected {
@@ -91,6 +106,8 @@ func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inv
 		screen:           OverviewScreen,
 		selected:         selection,
 		selectedProfiles: make(map[string]bool),
+		sourceMode:       "automatic",
+		archiveInstaller: artifacts.NewArchiveInstaller(),
 		stateFilter:      "all",
 		status:           "Review the machine overview, then select tools from the catalog.",
 		width:            80,
@@ -100,6 +117,10 @@ func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inv
 
 func (m *Model) SetPreferredManager(manager tool.PackageManager) {
 	m.preferredManager = manager
+}
+
+func (m *Model) SetArchiveInstaller(installer *artifacts.ArchiveInstaller) {
+	m.archiveInstaller = installer
 }
 
 func (m *Model) managerOrder() []tool.PackageManager {
@@ -124,6 +145,8 @@ func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.verifyCommand(msg.err)
 	case verificationMsg:
 		return m.handleVerification(msg)
+	case artifactInstallMsg:
+		return m.handleArtifactInstall(msg)
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	default:
@@ -266,8 +289,9 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "0":
 		if m.screen == SourcesScreen {
+			m.sourceMode = "automatic"
 			m.preferredManager = ""
-			m.invalidatePlan("Package manager preference cleared.")
+			m.invalidatePlan("Automatic source selection and package-manager order restored.")
 		}
 	case "r":
 		return m, m.refreshInventory()
@@ -278,7 +302,10 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.status = "Enter a new file path for the selected-tool export, then press Enter."
 		}
 	case "o":
-		if m.screen == ProfilesScreen || m.screen == CatalogScreen {
+		if m.screen == SourcesScreen {
+			m.sourceMode = "official-only"
+			m.invalidatePlan("Official-only downloads selected. No regional mirror will be contacted.")
+		} else if m.screen == ProfilesScreen || m.screen == CatalogScreen {
 			m.pathMode = "import"
 			m.pathInput = ""
 			m.status = "Enter the selection JSON file path, then press Enter."
@@ -288,6 +315,11 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.pathMode = "diagnostic"
 			m.pathInput = ""
 			m.status = "Enter a new JSON report path. The file will contain redacted diagnostics and will not overwrite an existing file."
+		}
+	case "m":
+		if m.screen == SourcesScreen {
+			m.sourceMode = "official-first"
+			m.invalidatePlan("Official-first downloads selected. Verified regional mirrors may be tried after retryable official-source failures.")
 		}
 	}
 	m.clampCursor()
@@ -374,7 +406,7 @@ func (m *Model) applyProfiles() {
 
 func (m *Model) buildPlan() {
 	selected := m.selectedIDs()
-	plan, err := planning.BuildWithOptions(m.catalog, m.inventory, selected, planning.Options{PreferredManager: m.preferredManager})
+	plan, err := planning.BuildWithOptions(m.catalog, m.inventory, selected, planning.Options{PreferredManager: m.preferredManager, AllowRegionalFallback: m.sourceMode == "official-first"})
 	if err != nil {
 		m.plan = planning.Plan{}
 		m.planReady = false
@@ -670,7 +702,7 @@ func (m *Model) handlePreflight(message preflightMsg) (tea.Model, tea.Cmd) {
 	}
 	previousSignature := planSignature(m.plan)
 	m.inventory = message.inventory
-	updated, err := planning.BuildWithOptions(m.catalog, m.inventory, m.selectedIDs(), planning.Options{PreferredManager: m.preferredManager})
+	updated, err := planning.BuildWithOptions(m.catalog, m.inventory, m.selectedIDs(), planning.Options{PreferredManager: m.preferredManager, AllowRegionalFallback: m.sourceMode == "official-first"})
 	if err != nil {
 		m.screen = PlanScreen
 		m.status = "Could not rebuild the plan; no command was run: " + err.Error()
@@ -702,7 +734,13 @@ func (m *Model) handlePreflight(message preflightMsg) (tea.Model, tea.Cmd) {
 func planSignature(plan planning.Plan) string {
 	parts := make([]string, 0, len(plan.Items)+len(plan.Issues))
 	for _, item := range plan.Items {
-		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display()}, "|"))
+		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display(), item.Version, item.InstallPath, fmt.Sprint(item.ApproximateSize), fmt.Sprint(item.RegionalFallback)}, "|"))
+		if item.Artifact != nil {
+			parts = append(parts, strings.Join([]string{item.Artifact.URL, item.Artifact.RegionalURL, item.Artifact.SHA256, string(item.Artifact.Format), item.Artifact.ArchiveRoot}, "|"))
+		}
+		for _, pathChange := range item.PathChanges {
+			parts = append(parts, strings.Join([]string{pathChange.Directory, pathChange.Target, pathChange.Shell, pathChange.ManualCommand, fmt.Sprint(pathChange.Persist), fmt.Sprint(pathChange.Manual)}, "|"))
+		}
 		for _, installed := range item.ExistingPackages {
 			parts = append(parts, strings.Join([]string{item.ToolID, string(installed.Manager), installed.ID, installed.Version, installed.Source}, "|"))
 		}
@@ -724,6 +762,38 @@ func (m *Model) startNext() tea.Cmd {
 		return nil
 	}
 	m.activeItem = item
+	if item.Artifact != nil {
+		m.status = "Downloading and installing the approved verified archive for " + item.Name + "."
+		installer := m.archiveInstaller
+		if installer == nil {
+			installer = artifacts.NewArchiveInstaller()
+		}
+		ctx := m.ctx
+		catalogItems := m.catalog
+		machine := m.inventory.Platform
+		return func() tea.Msg {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return artifactInstallMsg{item: item, installErr: err, actual: detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing}}
+			}
+			result, installErr := installer.Install(ctx, item.ToolID, home, *item.Artifact, item.RegionalFallback)
+			if installErr != nil {
+				return artifactInstallMsg{item: item, result: result, installErr: installErr, actual: detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing}}
+			}
+			pathErr := pathconfig.Apply(item.PathChanges)
+			scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+			defer cancel()
+			inventory, verifyError := detection.Scan(scanCtx, catalogItems, machine)
+			actual, ok := inventory.Tools[item.ToolID]
+			if verifyError == nil && !ok {
+				verifyError = fmt.Errorf("inventory did not return %s", item.ToolID)
+			}
+			if verifyError != nil {
+				actual = detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Unknown}
+			}
+			return artifactInstallMsg{item: item, result: result, pathErr: pathErr, inventory: inventory, actual: actual, verifyError: verifyError}
+		}
+	}
 	m.status = "Running the approved package-manager operation for " + item.Name + "."
 	command, err := item.Command.ExecContext(m.ctx)
 	if err != nil {
@@ -734,6 +804,40 @@ func (m *Model) startNext() tea.Cmd {
 	return tea.ExecProcess(command, func(err error) tea.Msg {
 		return processFinishedMsg{toolID: item.ToolID, err: err}
 	})
+}
+
+func (m *Model) handleArtifactInstall(message artifactInstallMsg) (tea.Model, tea.Cmd) {
+	if m.session == nil {
+		return m, nil
+	}
+	actual := message.actual
+	operationErr := message.installErr
+	if message.verifyError != nil {
+		actual = detection.Tool{ID: message.item.ToolID, Name: message.item.Name, State: detection.Unknown}
+		operationErr = errors.Join(operationErr, fmt.Errorf("post-install verification failed: %w", message.verifyError))
+		m.status = "Verification could not finish for " + message.item.Name + ": " + message.verifyError.Error()
+	} else if message.installErr == nil {
+		m.inventory = message.inventory
+		m.status = "Verified " + message.item.Name + " as " + string(actual.State) + "."
+	}
+	details := installation.ExecutionDetails{
+		Source:        message.result.SourceName,
+		SourceURL:     message.result.SourceURL,
+		InstallPath:   message.result.Path,
+		SHA256:        message.result.SHA256,
+		PathChanges:   message.item.PathChanges,
+		CleanupNotice: message.result.CleanupNotice,
+	}
+	if message.pathErr != nil {
+		details.PathError = message.pathErr.Error()
+		m.status = "The tool installed, but PATH configuration needs attention: " + message.pathErr.Error()
+	}
+	if err := m.session.RecordWithDetails(message.item, operationErr, actual, details); err != nil {
+		m.status = err.Error()
+		return m, nil
+	}
+	m.activeItem = planning.Item{}
+	return m, m.startNext()
 }
 
 func (m *Model) verifyCommand(processErr error) tea.Cmd {
