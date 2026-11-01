@@ -52,13 +52,14 @@ const (
 )
 
 type Installer struct {
-	Platform    OperatingSystem `yaml:"platform"`
-	Manager     PackageManager  `yaml:"manager"`
-	PackageID   string          `yaml:"package_id"`
-	Kind        string          `yaml:"kind"`
-	Scope       Scope           `yaml:"scope"`
-	Source      string          `yaml:"source"`
-	PathEntries []string        `yaml:"path_entries,omitempty"`
+	Platform      OperatingSystem `yaml:"platform"`
+	Manager       PackageManager  `yaml:"manager"`
+	PackageID     string          `yaml:"package_id"`
+	Kind          string          `yaml:"kind"`
+	Scope         Scope           `yaml:"scope"`
+	Source        string          `yaml:"source"`
+	Architectures []Architecture  `yaml:"architectures,omitempty"`
+	PathEntries   []string        `yaml:"path_entries,omitempty"`
 }
 
 type ArchiveFormat string
@@ -154,10 +155,14 @@ func (m Manifest) Supports(os OperatingSystem, architecture Architecture) bool {
 }
 
 func (m Manifest) InstallerFor(os OperatingSystem, managers []PackageManager) (Installer, bool) {
+	return m.InstallerForPlatform(os, "", managers)
+}
+
+func (m Manifest) InstallerForPlatform(os OperatingSystem, architecture Architecture, managers []PackageManager) (Installer, bool) {
 	for _, manager := range managers {
 		for _, preferredScope := range []Scope{UserScope, SystemScope} {
 			for _, installer := range m.Installers {
-				if installer.Platform == os && installer.Manager == manager && installer.Scope == preferredScope {
+				if installer.Platform == os && installer.Manager == manager && installer.Scope == preferredScope && installerSupportsArchitecture(installer, architecture) {
 					return installer, true
 				}
 			}
@@ -246,6 +251,13 @@ func (m Manifest) Validate() error {
 		}
 		if installer.Source == "" {
 			return fmt.Errorf("installer %q/%q must identify its package source", installer.Platform, installer.Manager)
+		}
+		seenInstallerArchitectures := make(map[Architecture]bool, len(installer.Architectures))
+		for _, architecture := range installer.Architectures {
+			if !validArchitecture(architecture) || !m.Supports(installer.Platform, architecture) || seenInstallerArchitectures[architecture] {
+				return fmt.Errorf("installer %q/%q has an unknown, undeclared, or duplicate architecture %q", installer.Platform, installer.Manager, architecture)
+			}
+			seenInstallerArchitectures[architecture] = true
 		}
 		if len(installer.PathEntries) > 0 && installer.Manager != Homebrew {
 			return fmt.Errorf("installer %q/%q can declare formula-relative PATH entries only for Homebrew", installer.Platform, installer.Manager)
@@ -362,6 +374,18 @@ func (m Manifest) Validate() error {
 		}
 	}
 	return nil
+}
+
+func installerSupportsArchitecture(installer Installer, architecture Architecture) bool {
+	if architecture == "" || len(installer.Architectures) == 0 {
+		return true
+	}
+	for _, supported := range installer.Architectures {
+		if supported == architecture {
+			return true
+		}
+	}
+	return false
 }
 
 func validRelativePathEntry(entry string) bool {
