@@ -14,8 +14,13 @@ func TestEmbeddedCatalogPassesGraphAndProfileValidation(t *testing.T) {
 	if got := len(items.Tools()); got != 44 {
 		t.Fatalf("embedded tool count = %d, want 44", got)
 	}
-	if got := len(items.Profiles()); got != 10 {
-		t.Fatalf("embedded profile count = %d, want 10", got)
+	if got := len(items.Profiles()); got != 14 {
+		t.Fatalf("embedded profile count = %d, want 14", got)
+	}
+	for _, id := range []string{"mobile", "embedded", "devops", "security"} {
+		if _, exists := items.Profile(id); !exists {
+			t.Errorf("embedded catalog is missing the %q profile", id)
+		}
 	}
 }
 
