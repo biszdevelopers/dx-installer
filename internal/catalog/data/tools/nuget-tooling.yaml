@@ -1,0 +1,18 @@
+schema_version: 1
+id: nuget-tooling
+name: NuGet Tooling
+category: dotnet.package-management
+description: NuGet package-management commands provided by the .NET SDK.
+tags: [dotnet, nuget, packages]
+version:
+  channel: bundled-with-sdk
+  upgrade_policy: never_automatically
+executables: [dotnet]
+version_args: [nuget, --help]
+dependencies: [dotnet-sdk-10]
+provided_by: dotnet-sdk-10
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
