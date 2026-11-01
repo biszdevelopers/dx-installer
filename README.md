@@ -42,4 +42,4 @@ See [architecture](docs/architecture.md), [quick start](docs/quick-start.md), [r
 
 ## Current verification
 
-Run `go test ./...`, `go vet ./...`, and `go run ./cmd/catalog-check`. CI runs Go tests, static analysis, manifest validation, and native builds on Windows, macOS, and Linux for amd64 and arm64. A separate disposable-container job installs and verifies Ninja through apt, dnf, pacman, zypper, and apk. Windows, macOS, MacPorts, Chocolatey, Scoop, WinGet, and FreeBSD package-manager installation pairs still lack live integration coverage; no release defaults to BSD.
+Run `go test ./...`, `go vet ./...`, and `go run ./cmd/catalog-check`. CI runs Go tests, static analysis, manifest validation, and native builds on Windows, macOS, and Linux for amd64 and arm64. A separate integration workflow installs and verifies Ninja through apt, dnf, pacman, zypper, and apk in disposable containers, and through `pkg` in a FreeBSD 15.1 VM. Release publication waits for both workflows. Windows, macOS, MacPorts, Chocolatey, Scoop, and WinGet package-manager installation pairs still lack live integration coverage.
