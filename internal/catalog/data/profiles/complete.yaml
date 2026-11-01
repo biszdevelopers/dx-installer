@@ -2,4 +2,4 @@ schema_version: 1
 id: complete
 name: Complete catalog
 description: Review every catalog entry and remove anything you do not want.
-tools: [git, github-cli, git-lfs, nodejs-lts, bun, python, uv, go, rustup, temurin-jdk-25, maven, gradle, php, ruby, erlang, elixir, ghc, ocaml, r, gfortran, perl, julia, zig, cmake, ninja, clang, gcc, gdb, lldb, powershell, dotnet-sdk-10, sqlite]
+tools: [git, github-cli, git-lfs, nodejs-lts, bun, python, uv, go, rustup, temurin-jdk-25, maven, gradle, kotlin, php, ruby, erlang, elixir, ghc, ocaml, r, gfortran, perl, julia, zig, dart, adb, kubectl, cmake, ninja, clang, gcc, gdb, lldb, powershell, dotnet-sdk-10, sqlite]
