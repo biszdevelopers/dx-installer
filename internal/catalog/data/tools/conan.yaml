@@ -1,0 +1,27 @@
+schema_version: 1
+id: conan
+name: Conan
+category: cpp.packages
+description: C and C++ package manager.
+tags: [c, cpp, dependencies, packages]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [conan]
+version_args: [--version]
+dependencies: [python]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: conan
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: conan
+    scope: user
+    source: homebrew-core
