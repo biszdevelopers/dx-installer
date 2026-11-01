@@ -1,0 +1,21 @@
+schema_version: 1
+id: grpcurl
+name: grpcurl
+category: api.grpc
+description: Command-line client for making gRPC requests.
+tags: [grpc, api, protocol]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [grpcurl]
+version_args: [-version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: grpcurl
+    scope: user
+    source: homebrew-core
