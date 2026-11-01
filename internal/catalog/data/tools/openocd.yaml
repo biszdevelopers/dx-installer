@@ -1,0 +1,27 @@
+schema_version: 1
+id: openocd
+name: OpenOCD
+category: embedded.debugger
+description: On-chip JTAG and SWD debugger for embedded development targets.
+tags: [embedded, debugger, jtag, swd]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [openocd]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: open-ocd
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: openocd
+    scope: system
+    source: configured-apt-repositories
