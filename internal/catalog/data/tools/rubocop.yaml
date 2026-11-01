@@ -1,0 +1,27 @@
+schema_version: 1
+id: rubocop
+name: RuboCop
+category: ruby.quality
+description: Ruby static analyzer and formatter.
+tags: [ruby, lint, formatting]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [rubocop]
+version_args: [--version]
+dependencies: [ruby]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: rubocop
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: rubocop
+    scope: user
+    source: homebrew-core
