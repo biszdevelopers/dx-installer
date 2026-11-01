@@ -50,6 +50,7 @@ type Inventory struct {
 	Platform platform.Info
 	Managers []packagemanager.Detected
 	Tools    map[string]Tool
+	Warnings []string
 }
 
 type scanResult struct {
@@ -61,9 +62,12 @@ type scanResult struct {
 func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (Inventory, error) {
 	inventory := Inventory{
 		Platform: machine,
-		Managers: packagemanager.Detect(machine.OS, machine.Distribution),
 		Tools:    make(map[string]Tool),
 	}
+	if err := platform.RefreshSearchPath(); err != nil {
+		inventory.Warnings = append(inventory.Warnings, "could not refresh the process PATH after installation: "+err.Error())
+	}
+	inventory.Managers = packagemanager.Detect(machine.OS, machine.Distribution)
 	manifests := items.Tools()
 	if len(manifests) == 0 {
 		return inventory, fmt.Errorf("catalog contains no tools")
@@ -134,13 +138,30 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 		instances = append(instances, inspectVersion(ctx, path, executable, manifest.VersionArgs))
 	}
 	sort.Slice(instances, func(i, j int) bool { return instances[i].Path < instances[j].Path })
+	healthyCount := 0
+	unknownCount := 0
 	for _, instance := range instances {
 		if instance.State == Healthy {
-			return instances, Healthy
+			healthyCount++
+		}
+		if instance.State == Unknown {
+			unknownCount++
 		}
 	}
 	if ctx.Err() != nil {
 		return instances, Unknown
+	}
+	if healthyCount == len(instances) {
+		return instances, Healthy
+	}
+	if healthyCount > 0 {
+		return instances, Partial
+	}
+	if unknownCount == len(instances) {
+		return instances, Unknown
+	}
+	if unknownCount > 0 {
+		return instances, Partial
 	}
 	return instances, Broken
 }
@@ -149,9 +170,10 @@ func inspectVersion(parent context.Context, path, executable string, args []stri
 	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, path, args...)
-	var stdout, stderr bytes.Buffer
-	command.Stdout = &stdout
-	command.Stderr = &stderr
+	stdout := &boundedBuffer{limit: 8192}
+	stderr := &boundedBuffer{limit: 8192}
+	command.Stdout = stdout
+	command.Stderr = stderr
 	err := command.Run()
 	output := strings.TrimSpace(stdout.String())
 	if output == "" {
@@ -174,6 +196,23 @@ func inspectVersion(parent context.Context, path, executable string, args []stri
 	}
 	instance.State = Healthy
 	return instance
+}
+
+type boundedBuffer struct {
+	bytes.Buffer
+	limit int
+}
+
+func (b *boundedBuffer) Write(value []byte) (int, error) {
+	originalLength := len(value)
+	remaining := b.limit - b.Len()
+	if remaining > 0 {
+		if len(value) > remaining {
+			value = value[:remaining]
+		}
+		_, _ = b.Buffer.Write(value)
+	}
+	return originalLength, nil
 }
 
 func sanitizeOutput(value string) string {
