@@ -1,6 +1,6 @@
 # Package-manager and source selection
 
-The Sources screen lists package managers already discovered on the machine. Select one to prefer it when a selected tool declares a compatible installer for it. Press `0` to clear that preference. The plan shows the selected manager, package identifier, manifest source label, and exact argument array rendered for review.
+The Sources screen lists package managers already discovered on the machine. Select one to prefer it when a selected tool declares a compatible installer for it. Press `0` to clear that preference. The plan shows the selected manager, package identifier, manifest source label, and exact argument array rendered for review. For scripted plan previews and explicitly approved line-mode installs, `--manager <name>` applies the same preference; the command fails if that manager is not detected.
 
 No manager is installed, no repository is added, and no package-manager configuration is changed. A detected manager without a matching manifest entry is not used. When the preferred manager cannot install a tool, planning may use another already-detected manager declared by that tool.
 
