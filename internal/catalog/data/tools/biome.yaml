@@ -1,0 +1,27 @@
+schema_version: 1
+id: biome
+name: Biome
+category: javascript.quality
+description: Web development toolchain for formatting and linting.
+tags: [javascript, typescript, formatter, linter]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [biome]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: biome
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: biome
+    scope: user
+    source: homebrew-core
