@@ -1,5 +1,5 @@
 schema_version: 1
 id: java
 name: Java
-description: Eclipse Temurin Java 25 LTS development kit.
-tools: [temurin-jdk-25]
+description: Eclipse Temurin Java 25 LTS development kit with Maven and Gradle.
+tools: [temurin-jdk-25, maven, gradle]
