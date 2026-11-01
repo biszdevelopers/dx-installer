@@ -1,0 +1,27 @@
+schema_version: 1
+id: vlang
+name: V
+category: v.language
+description: V programming language compiler and toolchain.
+tags: [v, compiler, runtime]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [v]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: vlang
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: vlang
+    scope: user
+    source: homebrew-core
