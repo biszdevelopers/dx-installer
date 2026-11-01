@@ -2,4 +2,4 @@ schema_version: 1
 id: java
 name: Java
 description: Eclipse Temurin 25 and OpenJDK 21 toolchains with Maven and Gradle.
-tools: [temurin-jdk-25, openjdk-21, maven, gradle]
+tools: [temurin-jdk-25, openjdk-21, openjdk-27, maven, gradle, scala, sbt, coursier, ant, checkstyle]
