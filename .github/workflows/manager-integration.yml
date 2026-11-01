@@ -1,0 +1,58 @@
+name: Package manager integration
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-manager-install:
+    name: Install through ${{ matrix.manager }} in ${{ matrix.image }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:trixie-slim
+            manager: apt
+            prepare: apt-get update
+          - image: fedora:latest
+            manager: dnf
+            prepare: dnf makecache
+          - image: archlinux:latest
+            manager: pacman
+            prepare: pacman-key --init && pacman-key --populate archlinux && pacman -Sy --noconfirm
+          - image: opensuse/tumbleweed:latest
+            manager: zypper
+            prepare: zypper --gpg-auto-import-keys --non-interactive refresh
+          - image: alpine:latest
+            manager: apk
+            prepare: apk update
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build a temporary Linux bootstrap executable
+        env:
+          CGO_ENABLED: 0
+        run: go build -trimpath -buildvcs=false -o "$RUNNER_TEMP/dx-bootstrap" ./cmd/bootstrap
+
+      - name: Install Ninja in a disposable distribution container
+        env:
+          CONTAINER_IMAGE: ${{ matrix.image }}
+          PACKAGE_MANAGER: ${{ matrix.manager }}
+          MANAGER_SETUP: ${{ matrix.prepare }}
+        run: |
+          printf 'y\n' | docker run --rm -i \
+            --volume "$RUNNER_TEMP/dx-bootstrap:/dx-bootstrap:ro" \
+            "$CONTAINER_IMAGE" sh -eu -c "$MANAGER_SETUP; /dx-bootstrap install --tools ninja --yes --manager $PACKAGE_MANAGER"
