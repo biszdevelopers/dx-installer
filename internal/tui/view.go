@@ -308,10 +308,15 @@ func (m *Model) renderPlan(maxRows int) []string {
 		}
 		if item.Artifact != nil {
 			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s", item.ToolID, item.Version, privilege),
-				"          official source: "+item.Source,
+				"          source: "+item.Source,
 				"          SHA-256: "+item.Artifact.SHA256,
 				"          approximate download: "+approximateSize(item.ApproximateSize),
 				"          install path: "+item.InstallPath)
+			if item.OfflineArchivePath != "" {
+				rows = append(rows, "          verified local archive: "+item.OfflineArchivePath)
+			} else if item.CustomSourceURL != "" {
+				rows = append(rows, "          custom HTTPS source; catalog SHA-256 required: "+item.CustomSourceURL)
+			}
 			if item.RegionalFallback && item.Artifact.RegionalURL != "" {
 				rows = append(rows, "          verified regional fallback after retryable official failures: "+item.Artifact.RegionalURL)
 			}
@@ -344,7 +349,10 @@ func (m *Model) renderPlan(maxRows int) []string {
 
 func (m *Model) renderSources(maxRows int) []string {
 	managers := m.inventory.Managers
-	lines := []string{strongStyle.Render("Download sources"), "Package managers already on this machine are preferred when they support the selected tool.", "Direct archives use pinned publisher digests; regional mirrors must match that digest.", "Region signals: " + regionLabel(m.regionDetection.Region), "Source policy: " + m.sourceMode, "Keys: a automatic  |  c Mainland China  |  g global  |  o official-only  |  m official-first  |  0 clear manager preference", "A preferred detected package manager is selected when it has a compatible catalog entry.", ""}
+	lines := []string{strongStyle.Render("Download sources"), "Package managers already on this machine are preferred when they support the selected tool.", "Direct archives use pinned publisher digests; regional mirrors must match that digest.", "Region signals: " + regionLabel(m.regionDetection.Region), "Source policy: " + m.sourceMode, "Keys: a automatic  |  c Mainland China  |  g global  |  o official-only  |  m official-first  |  u custom HTTPS  |  l local archive  |  b signed bundle  |  x clear overrides  |  0 clear manager", "A preferred detected package manager is selected when it has a compatible catalog entry.", ""}
+	if m.offlineBundlePath != "" {
+		lines = append(lines, "Verified signed offline bundle: "+m.offlineBundlePath)
+	}
 	for _, signal := range m.regionDetection.Signals {
 		lines = append(lines, fmt.Sprintf("  %s: %s (%s)", signal.Source, signal.Value, signal.Region))
 	}
@@ -368,6 +376,14 @@ func (m *Model) renderSources(maxRows int) []string {
 		}
 	}
 	for _, id := range m.selectedIDs() {
+		if sourceURL := m.customSources[id]; sourceURL != "" {
+			lines = append(lines, id+": custom HTTPS source "+sourceURL)
+			continue
+		}
+		if archivePath := m.offlineArchives[id]; archivePath != "" {
+			lines = append(lines, id+": local archive "+archivePath)
+			continue
+		}
 		manifest, exists := m.catalog.Tool(id)
 		if !exists {
 			continue
@@ -498,6 +514,12 @@ func (m *Model) renderPathPrompt() string {
 		label = "Import selected tools from a JSON file"
 	} else if m.pathMode == "diagnostic" {
 		label = "Save a redacted diagnostic report to a new JSON file"
+	} else if m.pathMode == "custom-source" {
+		label = "Custom HTTPS source (tool-id=https://...)"
+	} else if m.pathMode == "offline-archive" {
+		label = "Offline archive (tool-id=absolute-path)"
+	} else if m.pathMode == "offline-bundle" {
+		label = "Signed offline bundle directory"
 	}
 	return strings.Join([]string{strongStyle.Render(label), "Path: " + m.pathInput + "_", mutedStyle.Render("Enter confirms  |  Esc cancels")}, "\n")
 }
@@ -536,7 +558,7 @@ func (m *Model) keyHelp() string {
 	case PlanScreen:
 		return "p rebuild  |  i review approval  |  r refresh inventory"
 	case SourcesScreen:
-		return "a/c/g region  |  o official-only  |  m official-first  |  Space/Enter prefer manager  |  0 reset"
+		return "a/c/g region  |  o official-only  |  m official-first  |  u custom URL  |  l local archive  |  b signed bundle  |  x clear sources"
 	case ResultsScreen:
 		return "j/k inspect results  |  d save redacted report  |  4 environment  |  q exit"
 	default:
