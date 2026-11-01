@@ -44,7 +44,7 @@ func TestDownloadVerifiesHashAndEd25519Signature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.SourceKind != Official || result.Size != int64(len(contents)) || result.SHA256 != hex.EncodeToString(digest[:]) {
+	if result.SourceKind != Official || result.URL != server.URL || result.Size != int64(len(contents)) || result.SHA256 != hex.EncodeToString(digest[:]) {
 		t.Fatalf("download result = %#v", result)
 	}
 	got, err := os.ReadFile(result.Path)
