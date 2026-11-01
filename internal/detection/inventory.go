@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -184,7 +185,7 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 	}
 	instances := make([]Instance, 0, len(paths))
 	for path, executable := range paths {
-		instance := inspectVersion(ctx, path, executable, manifest.VersionArgs)
+		instance := inspectVersion(ctx, path, executable, manifest.VersionArgs, manifest.HealthPattern)
 		architectures, recognized, architectureErr := binaryArchitectures(path)
 		instance.Architecture = architectures
 		instance.ArchitectureStatus = ArchitectureUnverified
@@ -204,6 +205,7 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 	sort.Slice(instances, func(i, j int) bool { return instances[i].Path < instances[j].Path })
 	healthyCount := 0
 	unknownCount := 0
+	missingCount := 0
 	for _, instance := range instances {
 		if instance.State == Healthy {
 			healthyCount++
@@ -211,12 +213,18 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 		if instance.State == Unknown {
 			unknownCount++
 		}
+		if instance.State == Missing {
+			missingCount++
+		}
 	}
 	if ctx.Err() != nil {
 		return instances, packages, Unknown
 	}
 	if healthyCount == len(instances) {
 		return instances, packages, Healthy
+	}
+	if missingCount == len(instances) {
+		return instances, packages, Missing
 	}
 	if healthyCount > 0 {
 		return instances, packages, Partial
@@ -511,7 +519,7 @@ func installedPackagesFor(manifest tool.Manifest, operatingSystem tool.Operating
 	return packages
 }
 
-func inspectVersion(parent context.Context, path, executable string, args []string) Instance {
+func inspectVersion(parent context.Context, path, executable string, args []string, healthPattern string) Instance {
 	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
 	command, commandErr := versionCommand(ctx, path, args)
@@ -542,8 +550,37 @@ func inspectVersion(parent context.Context, path, executable string, args []stri
 		instance.Diagnostic = "version command succeeded without reporting a version"
 		return instance
 	}
+	if healthPattern != "" {
+		matchedVersion, matches, err := matchHealthPattern(output, healthPattern)
+		if err != nil {
+			instance.State = Unknown
+			instance.Diagnostic = "health output pattern could not be evaluated: " + err.Error()
+			return instance
+		}
+		if !matches {
+			instance.State = Missing
+			instance.Diagnostic = "the executable is available but does not report the required tool capability"
+			return instance
+		}
+		instance.Version = matchedVersion
+	}
 	instance.State = Healthy
 	return instance
+}
+
+func matchHealthPattern(output, pattern string) (string, bool, error) {
+	expression, err := regexp.Compile(pattern)
+	if err != nil {
+		return "", false, err
+	}
+	matches := expression.FindStringSubmatch(output)
+	if matches == nil {
+		return "", false, nil
+	}
+	if len(matches) > 1 && matches[1] != "" {
+		return strings.TrimSpace(matches[1]), true, nil
+	}
+	return strings.TrimSpace(matches[0]), true, nil
 }
 
 type boundedBuffer struct {
