@@ -27,7 +27,7 @@ func TestInstalledPackageWithoutExecutableIsPreservedAsUnknown(t *testing.T) {
 	}
 	managers := []packagemanager.Detected{{Manager: tool.APT, Path: "/usr/bin/apt-get"}}
 	installed := []packagemanager.InstalledPackage{{Manager: tool.APT, ID: "dx-inventory-package", Version: "1.2.3-1"}}
-	instances, packages, state := scanTool(context.Background(), manifest, platform.Info{OS: tool.Linux, Architecture: tool.AMD64}, managers, installed, nil)
+	instances, packages, state := scanTool(context.Background(), manifest, platform.Info{OS: tool.Linux, Architecture: tool.AMD64}, managers, installed, nil, nil)
 	if state != Unknown || len(instances) != 0 {
 		t.Fatalf("scan state = %s, instances = %#v", state, instances)
 	}
@@ -98,7 +98,7 @@ func TestFailedManagerInventoryKeepsUnseenToolsUnknown(t *testing.T) {
 		}},
 	}
 	managers := []packagemanager.Detected{{Manager: tool.Winget}}
-	_, packages, state := scanTool(context.Background(), manifest, platform.Info{OS: tool.Windows, Architecture: tool.AMD64}, managers, nil, map[tool.PackageManager]bool{tool.Winget: true})
+	_, packages, state := scanTool(context.Background(), manifest, platform.Info{OS: tool.Windows, Architecture: tool.AMD64}, managers, nil, map[tool.PackageManager]bool{tool.Winget: true}, nil)
 	if state != Unknown || len(packages) != 0 {
 		t.Fatalf("scan state = %s, packages = %#v, want unknown after failed package query", state, packages)
 	}
