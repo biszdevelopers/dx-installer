@@ -330,7 +330,9 @@ func managerSupportsPlatform(manager PackageManager, os OperatingSystem) bool {
 	switch manager {
 	case Winget, Scoop, Chocolatey:
 		return os == Windows
-	case Homebrew, MacPorts:
+	case Homebrew:
+		return os == MacOS || os == Linux
+	case MacPorts:
 		return os == MacOS
 	case APT, DNF, Pacman, Zypper, APK:
 		return os == Linux
