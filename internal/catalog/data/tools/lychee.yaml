@@ -1,0 +1,27 @@
+schema_version: 1
+id: lychee
+name: lychee
+category: documentation.links
+description: Fast command-line link checker for documentation and websites.
+tags: [documentation, links, validation]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [lychee]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: lychee
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: lychee
+    scope: user
+    source: homebrew-core
