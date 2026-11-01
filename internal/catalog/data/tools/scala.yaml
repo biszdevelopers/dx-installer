@@ -1,0 +1,27 @@
+schema_version: 1
+id: scala
+name: Scala
+category: scala.compiler
+description: Scala 3 compiler, runner, and documentation tools.
+tags: [scala, jvm, compiler]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [scala, scalac]
+version_args: [--version]
+dependencies: [openjdk-27]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: scala
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: scala
+    scope: user
+    source: homebrew-core
