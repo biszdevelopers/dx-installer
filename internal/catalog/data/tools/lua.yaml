@@ -1,0 +1,27 @@
+schema_version: 1
+id: lua
+name: Lua
+category: lua.runtime
+description: Lightweight embeddable Lua programming language.
+tags: [lua, runtime, language]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [lua]
+version_args: [-v]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: lua
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: lua
+    scope: user
+    source: homebrew-core
