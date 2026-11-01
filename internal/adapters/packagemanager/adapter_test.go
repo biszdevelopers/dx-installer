@@ -1,6 +1,7 @@
 package packagemanager
 
 import (
+	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -100,5 +101,24 @@ func TestCommandDisplayQuotesArgumentsAndArgvDoesNotUseShell(t *testing.T) {
 	}
 	if !strings.Contains(command.Display(), `"Vendor.Product with spaces"`) {
 		t.Fatalf("display did not quote the package identifier: %s", command.Display())
+	}
+}
+
+func TestExecContextAppliesRegistryEnvironmentWithoutDuplicateKeys(t *testing.T) {
+	const key = "DX_TEST_REGISTRY_SOURCE"
+	t.Setenv(key, "inherited")
+	command, err := (Command{Executable: "not-started", Environment: map[string]string{key: "https://registry.example", "DX_TEST_REGISTRY_CACHE": "temporary"}}).ExecContext(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var values []string
+	for _, entry := range command.Env {
+		name, value, found := strings.Cut(entry, "=")
+		if found && strings.EqualFold(name, key) {
+			values = append(values, value)
+		}
+	}
+	if !reflect.DeepEqual(values, []string{"https://registry.example"}) {
+		t.Fatalf("registry environment overlay = %#v, want exactly one override", values)
 	}
 }
