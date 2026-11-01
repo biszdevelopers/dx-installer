@@ -1,0 +1,27 @@
+schema_version: 1
+id: doxygen
+name: Doxygen
+category: documentation.api
+description: Generate reference documentation from source code and comments.
+tags: [documentation, api, source]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [doxygen]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: doxygen
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: doxygen
+    scope: user
+    source: homebrew-core
