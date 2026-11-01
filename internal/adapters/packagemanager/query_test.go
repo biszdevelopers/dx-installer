@@ -101,6 +101,15 @@ func TestParseWingetExportRejectsInvalidData(t *testing.T) {
 	}
 }
 
+func TestWingetExportWarningDetection(t *testing.T) {
+	if wingetExportHasWarning("Successfully exported installed packages") {
+		t.Fatal("successful export output was classified as a warning")
+	}
+	if !wingetExportHasWarning("Warning: package is not available from any source") {
+		t.Fatal("incomplete WinGet export warning was ignored")
+	}
+}
+
 func TestUnsupportedInventoryIsAWarningRatherThanAbsence(t *testing.T) {
 	result := QueryInstalled(context.Background(), []Detected{{Manager: tool.Winget}})
 	if len(result.Packages) != 0 || len(result.Warnings) != 1 || !strings.Contains(result.Warnings[0], "could not inspect") {
