@@ -1,0 +1,36 @@
+schema_version: 1
+id: ts-node
+name: ts-node
+category: javascript.runtime
+description: TypeScript execution engine and REPL for Node.js.
+tags: [javascript, typescript, runtime]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [ts-node]
+version_args: [--version]
+dependencies: [nodejs-lts, typescript]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: ts-node
+    version: 10.9.2
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: ts-node
+    version: 10.9.2
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: ts-node
+    version: 10.9.2
+    scope: user
+    source: https://registry.npmjs.org/
