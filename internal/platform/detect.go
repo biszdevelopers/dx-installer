@@ -23,10 +23,19 @@ func Detect() Info {
 		Architecture: architecture(runtime.GOARCH),
 		Shell:        detectShell(),
 	}
-	if info.OS == tool.Linux {
-		info.Distribution = linuxDistribution()
-	}
+	info.Distribution = operatingSystemDistribution(runtime.GOOS, info.OS)
 	return info
+}
+
+func operatingSystemDistribution(goos string, operatingSystem tool.OperatingSystem) string {
+	switch operatingSystem {
+	case tool.Linux:
+		return linuxDistribution()
+	case tool.BSD:
+		return strings.ToLower(goos)
+	default:
+		return ""
+	}
 }
 
 func operatingSystem(goos string) tool.OperatingSystem {
