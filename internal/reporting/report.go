@@ -95,10 +95,10 @@ func sanitize(value string) string {
 	}
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		expression := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(home))
-		value = expression.ReplaceAllString(value, "$HOME")
+		value = expression.ReplaceAllString(value, "$$HOME")
 	}
 	value = windowsUserPath.ReplaceAllString(value, `%USERPROFILE%`)
-	value = unixUserPath.ReplaceAllString(value, "$HOME")
+	value = unixUserPath.ReplaceAllString(value, "$$HOME")
 	value = uriCredentials.ReplaceAllString(value, `${1}[REDACTED]@`)
 	value = querySecret.ReplaceAllString(value, `${1}[REDACTED]`)
 	value = secretAssignment.ReplaceAllString(value, `${1}${2}[REDACTED]`)
