@@ -1,5 +1,5 @@
 schema_version: 1
 id: python
 name: Python
-description: Python runtime and Astral uv project manager.
-tools: [python, pip, uv, pipx, virtualenv, poetry, pdm, hatch, mypy, pyright, pytest, tox, nox, coverage, hypothesis, jupyterlab]
+description: Python runtimes, package and project managers, linters, type checkers, and test tooling.
+tools: [python, pip, uv, pipx, virtualenv, poetry, pdm, hatch, pixi, mypy, pyright, pytest, tox, nox, coverage, hypothesis, jupyterlab]
