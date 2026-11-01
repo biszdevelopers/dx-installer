@@ -55,7 +55,7 @@ func TestInstalledPackageMatchingUsesDeclaredPlatformManagerAndIdentifier(t *tes
 	}
 }
 
-func TestWingetPackageOwnershipRequiresDeclaredSource(t *testing.T) {
+func TestWingetPackageOwnershipRetainsSameIDFromEachSource(t *testing.T) {
 	manifest := tool.Manifest{Installers: []tool.Installer{{
 		Platform:  tool.Windows,
 		Manager:   tool.Winget,
