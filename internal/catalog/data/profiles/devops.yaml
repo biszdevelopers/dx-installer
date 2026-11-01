@@ -1,0 +1,5 @@
+schema_version: 1
+id: devops
+name: DevOps tooling
+description: Docker and Kubernetes command-line tools; does not install or start services.
+tools: [docker-cli, kubectl]
