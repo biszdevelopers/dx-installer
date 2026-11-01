@@ -1,5 +1,5 @@
 schema_version: 1
 id: web-development
 name: Web development
-description: Selectable JavaScript runtimes, package managers, compiler, and Python project tooling.
-tools: [nodejs-lts, npm, pnpm, yarn, typescript, tsx, ts-node, eslint, prettier, vitest, jest, playwright, changesets-cli, semantic-release, turborepo, bun, vite, esbuild, oxlint, oxfmt, nx, biome, rollup, python, uv]
+description: Selectable JavaScript runtimes, package managers, build and test tooling, and common deployment CLIs.
+tools: [nodejs-lts, npm, pnpm, yarn, typescript, tsx, ts-node, eslint, prettier, vitest, jest, playwright, cypress, changesets-cli, semantic-release, turborepo, bun, vite, esbuild, webpack, oxlint, oxfmt, nx, biome, rollup, wrangler, railway-cli, python, uv]
