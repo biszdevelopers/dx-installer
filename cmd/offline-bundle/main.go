@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -92,16 +90,23 @@ func run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("resolve bootstrap executable: %w", err)
 		}
-		contents, err := os.ReadFile(absolutePath)
+		releasePlatform := string(machine.OS)
+		if machine.OS == tool.BSD {
+			releasePlatform = "freebsd"
+		}
+		target := release.Target{Platform: releasePlatform, Architecture: string(machine.Architecture)}
+		if err := release.VerifyBinary(absolutePath, target); err != nil {
+			return fmt.Errorf("verify bootstrap platform and architecture: %w", err)
+		}
+		digest, _, err := offline.HashSource(absolutePath)
 		if err != nil {
 			return fmt.Errorf("read bootstrap executable: %w", err)
 		}
-		digest := sha256.Sum256(contents)
 		filename := fmt.Sprintf("dx-bootstrap-%s-%s", machine.OS, machine.Architecture)
 		if machine.OS == tool.Windows {
 			filename += ".exe"
 		}
-		manifest.Bootstrap = &offline.Payload{File: filename, SHA256: hex.EncodeToString(digest[:])}
+		manifest.Bootstrap = &offline.Payload{File: filename, SHA256: digest, Executable: true}
 		sourceFiles[filename] = absolutePath
 	}
 	privateKey, err := release.LoadPrivateKey(*keyPath)
@@ -124,7 +129,7 @@ func validPlatformArchitecture(machine platform.Info) bool {
 		tool.Windows: {tool.AMD64: true, tool.ARM64: true, tool.I386: true},
 		tool.MacOS:   {tool.AMD64: true, tool.ARM64: true},
 		tool.Linux:   {tool.AMD64: true, tool.ARM64: true, tool.I386: true, tool.ARM: true, tool.RISCV64: true},
-		tool.BSD:     {tool.AMD64: true, tool.ARM64: true},
+		tool.BSD:     {tool.AMD64: true},
 	}
 	return supported[machine.OS][machine.Architecture]
 }
