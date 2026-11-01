@@ -1,0 +1,27 @@
+schema_version: 1
+id: openapi-generator
+name: OpenAPI Generator
+category: api.openapi
+description: Generate API clients, server stubs, and documentation from OpenAPI definitions.
+tags: [api, openapi, code-generation]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [openapi-generator]
+version_args: [version]
+dependencies: [openjdk-27]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: openapi-generator
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: openapi-generator
+    scope: user
+    source: homebrew-core
