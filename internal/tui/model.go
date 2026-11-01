@@ -44,10 +44,12 @@ type Model struct {
 	approval         bool
 	preflighting     bool
 	searching        bool
+	environmentSearching bool
 	pathMode         string
 	pathInput        string
 	help             bool
 	filter           string
+	environmentFilter string
 	categoryFilter   string
 	stateFilter      string
 	status           string
@@ -139,6 +141,10 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.handleSearchKey(message, key)
 		return m, nil
 	}
+	if m.environmentSearching {
+		m.handleEnvironmentSearchKey(message, key)
+		return m, nil
+	}
 	if m.help {
 		if key == "?" || key == "esc" || key == "enter" {
 			m.help = false
@@ -210,6 +216,8 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "f":
 		if m.screen == CatalogScreen {
 			m.searching = true
+		} else if m.screen == EnvironmentScreen {
+			m.environmentSearching = true
 		}
 	case "[":
 		if m.screen == CatalogScreen {
@@ -231,6 +239,9 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.categoryFilter = ""
 			m.filter = ""
 			m.stateFilter = "all"
+			m.cursor = 0
+		} else if m.screen == EnvironmentScreen {
+			m.environmentFilter = ""
 			m.cursor = 0
 		}
 	case "space":
@@ -297,6 +308,25 @@ func (m *Model) handleSearchKey(message tea.KeyPressMsg, key string) {
 	default:
 		if text := message.Key().Text; text != "" {
 			m.filter += text
+		}
+	}
+	m.cursor = 0
+}
+
+func (m *Model) handleEnvironmentSearchKey(message tea.KeyPressMsg, key string) {
+	switch key {
+	case "enter", "esc":
+		m.environmentSearching = false
+	case "backspace":
+		if m.environmentFilter != "" {
+			_, size := utf8.DecodeLastRuneInString(m.environmentFilter)
+			m.environmentFilter = m.environmentFilter[:len(m.environmentFilter)-size]
+		}
+	case "space":
+		m.environmentFilter += " "
+	default:
+		if text := message.Key().Text; text != "" {
+			m.environmentFilter += text
 		}
 	}
 	m.cursor = 0
@@ -506,6 +536,29 @@ func (m *Model) filteredTools() []tool.Manifest {
 	return tools
 }
 
+func (m *Model) filteredEnvironmentIDs() []string {
+	query := strings.ToLower(strings.TrimSpace(m.environmentFilter))
+	ids := m.inventory.ToolIDs()
+	if query == "" {
+		return ids
+	}
+	filtered := make([]string, 0, len(ids))
+	for _, id := range ids {
+		item := m.inventory.Tools[id]
+		parts := []string{id, item.Name, item.Category, string(item.State)}
+		for _, instance := range item.Instances {
+			parts = append(parts, instance.Executable, instance.Path, instance.Version, string(instance.State), instance.Diagnostic, instance.ArchitectureDiagnostic)
+		}
+		for _, installed := range item.Packages {
+			parts = append(parts, string(installed.Manager), installed.ID, installed.Version, installed.Source)
+		}
+		if strings.Contains(strings.ToLower(strings.Join(parts, " ")), query) {
+			filtered = append(filtered, id)
+		}
+	}
+	return filtered
+}
+
 func (m *Model) cycleCategory(direction int) {
 	categories := make([]string, 0)
 	seen := make(map[string]bool)
@@ -570,7 +623,7 @@ func (m *Model) clampCursor() {
 	case ProfilesScreen:
 		count = len(m.catalog.Profiles())
 	case EnvironmentScreen:
-		count = len(m.inventory.Tools)
+		count = len(m.filteredEnvironmentIDs())
 	case PlanScreen:
 		count = len(m.plan.Items) + len(m.plan.Issues)
 	case SourcesScreen:
