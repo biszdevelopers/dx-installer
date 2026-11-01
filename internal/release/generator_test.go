@@ -114,6 +114,16 @@ func TestTargetValidationRejectsUnknownAndDuplicateTargets(t *testing.T) {
 	}
 }
 
+func TestDefaultTargetsIncludeIntegrationTestedFreeBSD(t *testing.T) {
+	targets := DefaultTargets()
+	for _, target := range targets {
+		if target.Platform == "freebsd" && target.Architecture == "amd64" {
+			return
+		}
+	}
+	t.Fatalf("default targets omitted FreeBSD amd64: %#v", targets)
+}
+
 func TestReleaseConfigurationRequiresPlainHTTPSHostnameAndSemanticVersion(t *testing.T) {
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
