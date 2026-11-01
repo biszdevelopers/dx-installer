@@ -1,0 +1,27 @@
+schema_version: 1
+id: pre-commit
+name: pre-commit
+category: security.quality
+description: Framework for managing multi-language Git hooks; does not install hooks into a repository automatically.
+tags: [security, quality, git-hooks]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [pre-commit]
+version_args: [--version]
+dependencies: [python]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: pre-commit
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: pre-commit
+    scope: user
+    source: homebrew-core
