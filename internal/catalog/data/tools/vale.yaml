@@ -1,0 +1,27 @@
+schema_version: 1
+id: vale
+name: Vale
+category: documentation.lint
+description: Command-line prose linter for technical documentation.
+tags: [documentation, prose, lint]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [vale]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: vale
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: vale
+    scope: user
+    source: homebrew-core
