@@ -1,0 +1,27 @@
+schema_version: 1
+id: glab
+name: GitLab CLI
+category: version-control.forge
+description: Official GitLab command-line tool.
+tags: [git, gitlab, forge]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [glab]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: glab
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: glab
+    scope: user
+    source: homebrew-core
