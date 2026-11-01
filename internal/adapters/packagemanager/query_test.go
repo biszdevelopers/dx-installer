@@ -63,20 +63,20 @@ func TestParseHomebrewInventory(t *testing.T) {
 func TestParseWingetExport(t *testing.T) {
 	got, err := parseWingetExport([]byte(`{
 		"Sources": [
-			{"Packages": [
+			{"SourceDetails": {"Name": "winget"}, "Packages": [
 				{"PackageIdentifier": "Git.Git", "Version": "2.47.0"},
 				{"PackageIdentifier": "Microsoft.PowerShell", "Version": "7.5.0"}
 			]},
-			{"Packages": [{"PackageIdentifier": "Example.Tool"}]}
+			{"SourceDetails": {"Name": "msstore"}, "Packages": [{"PackageIdentifier": "Example.Tool"}]}
 		]
 	}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []packageRecord{
-		{ID: "Git.Git", Version: "2.47.0"},
-		{ID: "Microsoft.PowerShell", Version: "7.5.0"},
-		{ID: "Example.Tool"},
+		{ID: "Git.Git", Version: "2.47.0", Source: "winget"},
+		{ID: "Microsoft.PowerShell", Version: "7.5.0", Source: "winget"},
+		{ID: "Example.Tool", Source: "msstore"},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("WinGet export records = %#v, want %#v", got, want)
@@ -92,7 +92,8 @@ func TestParseWingetExportRejectsInvalidData(t *testing.T) {
 	for _, output := range []string{
 		"not json",
 		`{"Sources": []}`,
-		`{"Sources": [{"Packages": [{"PackageIdentifier": ""}]}]}`,
+		`{"Sources": [{"SourceDetails": {"Name": "winget"}, "Packages": [{"PackageIdentifier": ""}]}]}`,
+		`{"Sources": [{"Packages": [{"PackageIdentifier": "Git.Git"}]}]}`,
 	} {
 		if _, err := parseWingetExport([]byte(output)); err == nil {
 			t.Errorf("invalid WinGet export was accepted: %s", output)
