@@ -1,0 +1,5 @@
+schema_version: 1
+id: full-stack
+name: Full-stack
+description: Selectable version-control, web-runtime, Python, and database tools.
+tools: [git, github-cli, nodejs-lts, bun, python, uv, sqlite]
