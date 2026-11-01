@@ -4,6 +4,7 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -56,3 +57,40 @@ jobs:
           printf 'y\n' | docker run --rm -i \
             --volume "$RUNNER_TEMP/dx-bootstrap:/dx-bootstrap:ro" \
             "$CONTAINER_IMAGE" sh -eu -c "$MANAGER_SETUP; /dx-bootstrap install --tools ninja --yes --manager $PACKAGE_MANAGER"
+
+  freebsd-manager-install:
+    name: Install through FreeBSD pkg in a FreeBSD 15.1 VM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Cross-build a FreeBSD amd64 bootstrap executable
+        env:
+          CGO_ENABLED: 0
+          GOOS: freebsd
+          GOARCH: amd64
+        run: |
+          mkdir -p .integration
+          go build -trimpath -buildvcs=false -o .integration/dx-bootstrap-freebsd ./cmd/bootstrap
+
+      - name: Install Ninja through pkg and verify it on FreeBSD
+        uses: vmactions/freebsd-vm@v1.5.9
+        with:
+          release: '15.1'
+          sync: rsync
+          copyback: false
+          disable-cache: true
+          prepare: |
+            pkg bootstrap -y
+            pkg update -f
+          run: |
+            set -eu
+            printf 'y\n' | ./.integration/dx-bootstrap-freebsd install --tools ninja --yes --manager freebsd-pkg
