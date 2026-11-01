@@ -1,0 +1,49 @@
+schema_version: 1
+id: github-cli
+name: GitHub CLI
+category: vcs.client
+description: Work with GitHub repositories, issues, and pull requests from a terminal.
+tags: [github, source, cli]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [gh]
+version_args: [--version]
+dependencies: [git]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+  bsd: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: GitHub.cli
+    scope: system
+    source: winget
+  - platform: macos
+    manager: homebrew
+    package_id: gh
+    scope: user
+    source: homebrew-core
+  - platform: macos
+    manager: macports
+    package_id: gh
+    scope: system
+    source: macports-ports
+  - platform: linux
+    manager: apt
+    package_id: gh
+    scope: system
+    source: configured-apt-repositories
+  - platform: linux
+    manager: dnf
+    package_id: gh
+    scope: system
+    source: configured-dnf-repositories
+  - platform: linux
+    manager: pacman
+    package_id: github-cli
+    scope: system
+    source: configured-pacman-repositories
