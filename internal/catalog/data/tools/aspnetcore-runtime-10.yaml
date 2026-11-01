@@ -1,0 +1,22 @@
+schema_version: 1
+id: aspnetcore-runtime-10
+name: ASP.NET Core Runtime 10
+category: dotnet.runtime
+description: Shared runtime for running ASP.NET Core 10 applications without installing the SDK.
+tags: [dotnet, aspnetcore, runtime, web]
+version:
+  channel: lts-10
+  upgrade_policy: never_automatically
+executables: [dotnet]
+version_args: [--list-runtimes]
+health_pattern: '(?m)^Microsoft\.AspNetCore\.App\s+(10\.[0-9.]+)'
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: Microsoft.DotNet.AspNetCore.10
+    scope: system
+    source: winget
