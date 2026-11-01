@@ -1,0 +1,36 @@
+schema_version: 1
+id: jest
+name: Jest
+category: javascript.testing
+description: JavaScript test framework with assertions, mocking, and snapshots.
+tags: [javascript, testing]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [jest]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: jest
+    version: 30.5.2
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: jest
+    version: 30.5.2
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: jest
+    version: 30.5.2
+    scope: user
+    source: https://registry.npmjs.org/
