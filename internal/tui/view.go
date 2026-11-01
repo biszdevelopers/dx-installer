@@ -7,6 +7,7 @@ import (
 
 	lipgloss "charm.land/lipgloss/v2"
 	"developers-club-dx/internal/detection"
+	"developers-club-dx/internal/display"
 	"developers-club-dx/internal/planning"
 )
 
@@ -207,7 +208,7 @@ func (m *Model) renderEnvironment(maxRows int) []string {
 			}
 		}
 		for _, installed := range item.Packages {
-			lines = append(lines, fmt.Sprintf("Package: %s / %s %s (%s)", installed.Manager, installed.ID, valueOr(installed.Version, "version unknown"), installed.Source))
+			lines = append(lines, "Package: "+display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 		}
 		if len(item.Packages) > 0 && len(item.Instances) == 0 {
 			lines = append(lines, warningStyle.Render("Package database record found, but its executable was not found on PATH; it will be preserved."))
@@ -229,7 +230,7 @@ func (m *Model) renderPlan(maxRows int) []string {
 		if item.Action == planning.Preserve {
 			rows = append(rows, fmt.Sprintf("PRESERVE  %-18s %s", item.ToolID, item.ExistingState))
 			for _, installed := range item.ExistingPackages {
-				rows = append(rows, fmt.Sprintf("          package: %s / %s %s (%s)", installed.Manager, installed.ID, valueOr(installed.Version, "version unknown"), installed.Source))
+				rows = append(rows, "          package: "+display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 			}
 			continue
 		}
