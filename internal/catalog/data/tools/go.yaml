@@ -62,3 +62,76 @@ installers:
     package_id: go
     scope: system
     source: configured-freebsd-repository
+artifacts:
+  - platform: windows
+    architecture: amd64
+    version: 1.27.3
+    url: https://go.dev/dl/go1.27.3.windows-amd64.zip
+    sha256: f26081f438319757f8a1b46d7d0b2c5ec7583d4038e485e0aa725cfde7885fff
+    approximate_size: 75000000
+    format: zip
+    archive_root: go
+    path_entries: [bin]
+    allowed_redirect_hosts: [dl.google.com]
+  - platform: windows
+    architecture: arm64
+    version: 1.27.3
+    url: https://go.dev/dl/go1.27.3.windows-arm64.zip
+    sha256: c507872ff21f8a7cd3c1c217b059c6f7271a4a9d8e692810ef9dd3e1f601197c
+    approximate_size: 72000000
+    format: zip
+    archive_root: go
+    path_entries: [bin]
+    allowed_redirect_hosts: [dl.google.com]
+  - platform: macos
+    architecture: amd64
+    version: 1.27.3
+    url: https://go.dev/dl/go1.27.3.darwin-amd64.tar.gz
+    sha256: b6f8e931e4ab497fcde6da8ae4499a58f9d258e55c8a80824a516eae5950a750
+    approximate_size: 68000000
+    format: tar.gz
+    archive_root: go
+    path_entries: [bin]
+    allowed_redirect_hosts: [dl.google.com]
+  - platform: macos
+    architecture: arm64
+    version: 1.27.3
+    url: https://go.dev/dl/go1.27.3.darwin-arm64.tar.gz
+    sha256: dd3908cf20959d798c1e06ebe5b72213f0505ce01373b40ce3110975a6cd99c2
+    approximate_size: 65000000
+    format: tar.gz
+    archive_root: go
+    path_entries: [bin]
+    allowed_redirect_hosts: [dl.google.com]
+  - platform: linux
+    architecture: amd64
+    version: 1.27.3
+    url: https://go.dev/dl/go1.27.3.linux-amd64.tar.gz
+    regional_url: https://mirrors.hust.edu.cn/golang/go1.27.3.linux-amd64.tar.gz
+    sha256: 65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40
+    approximate_size: 67000000
+    format: tar.gz
+    archive_root: go
+    path_entries: [bin]
+    allowed_redirect_hosts: [dl.google.com]
+  - platform: linux
+    architecture: arm64
+    version: 1.27.3
+    url: https://go.dev/dl/go1.27.3.linux-arm64.tar.gz
+    regional_url: https://mirrors.hust.edu.cn/golang/go1.27.3.linux-arm64.tar.gz
+    sha256: a06e99309dbcbdca1a8ccd2282c3ee146e55930886e26b4f1193269587165f49
+    approximate_size: 64000000
+    format: tar.gz
+    archive_root: go
+    path_entries: [bin]
+    allowed_redirect_hosts: [dl.google.com]
+  - platform: bsd
+    architecture: amd64
+    version: 1.27.3
+    url: https://go.dev/dl/go1.27.3.freebsd-amd64.tar.gz
+    sha256: c15c88d07d6b2d2db5df7b65d9b9c73d631ac4e787da04e2bef2a5b6952c2cbb
+    approximate_size: 67000000
+    format: tar.gz
+    archive_root: go
+    path_entries: [bin]
+    allowed_redirect_hosts: [dl.google.com]
