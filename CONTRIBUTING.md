@@ -12,6 +12,6 @@ go run ./cmd/catalog-check
 
 Add or update focused tests with behavior changes. Do not claim platform support based only on cross-compilation. Installation support must be exercised against the named package manager and a disposable environment.
 
-The `Package manager integration` workflow builds the client in each matrix job and runs its approved Ninja install and post-install verification in disposable containers for apt, dnf, pacman, zypper, and apk. It also executes the FreeBSD amd64 bootstrap in a FreeBSD VM and installs Ninja through `pkg`. If a change adds or modifies another manager/platform mapping, add an equivalent disposable-environment integration job before describing that mapping as integration-tested. Windows and macOS package-manager mappings do not currently have live install jobs.
+The `Package manager integration` workflow builds the client in each job and verifies Ninja installs through apt, dnf, pacman, zypper, and apk in disposable Linux containers, plus FreeBSD `pkg` in a FreeBSD VM. It also verifies SQLite through Chocolatey on Windows amd64 and OpenOCD through Homebrew on macOS amd64 and arm64. These are representative manager/tool pairs, not coverage of every declared mapping. Add an equivalent disposable-environment job before describing another mapping as integration-tested.
 
 Commit each changed file in a separate scoped Conventional Commit. Use `scripts/commit-series.ps1` to make a series of one-file commits with explicit messages.
