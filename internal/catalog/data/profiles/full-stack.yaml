@@ -2,4 +2,4 @@ schema_version: 1
 id: full-stack
 name: Full-stack
 description: Selectable version-control, web-runtime, Python, PHP, Ruby, database, and container-client tools.
-tools: [git, github-cli, nodejs-lts, bun, python, uv, php, ruby, sqlite, postgresql-client, docker-cli]
+tools: [git, github-cli, nodejs-lts, bun, python, uv, php, composer, phpstan, php-code-sniffer, php-cs-fixer, ruby, rubygems, bundler, rubocop, sqlite, postgresql-client, docker-cli]
