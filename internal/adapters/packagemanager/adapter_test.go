@@ -83,6 +83,15 @@ func TestBSDManagerOrderOnlyEnablesFreeBSDPkgOnFreeBSD(t *testing.T) {
 	}
 }
 
+func TestLinuxManagerOrderChecksExistingHomebrewAfterNativeManagers(t *testing.T) {
+	for _, distribution := range []string{"ubuntu", "fedora", "arch", "opensuse", "alpine", "unknown"} {
+		order := managerOrder(tool.Linux, distribution)
+		if len(order) == 0 || order[len(order)-1] != tool.Homebrew {
+			t.Errorf("%s manager order = %#v, want Homebrew as the last fallback", distribution, order)
+		}
+	}
+}
+
 func TestCommandDisplayQuotesArgumentsAndArgvDoesNotUseShell(t *testing.T) {
 	command := Command{Executable: "winget", Arguments: []string{"install", "Vendor.Product with spaces"}}
 	argv := command.Argv()
