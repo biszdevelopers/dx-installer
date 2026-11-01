@@ -145,12 +145,6 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 				details.InstallPath = result.Path
 				details.SHA256 = result.SHA256
 				details.CleanupNotice = result.CleanupNotice
-				if installErr == nil {
-					if pathErr := pathconfig.Apply(item.PathChanges); pathErr != nil {
-						details.PathError = pathErr.Error()
-						fmt.Fprintln(output, "PATH update needs attention:", pathErr)
-					}
-				}
 			}
 		} else {
 			fmt.Fprintf(output, "\nInstalling %s from %s with %s\n", item.Name, item.Source, item.Command.Display())
@@ -182,7 +176,7 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 			}
 		}
 		scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
-		inventory, scanErr := detection.Scan(scanCtx, model.catalog, model.inventory.Platform)
+		inventory, scanErr := detection.ScanWithSearchPaths(scanCtx, model.catalog, model.inventory.Platform, searchDirectories(item.PathChanges))
 		cancel()
 		actual := inventory.Tools[item.ToolID]
 		if scanErr != nil {
@@ -193,11 +187,13 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 		} else {
 			model.inventory = inventory
 		}
-		if item.RegistryInstaller != nil && actual.State == detection.Healthy {
+		if actual.State == detection.Healthy && len(item.PathChanges) > 0 {
 			if pathErr := pathconfig.Apply(item.PathChanges); pathErr != nil {
 				details.PathError = pathErr.Error()
 				fmt.Fprintln(output, "PATH update needs attention:", pathErr)
 			}
+		}
+		if item.RegistryInstaller != nil && actual.State == detection.Healthy {
 			details.Source = string(item.RegistryInstaller.Ecosystem) + " registry"
 			details.SourceURL = item.Source
 			details.InstallPath = item.InstallPath
