@@ -55,6 +55,25 @@ func TestInstalledPackageMatchingUsesDeclaredPlatformManagerAndIdentifier(t *tes
 	}
 }
 
+func TestWingetPackageOwnershipRequiresDeclaredSource(t *testing.T) {
+	manifest := tool.Manifest{Installers: []tool.Installer{{
+		Platform:  tool.Windows,
+		Manager:   tool.Winget,
+		PackageID: "Git.Git",
+		Scope:     tool.UserScope,
+		Source:    "winget",
+	}}}
+	managers := []packagemanager.Detected{{Manager: tool.Winget}}
+	installed := []packagemanager.InstalledPackage{
+		{Manager: tool.Winget, ID: "Git.Git", Version: "2.47.0", Source: "msstore"},
+		{Manager: tool.Winget, ID: "Git.Git", Version: "2.47.0", Source: "winget"},
+	}
+	got := installedPackagesFor(manifest, tool.Windows, managers, installed)
+	if len(got) != 1 || got[0].Source != "winget" {
+		t.Fatalf("matched WinGet ownership = %#v, want only the declared source", got)
+	}
+}
+
 func TestFindExecutablesReturnsEachVersionOnPATH(t *testing.T) {
 	first := t.TempDir()
 	second := t.TempDir()
