@@ -18,9 +18,9 @@ func TestBuildCommandUsesTypedArgumentsWithoutSilentAcceptance(t *testing.T) {
 	}{
 		{
 			name:      "winget user scope",
-			installer: tool.Installer{Manager: tool.Winget, PackageID: "Git.Git", Platform: tool.Windows, Scope: tool.UserScope},
+			installer: tool.Installer{Manager: tool.Winget, PackageID: "Git.Git", Platform: tool.Windows, Scope: tool.UserScope, Source: "winget"},
 			os:        tool.Windows,
-			want:      []string{"install", "--id", "Git.Git", "--exact", "--scope", "user"},
+			want:      []string{"install", "--id", "Git.Git", "--exact", "--source", "winget", "--scope", "user"},
 		},
 		{
 			name:      "scoop user scope",
