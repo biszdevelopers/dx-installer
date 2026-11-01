@@ -1,0 +1,18 @@
+schema_version: 1
+id: roslyn-tools
+name: Roslyn Compiler Tooling
+category: dotnet.compiler
+description: Roslyn C# and Visual Basic compilers and analyzers bundled with the .NET SDK.
+tags: [dotnet, roslyn, compiler, analyzer]
+version:
+  channel: bundled-with-sdk
+  upgrade_policy: never_automatically
+executables: [dotnet]
+version_args: [--version]
+dependencies: [dotnet-sdk-10]
+provided_by: dotnet-sdk-10
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
