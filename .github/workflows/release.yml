@@ -77,9 +77,13 @@ jobs:
           "$executable" catalog --json > "$RUNNER_TEMP/catalog.json"
           test -s "$RUNNER_TEMP/catalog.json"
 
+  package-manager-integration:
+    name: Disposable package-manager integration
+    uses: ./.github/workflows/manager-integration.yml
+
   publish:
     name: Build, sign, and publish immutable release
-    needs: verify
+    needs: [verify, package-manager-integration]
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 45
