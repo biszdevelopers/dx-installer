@@ -33,12 +33,23 @@ const (
 )
 
 type Instance struct {
-	Executable string
-	Path       string
-	Version    string
-	State      State
-	Diagnostic string
+	Executable             string
+	Path                   string
+	Version                string
+	State                  State
+	Architecture           []tool.Architecture
+	ArchitectureStatus     ArchitectureStatus
+	ArchitectureDiagnostic string
+	Diagnostic             string
 }
+
+type ArchitectureStatus string
+
+const (
+	ArchitectureCompatible ArchitectureStatus = "compatible"
+	ArchitectureMismatch   ArchitectureStatus = "mismatch"
+	ArchitectureUnverified ArchitectureStatus = "unverified"
+)
 
 type Tool struct {
 	ID        string
@@ -148,7 +159,22 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 	}
 	instances := make([]Instance, 0, len(paths))
 	for path, executable := range paths {
-		instances = append(instances, inspectVersion(ctx, path, executable, manifest.VersionArgs))
+		instance := inspectVersion(ctx, path, executable, manifest.VersionArgs)
+		architectures, recognized, architectureErr := binaryArchitectures(path)
+		instance.Architecture = architectures
+		instance.ArchitectureStatus = ArchitectureUnverified
+		if architectureErr != nil {
+			instance.ArchitectureDiagnostic = "binary architecture could not be read: " + architectureErr.Error()
+		} else if recognized {
+			if containsArchitecture(architectures, machine.Architecture) {
+				instance.ArchitectureStatus = ArchitectureCompatible
+			} else {
+				instance.ArchitectureStatus = ArchitectureMismatch
+				instance.State = Conflicting
+				instance.ArchitectureDiagnostic = fmt.Sprintf("binary architecture %s does not match host architecture %s", joinArchitectures(architectures), machine.Architecture)
+			}
+		}
+		instances = append(instances, instance)
 	}
 	sort.Slice(instances, func(i, j int) bool { return instances[i].Path < instances[j].Path })
 	healthyCount := 0
