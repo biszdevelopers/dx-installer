@@ -429,6 +429,13 @@ func verifyBinary(path string, target Target) error {
 	return nil
 }
 
+func VerifyBinary(path string, target Target) error {
+	if err := target.Validate(); err != nil {
+		return err
+	}
+	return verifyBinary(path, target)
+}
+
 func renderTargetMaps(targets []Target, hashes map[string]string) (string, string) {
 	sorted := append([]Target(nil), targets...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Key() < sorted[j].Key() })
