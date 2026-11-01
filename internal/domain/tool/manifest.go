@@ -52,12 +52,13 @@ const (
 )
 
 type Installer struct {
-	Platform  OperatingSystem `yaml:"platform"`
-	Manager   PackageManager  `yaml:"manager"`
-	PackageID string          `yaml:"package_id"`
-	Kind      string          `yaml:"kind"`
-	Scope     Scope           `yaml:"scope"`
-	Source    string          `yaml:"source"`
+	Platform    OperatingSystem `yaml:"platform"`
+	Manager     PackageManager  `yaml:"manager"`
+	PackageID   string          `yaml:"package_id"`
+	Kind        string          `yaml:"kind"`
+	Scope       Scope           `yaml:"scope"`
+	Source      string          `yaml:"source"`
+	PathEntries []string        `yaml:"path_entries,omitempty"`
 }
 
 type ArchiveFormat string
@@ -239,6 +240,19 @@ func (m Manifest) Validate() error {
 		if installer.Source == "" {
 			return fmt.Errorf("installer %q/%q must identify its package source", installer.Platform, installer.Manager)
 		}
+		if len(installer.PathEntries) > 0 && installer.Manager != Homebrew {
+			return fmt.Errorf("installer %q/%q can declare formula-relative PATH entries only for Homebrew", installer.Platform, installer.Manager)
+		}
+		seenInstallerPathEntries := make(map[string]bool, len(installer.PathEntries))
+		for _, entry := range installer.PathEntries {
+			if !validRelativePathEntry(entry) {
+				return fmt.Errorf("installer %q/%q has an unsafe PATH entry %q", installer.Platform, installer.Manager, entry)
+			}
+			if seenInstallerPathEntries[entry] {
+				return fmt.Errorf("installer %q/%q has a duplicate PATH entry %q", installer.Platform, installer.Manager, entry)
+			}
+			seenInstallerPathEntries[entry] = true
+		}
 		if installer.Kind != "" && installer.Kind != "package" && !(installer.Manager == Homebrew && installer.Kind == "cask") {
 			return fmt.Errorf("installer %q/%q has an unsupported package kind %q", installer.Platform, installer.Manager, installer.Kind)
 		}
@@ -323,7 +337,7 @@ func (m Manifest) Validate() error {
 		}
 		seenPathEntries := make(map[string]bool, len(artifact.PathEntries))
 		for _, entry := range artifact.PathEntries {
-			if entry == "" || path.Clean(entry) != entry || strings.HasPrefix(entry, "/") || strings.Contains(entry, "\\") || entry == "." || entry == ".." || strings.HasPrefix(entry, "../") {
+			if !validRelativePathEntry(entry) {
 				return fmt.Errorf("artifact %s has an unsafe PATH entry %q", key, entry)
 			}
 			if seenPathEntries[entry] {
@@ -338,6 +352,10 @@ func (m Manifest) Validate() error {
 		}
 	}
 	return nil
+}
+
+func validRelativePathEntry(entry string) bool {
+	return entry != "" && path.Clean(entry) == entry && !strings.HasPrefix(entry, "/") && !strings.Contains(entry, "\\") && entry != "." && entry != ".." && !strings.HasPrefix(entry, "../")
 }
 
 func validRegistryEcosystem(ecosystem RegistryEcosystem) bool {
