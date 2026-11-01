@@ -1,0 +1,36 @@
+schema_version: 1
+id: wrangler
+name: Cloudflare Wrangler
+category: devops.cloud
+description: Cloudflare's command-line tool for managing Workers and related Cloudflare resources; does not authenticate automatically.
+tags: [cloudflare, workers, devops, javascript]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [wrangler]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: wrangler
+    version: 4.156.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: wrangler
+    version: 4.156.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: wrangler
+    version: 4.156.0
+    scope: user
+    source: https://registry.npmjs.org/
