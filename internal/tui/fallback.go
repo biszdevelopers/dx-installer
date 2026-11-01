@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"developers-club-dx/internal/detection"
+	"developers-club-dx/internal/display"
 	"developers-club-dx/internal/installation"
 	"developers-club-dx/internal/planning"
 )
@@ -26,7 +27,7 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 			state := entry.State
 			fmt.Fprintf(output, "  %-18s %-28s %s\n", item.ID, item.Name, state)
 			for _, installed := range entry.Packages {
-				fmt.Fprintf(output, "    package: %s / %s %s (%s)\n", installed.Manager, installed.ID, installed.Version, installed.Source)
+				fmt.Fprintf(output, "    package: %s\n", display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 			}
 		}
 		fmt.Fprint(output, "Enter comma-separated tool IDs: ")
@@ -164,7 +165,7 @@ func printPlan(output io.Writer, plan planning.Plan) {
 		if item.Action == planning.Preserve {
 			fmt.Fprintf(output, "  PRESERVE %s (%s)\n", item.Name, item.ExistingState)
 			for _, installed := range item.ExistingPackages {
-				fmt.Fprintf(output, "    package: %s / %s %s (%s)\n", installed.Manager, installed.ID, installed.Version, installed.Source)
+				fmt.Fprintf(output, "    package: %s\n", display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 			}
 			continue
 		}
