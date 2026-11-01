@@ -65,8 +65,29 @@ func TestLineFallbackRequiresExplicitApproval(t *testing.T) {
 	if err := RunLineFallback(context.Background(), model, strings.NewReader("no\n"), &output); err != nil {
 		t.Fatal(err)
 	}
-	if model.session != nil || !strings.Contains(output.String(), "Plan cancelled. No commands were run.") {
+	if model.session != nil || !strings.Contains(output.String(), "Plan cancelled. No commands were run.") || !strings.Contains(output.String(), planning.TransactionDisclosure) {
 		t.Fatalf("fallback did not honor explicit decline: session=%v output=%q", model.session, output.String())
+	}
+}
+
+func TestPlanAndApprovalDiscloseUnresolvedPackageTransaction(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
+		Managers: []packagemanager.Detected{{Manager: tool.Winget, Path: `C:\Windows\winget.exe`}},
+		Tools: map[string]detection.Tool{"git": {ID: "git", Name: "Git", State: detection.Missing}},
+	}, []string{"git"})
+	model.screen = PlanScreen
+	model.Update(keyMessage('p'))
+	if rendered := ansi.Strip(strings.Join(model.renderPlan(80), "\n")); !strings.Contains(rendered, planning.TransactionDisclosure) {
+		t.Fatalf("plan omitted package transaction disclosure: %s", rendered)
+	}
+	model.Update(keyMessage('i'))
+	if rendered := ansi.Strip(model.renderApproval()); !strings.Contains(rendered, planning.TransactionDisclosure) {
+		t.Fatalf("approval omitted package transaction disclosure: %s", rendered)
 	}
 }
 
