@@ -1,0 +1,36 @@
+schema_version: 1
+id: tox
+name: tox
+category: python.testing
+description: Automates isolated Python test environments and commands.
+tags: [python, testing, environments]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [tox]
+version_args: [--version]
+dependencies: [python, uv]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: pypi
+    package_id: tox
+    version: 4.64.4
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: macos
+    ecosystem: pypi
+    package_id: tox
+    version: 4.64.4
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: linux
+    ecosystem: pypi
+    package_id: tox
+    version: 4.64.4
+    scope: user
+    source: https://pypi.org/simple/
