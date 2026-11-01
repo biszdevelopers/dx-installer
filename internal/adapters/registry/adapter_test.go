@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -46,6 +47,29 @@ func TestBuildCommandCreatesIsolatedPinnedEcosystemInstall(t *testing.T) {
 			wantArgs:    func(string) []string { return []string{"install", "golang.org/x/vuln/cmd/govulncheck@v1.1.4"} },
 			wantEnvFor: func(path string) map[string]string {
 				return map[string]string{"GOBIN": filepath.Join(path, "bin"), "GOPROXY": "https://proxy.golang.org", "GOSUMDB": "sum.golang.org", "GOCACHE": filepath.Join(temporaryDirectoryToken, "registry-cache", "build"), "GOMODCACHE": filepath.Join(temporaryDirectoryToken, "registry-cache", "modules"), "GOTOOLCHAIN": "local"}
+			},
+			wantPathFor: func(path string) []string { return []string{filepath.Join(path, "bin")} },
+		},
+		{
+			name:        "Cargo crates",
+			installer:   tool.RegistryInstaller{Ecosystem: tool.CargoRegistry, PackageID: "cargo-nextest", Version: "0.9.131", Source: "https://index.crates.io/"},
+			wantCommand: "cargo",
+			wantArgs: func(path string) []string {
+				return []string{"install", "--root", path, "--locked", "--version", "0.9.131", "cargo-nextest"}
+			},
+			wantEnvFor: func(path string) map[string]string {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					t.Fatal(err)
+				}
+				return map[string]string{
+					"CARGO_HOME":                       filepath.Join(temporaryDirectoryToken, "registry-cache", "cargo-home"),
+					"CARGO_TARGET_DIR":                 filepath.Join(temporaryDirectoryToken, "registry-cache", "cargo-target"),
+					"CARGO_INCREMENTAL":                "0",
+					"CARGO_REGISTRIES_CRATES_IO_INDEX": "sparse+https://index.crates.io/",
+					"CARGO_TERM_COLOR":                 "never",
+					"RUSTUP_HOME":                      filepath.Join(home, ".rustup"),
+				}
 			},
 			wantPathFor: func(path string) []string { return []string{filepath.Join(path, "bin")} },
 		},
