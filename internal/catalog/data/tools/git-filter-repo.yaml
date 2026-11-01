@@ -1,0 +1,27 @@
+schema_version: 1
+id: git-filter-repo
+name: git-filter-repo
+category: version-control.history
+description: Quickly rewrites Git repository history.
+tags: [git, history, migration]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [git-filter-repo]
+version_args: [--version]
+dependencies: [git, python]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: git-filter-repo
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: git-filter-repo
+    scope: user
+    source: homebrew-core
