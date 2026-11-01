@@ -1,0 +1,21 @@
+schema_version: 1
+id: aws-cli
+name: AWS CLI
+category: devops.cloud
+description: Official command-line interface for Amazon Web Services.
+tags: [aws, cloud, devops]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [aws]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: awscli
+    scope: user
+    source: homebrew-core
