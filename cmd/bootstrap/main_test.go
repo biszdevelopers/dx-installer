@@ -3,12 +3,20 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"developers-club-dx/internal/platform"
 )
 
 func TestNonTerminalInstallStopsBeforeInventoryOrExecution(t *testing.T) {
 	err := run([]string{"install", "--tools", "git"})
 	if err == nil || !strings.Contains(err.Error(), "interactive approval requires a terminal") {
 		t.Fatalf("non-terminal installation was not refused: %v", err)
+	}
+}
+
+func TestSourcePolicyRejectsUnknownOverride(t *testing.T) {
+	if _, err := sourceFallback(platform.Info{}, "not-a-source-policy"); err == nil || !strings.Contains(err.Error(), "unsupported source policy") {
+		t.Fatalf("unknown source policy was accepted: %v", err)
 	}
 }
 
