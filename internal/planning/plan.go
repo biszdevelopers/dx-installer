@@ -53,6 +53,14 @@ type Plan struct {
 }
 
 func Build(items *catalog.Catalog, current detection.Inventory, selected []string) (Plan, error) {
+	return BuildWithOptions(items, current, selected, Options{})
+}
+
+type Options struct {
+	PreferredManager tool.PackageManager
+}
+
+func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selected []string, options Options) (Plan, error) {
 	plan := Plan{}
 	if len(selected) == 0 {
 		return plan, fmt.Errorf("select at least one tool")
@@ -73,6 +81,10 @@ func Build(items *catalog.Catalog, current detection.Inventory, selected []strin
 	closureSet := make(map[string]bool, len(closure))
 	for _, id := range closure {
 		closureSet[id] = true
+	}
+	managerOrder := current.ManagerOrder()
+	if options.PreferredManager != "" {
+		managerOrder = preferManager(managerOrder, options.PreferredManager)
 	}
 	plan.checkConflicts(items, current, closure, closureSet)
 	for _, id := range closure {
@@ -96,7 +108,7 @@ func Build(items *catalog.Catalog, current detection.Inventory, selected []strin
 			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State})
 			plan.add(Blocking, id, fmt.Sprintf("an existing %s installation needs manual review; DX will not replace it", entry.State))
 		case detection.Missing:
-			installer, exists := manifest.InstallerFor(current.Platform.OS, current.ManagerOrder())
+			installer, exists := manifest.InstallerFor(current.Platform.OS, managerOrder)
 			if !exists {
 				plan.add(Blocking, id, "no supported installer is available through the detected package managers")
 				continue
@@ -124,6 +136,19 @@ func Build(items *catalog.Catalog, current detection.Inventory, selected []strin
 		}
 	}
 	return plan, nil
+}
+
+func preferManager(managers []tool.PackageManager, preferred tool.PackageManager) []tool.PackageManager {
+	for index, manager := range managers {
+		if manager == preferred {
+			ordered := make([]tool.PackageManager, 0, len(managers))
+			ordered = append(ordered, preferred)
+			ordered = append(ordered, managers[:index]...)
+			ordered = append(ordered, managers[index+1:]...)
+			return ordered
+		}
+	}
+	return managers
 }
 
 func dependencyOrder(items *catalog.Catalog, selected map[string]bool) ([]string, error) {
