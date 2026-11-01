@@ -1,0 +1,59 @@
+schema_version: 1
+id: git-lfs
+name: Git LFS
+category: vcs.extension
+description: Manage large files in Git repositories using Git LFS.
+tags: [git, large-files]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [git-lfs]
+version_args: [version]
+dependencies: [git]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+  bsd: [amd64]
+installers:
+  - platform: windows
+    manager: scoop
+    package_id: git-lfs
+    scope: user
+    source: scoop-bucket
+  - platform: macos
+    manager: homebrew
+    package_id: git-lfs
+    scope: user
+    source: homebrew-core
+  - platform: macos
+    manager: macports
+    package_id: git-lfs
+    scope: system
+    source: macports-ports
+  - platform: linux
+    manager: apt
+    package_id: git-lfs
+    scope: system
+    source: configured-apt-repositories
+  - platform: linux
+    manager: dnf
+    package_id: git-lfs
+    scope: system
+    source: configured-dnf-repositories
+  - platform: linux
+    manager: pacman
+    package_id: git-lfs
+    scope: system
+    source: configured-pacman-repositories
+  - platform: linux
+    manager: zypper
+    package_id: git-lfs
+    scope: system
+    source: configured-zypper-repositories
+  - platform: bsd
+    manager: freebsd-pkg
+    package_id: git-lfs
+    scope: system
+    source: configured-freebsd-repository
