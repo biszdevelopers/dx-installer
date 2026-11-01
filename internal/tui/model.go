@@ -535,6 +535,10 @@ func (m *Model) buildSelectedPlan(selected []string) (planning.Plan, error) {
 	case "automatic":
 		allow, err := m.regionDetection.UseRegionalFallback(regional.Automatic)
 		if err != nil {
+			if m.missingToolsHaveExplicitSources(selected) {
+				allowRegionalFallback = false
+				break
+			}
 			return planning.Plan{
 				Selected: append([]string(nil), selected...),
 				Blocked:  true,
@@ -555,6 +559,18 @@ func (m *Model) buildSelectedPlan(selected []string) (planning.Plan, error) {
 		CustomSources:         cloneStringMap(m.customSources),
 		OfflineArchives:       cloneStringMap(m.offlineArchives),
 	})
+}
+
+func (m *Model) missingToolsHaveExplicitSources(selected []string) bool {
+	for _, id := range selected {
+		if m.inventory.Tools[id].State != detection.Missing {
+			continue
+		}
+		if m.customSources[id] == "" && m.offlineArchives[id] == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
