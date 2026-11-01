@@ -60,8 +60,48 @@ func TestParseHomebrewInventory(t *testing.T) {
 	}
 }
 
+func TestParseWingetExport(t *testing.T) {
+	got, err := parseWingetExport([]byte(`{
+		"Sources": [
+			{"Packages": [
+				{"PackageIdentifier": "Git.Git", "Version": "2.47.0"},
+				{"PackageIdentifier": "Microsoft.PowerShell", "Version": "7.5.0"}
+			]},
+			{"Packages": [{"PackageIdentifier": "Example.Tool"}]}
+		]
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []packageRecord{
+		{ID: "Git.Git", Version: "2.47.0"},
+		{ID: "Microsoft.PowerShell", Version: "7.5.0"},
+		{ID: "Example.Tool"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("WinGet export records = %#v, want %#v", got, want)
+	}
+	for index := range got {
+		if got[index] != want[index] {
+			t.Fatalf("WinGet export record %d = %#v, want %#v", index, got[index], want[index])
+		}
+	}
+}
+
+func TestParseWingetExportRejectsInvalidData(t *testing.T) {
+	for _, output := range []string{
+		"not json",
+		`{"Sources": []}`,
+		`{"Sources": [{"Packages": [{"PackageIdentifier": ""}]}]}`,
+	} {
+		if _, err := parseWingetExport([]byte(output)); err == nil {
+			t.Errorf("invalid WinGet export was accepted: %s", output)
+		}
+	}
+}
+
 func TestUnsupportedInventoryIsAWarningRatherThanAbsence(t *testing.T) {
-	result := QueryInstalled(context.Background(), []Detected{{Manager: tool.Winget, Path: "winget"}})
+	result := QueryInstalled(context.Background(), []Detected{{Manager: tool.Winget}})
 	if len(result.Packages) != 0 || len(result.Warnings) != 1 || !strings.Contains(result.Warnings[0], "could not inspect") {
 		t.Fatalf("unexpected package inventory result: %#v", result)
 	}
