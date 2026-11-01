@@ -136,7 +136,7 @@ var (
 	packageIDPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$`)
 	versionArgPattern  = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._=:+/-]*$`)
 	npmPackagePattern  = regexp.MustCompile(`^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/)?[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`)
-	pypiPackagePattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,127})$`)
+	pypiPackagePattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,127})(?:\[[A-Za-z0-9][A-Za-z0-9._-]*(?:,[A-Za-z0-9][A-Za-z0-9._-]*)*\])?$`)
 )
 
 func (m Manifest) Supports(os OperatingSystem, architecture Architecture) bool {
