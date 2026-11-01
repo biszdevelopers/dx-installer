@@ -47,6 +47,8 @@ func run(args []string) error {
 			return showInventory(ctx, items, args[1:])
 		case "plan":
 			return showPlan(ctx, items, args[1:])
+		case "verify-release":
+			return verifyRelease(args[1:])
 		case "install", "tui":
 			return launchInteractive(ctx, items, args[1:])
 		default:
@@ -268,6 +270,8 @@ Usage:
   dx-bootstrap catalog [--json]        List embedded tools
   dx-bootstrap inventory [--json]      Inspect the current environment
   dx-bootstrap plan --tools git,go     Preview an installation plan
+  dx-bootstrap verify-release --directory PATH
+                                      Verify release checksums with this build's pinned key
   dx-bootstrap install [--tools ids]   Open the interactive application
 
 The install and TUI commands require an attached terminal and explicit plan approval.`)
