@@ -1,0 +1,27 @@
+schema_version: 1
+id: nx
+name: Nx
+category: javascript.build
+description: Extensible build system for JavaScript and TypeScript monorepos.
+tags: [javascript, typescript, monorepo, build]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [nx]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: nx
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: nx
+    scope: user
+    source: homebrew-core
