@@ -79,6 +79,21 @@ func TestBuildCommandRejectsUnsafeRegistryAndRelativeTarget(t *testing.T) {
 	}
 }
 
+func TestBuildCommandPreservesScopedNPMPackageIdentity(t *testing.T) {
+	command, _, err := BuildCommand(tool.RegistryInstaller{
+		Ecosystem: tool.NPMRegistry,
+		PackageID: "@changesets/cli",
+		Version:   "3.0.3",
+		Source:    "https://registry.npmjs.org/",
+	}, filepath.Join(t.TempDir(), "changesets"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := command.Arguments[len(command.Arguments)-1]; got != "@changesets/cli@3.0.3" {
+		t.Fatalf("scoped package specifier = %q, want @changesets/cli@3.0.3", got)
+	}
+}
+
 func TestBindTemporaryDirectoryReplacesOnlyScratchPath(t *testing.T) {
 	command, _, err := BuildCommand(tool.RegistryInstaller{Ecosystem: tool.NPMRegistry, PackageID: "safe", Version: "1.0.0", Source: "https://registry.npmjs.org/"}, filepath.Join(t.TempDir(), "safe"), "")
 	if err != nil {
