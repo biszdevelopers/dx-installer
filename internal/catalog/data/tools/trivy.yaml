@@ -1,0 +1,21 @@
+schema_version: 1
+id: trivy
+name: Trivy
+category: security.scanner
+description: Vulnerability scanner for container images, file systems, and Git repositories.
+tags: [security, vulnerability, containers, scanner]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [trivy]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: trivy
+    scope: user
+    source: homebrew-core
