@@ -9,9 +9,10 @@ version:
   upgrade_policy: never_automatically
 executables: [biome]
 version_args: [--version]
-dependencies: []
+dependencies: [nodejs-lts]
 conflicts: []
 platforms:
+  windows: [amd64, arm64]
   macos: [arm64]
   linux: [amd64, arm64]
 installers:
@@ -25,3 +26,22 @@ installers:
     package_id: biome
     scope: user
     source: homebrew-core
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: '@biomejs/biome'
+    version: 2.6.4
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: '@biomejs/biome'
+    version: 2.6.4
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: '@biomejs/biome'
+    version: 2.6.4
+    scope: user
+    source: https://registry.npmjs.org/
