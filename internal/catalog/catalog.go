@@ -23,7 +23,7 @@ type Catalog struct {
 	profileIDs []string
 }
 
-var categoryPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$`)
+var categoryPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$`)
 
 func LoadEmbedded() (*Catalog, error) {
 	return Load(embedded)
