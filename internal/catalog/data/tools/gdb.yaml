@@ -25,3 +25,8 @@ installers:
     package_id: gdb
     scope: system
     source: configured-apt-repositories
+  - platform: linux
+    manager: dnf
+    package_id: gdb
+    scope: system
+    source: configured-dnf-repositories
