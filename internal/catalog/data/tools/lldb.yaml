@@ -1,0 +1,21 @@
+schema_version: 1
+id: lldb
+name: LLDB
+category: cpp.debugger
+description: LLVM's next-generation debugger for native applications.
+tags: [c, cpp, debugger, llvm]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [lldb]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  linux: [amd64, arm64]
+installers:
+  - platform: linux
+    manager: apt
+    package_id: lldb
+    scope: system
+    source: configured-apt-repositories
