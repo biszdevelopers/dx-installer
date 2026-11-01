@@ -1,0 +1,27 @@
+schema_version: 1
+id: gradle
+name: Gradle
+category: java.build-system
+description: Build automation tool for JVM and multi-language projects.
+tags: [java, jvm, kotlin, build]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [gradle]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: gradle
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: gradle
+    scope: system
+    source: configured-apt-repositories
