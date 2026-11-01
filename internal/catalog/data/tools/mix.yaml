@@ -1,0 +1,17 @@
+schema_version: 1
+id: mix
+name: Mix
+category: elixir.build
+description: Elixir build tool and project task runner supplied by Elixir.
+tags: [elixir, build, package-management]
+version:
+  channel: provided-by-runtime
+  upgrade_policy: never_automatically
+executables: [mix]
+version_args: [--version]
+dependencies: [elixir]
+provided_by: elixir
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
