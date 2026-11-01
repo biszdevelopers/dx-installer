@@ -1,0 +1,17 @@
+schema_version: 1
+id: rubygems
+name: RubyGems
+category: ruby.package-manager
+description: Ruby package manager supplied by the selected Ruby runtime.
+tags: [ruby, package-management]
+version:
+  channel: provided-by-runtime
+  upgrade_policy: never_automatically
+executables: [gem]
+version_args: [--version]
+dependencies: [ruby]
+provided_by: ruby
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
