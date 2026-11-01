@@ -92,6 +92,8 @@ func TestParseWingetExportRejectsInvalidData(t *testing.T) {
 	for _, output := range []string{
 		"not json",
 		`{"Sources": []}`,
+		`{"Sources": [{"SourceDetails": {"Name": "winget"}}]}`,
+		`{"Sources": [{"SourceDetails": {}, "Packages": []}]}`,
 		`{"Sources": [{"SourceDetails": {"Name": "winget"}, "Packages": [{"PackageIdentifier": ""}]}]}`,
 		`{"Sources": [{"Packages": [{"PackageIdentifier": "Git.Git"}]}]}`,
 	} {
