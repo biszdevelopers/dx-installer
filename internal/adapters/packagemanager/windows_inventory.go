@@ -22,6 +22,9 @@ const maxWingetExportBytes = 8 << 20
 
 type wingetExport struct {
 	Sources []struct {
+		Details struct {
+			Name string `json:"Name"`
+		} `json:"SourceDetails"`
 		Packages []struct {
 			Identifier string `json:"PackageIdentifier"`
 			Version    string `json:"Version"`
@@ -101,7 +104,11 @@ func parseWingetExport(contents []byte) ([]packageRecord, error) {
 			if identifier == "" {
 				return nil, fmt.Errorf("WinGet export contains a package without an identifier")
 			}
-			packages = append(packages, packageRecord{ID: identifier, Version: strings.TrimSpace(entry.Version)})
+			sourceName := strings.TrimSpace(source.Details.Name)
+			if sourceName == "" {
+				return nil, fmt.Errorf("WinGet export contains a package without a source name")
+			}
+			packages = append(packages, packageRecord{ID: identifier, Version: strings.TrimSpace(entry.Version), Source: sourceName})
 			if len(packages) > maxWindowsPackageRecords {
 				return nil, fmt.Errorf("WinGet inventory exceeds the %d package limit", maxWindowsPackageRecords)
 			}
