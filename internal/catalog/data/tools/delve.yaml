@@ -1,0 +1,27 @@
+schema_version: 1
+id: delve
+name: Delve
+category: go.debugging
+description: Debugger for Go programs.
+tags: [go, debugger]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [dlv]
+version_args: [version]
+dependencies: [go]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: delve
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: delve
+    scope: user
+    source: homebrew-core
