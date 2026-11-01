@@ -127,6 +127,9 @@ func queryManager(ctx context.Context, detected Detected) ([]packageRecord, erro
 		if err != nil {
 			return nil, err
 		}
+		if detected.OperatingSystem == tool.Linux {
+			return formulae, nil
+		}
 		casks, err := runInventoryCommand(ctx, "brew", []string{"list", "--json=v1", "--cask"}, tool.Homebrew, true)
 		if err != nil {
 			return nil, err
