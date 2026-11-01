@@ -1,0 +1,705 @@
+package tui
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"sort"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	tea "charm.land/bubbletea/v2"
+	"developers-club-dx/internal/catalog"
+	"developers-club-dx/internal/detection"
+	"developers-club-dx/internal/domain/tool"
+	"developers-club-dx/internal/installation"
+	"developers-club-dx/internal/planning"
+)
+
+type Screen int
+
+const (
+	OverviewScreen Screen = iota
+	CatalogScreen
+	ProfilesScreen
+	EnvironmentScreen
+	PlanScreen
+	SourcesScreen
+	ProgressScreen
+	ResultsScreen
+)
+
+type Model struct {
+	ctx              context.Context
+	catalog          *catalog.Catalog
+	inventory        detection.Inventory
+	screen           Screen
+	selected         map[string]bool
+	selectedProfiles map[string]bool
+	preferredManager tool.PackageManager
+	plan             planning.Plan
+	planReady        bool
+	approval         bool
+	preflighting     bool
+	searching        bool
+	pathMode         string
+	pathInput        string
+	help             bool
+	filter           string
+	categoryFilter   string
+	stateFilter      string
+	status           string
+	width            int
+	height           int
+	cursor           int
+	session          *installation.Session
+	activeItem       planning.Item
+}
+
+type preflightMsg struct {
+	inventory detection.Inventory
+	err       error
+	approval  bool
+}
+
+type processFinishedMsg struct {
+	toolID string
+	err    error
+}
+
+type verificationMsg struct {
+	item        planning.Item
+	processErr  error
+	inventory   detection.Inventory
+	actual      detection.Tool
+	verifyError error
+}
+
+func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inventory, selected []string) *Model {
+	selection := make(map[string]bool, len(selected))
+	for _, id := range selected {
+		selection[id] = true
+	}
+	return &Model{
+		ctx:              ctx,
+		catalog:          items,
+		inventory:        initial,
+		screen:           OverviewScreen,
+		selected:         selection,
+		selectedProfiles: make(map[string]bool),
+		stateFilter:      "all",
+		status:           "Review the machine overview, then select tools from the catalog.",
+		width:            80,
+		height:           24,
+	}
+}
+
+func (m *Model) Init() tea.Cmd { return nil }
+
+func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := message.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+	case preflightMsg:
+		return m.handlePreflight(msg)
+	case processFinishedMsg:
+		if m.activeItem.ToolID != msg.toolID {
+			return m, nil
+		}
+		m.status = "Checking the installed tool and its version."
+		return m, m.verifyCommand(msg.err)
+	case verificationMsg:
+		return m.handleVerification(msg)
+	case tea.KeyPressMsg:
+		return m.handleKey(msg)
+	default:
+		return m, nil
+	}
+}
+
+func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	key := message.String()
+	if m.pathMode != "" {
+		m.handlePathKey(message, key)
+		return m, nil
+	}
+	if m.searching {
+		m.handleSearchKey(message, key)
+		return m, nil
+	}
+	if m.help {
+		if key == "?" || key == "esc" || key == "enter" {
+			m.help = false
+		}
+		return m, nil
+	}
+	if m.approval {
+		switch key {
+		case "y":
+			m.approval = false
+			m.preflighting = true
+			m.status = "Rechecking selected tools before execution."
+			return m, m.preflight()
+		case "n", "esc":
+			m.approval = false
+			m.status = "Plan approval cancelled. No commands were run."
+		}
+		return m, nil
+	}
+	switch key {
+	case "ctrl+c", "q":
+		if m.session != nil && !m.session.Complete() {
+			m.session.Cancel()
+		}
+		return m, tea.Quit
+	case "?":
+		m.help = true
+		return m, nil
+	case "1":
+		m.screen = OverviewScreen
+		m.cursor = 0
+	case "2":
+		m.screen = CatalogScreen
+		m.cursor = 0
+	case "3":
+		m.screen = ProfilesScreen
+		m.cursor = 0
+	case "4":
+		m.screen = EnvironmentScreen
+		m.cursor = 0
+	case "5":
+		m.screen = PlanScreen
+		m.cursor = 0
+	case "6":
+		m.screen = SourcesScreen
+		m.cursor = 0
+	case "7":
+		m.screen = ProgressScreen
+		m.cursor = 0
+	case "8":
+		m.screen = ResultsScreen
+		m.cursor = 0
+	case "tab", "right":
+		m.screen = (m.screen + 1) % 8
+		m.cursor = 0
+	case "shift+tab", "left":
+		if m.screen == OverviewScreen {
+			m.screen = ResultsScreen
+		} else {
+			m.screen--
+		}
+		m.cursor = 0
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		m.cursor++
+	case "f":
+		if m.screen == CatalogScreen {
+			m.searching = true
+		}
+	case "[":
+		if m.screen == CatalogScreen {
+			m.cycleCategory(-1)
+			m.cursor = 0
+		}
+	case "]":
+		if m.screen == CatalogScreen {
+			m.cycleCategory(1)
+			m.cursor = 0
+		}
+	case "s":
+		if m.screen == CatalogScreen {
+			m.cycleStateFilter()
+			m.cursor = 0
+		}
+	case "a":
+		if m.screen == CatalogScreen {
+			m.categoryFilter = ""
+			m.filter = ""
+			m.stateFilter = "all"
+			m.cursor = 0
+		}
+	case "space":
+		m.toggleCurrent()
+	case "enter":
+		if m.screen == ProfilesScreen {
+			m.applyProfiles()
+		} else if m.screen == SourcesScreen {
+			m.chooseCurrentManager()
+		}
+	case "p":
+		if m.screen == PlanScreen {
+			m.buildPlan()
+		}
+	case "i":
+		if m.screen == PlanScreen && m.planReady && !m.plan.Blocked {
+			if len(m.plan.InstallItems()) == 0 {
+				m.status = "Every selected tool is already present. No installation is needed."
+				return m, nil
+			}
+			m.approval = true
+		}
+	case "0":
+		if m.screen == SourcesScreen {
+			m.preferredManager = ""
+			m.invalidatePlan("Package manager preference cleared.")
+		}
+	case "r":
+		return m, m.refreshInventory()
+	case "e":
+		if m.screen == ProfilesScreen || m.screen == CatalogScreen {
+			m.pathMode = "export"
+			m.pathInput = ""
+			m.status = "Enter a new file path for the selected-tool export, then press Enter."
+		}
+	case "o":
+		if m.screen == ProfilesScreen || m.screen == CatalogScreen {
+			m.pathMode = "import"
+			m.pathInput = ""
+			m.status = "Enter the selection JSON file path, then press Enter."
+		}
+	}
+	m.clampCursor()
+	return m, nil
+}
+
+func (m *Model) handleSearchKey(message tea.KeyPressMsg, key string) {
+	switch key {
+	case "enter", "esc":
+		m.searching = false
+	case "backspace":
+		if m.filter != "" {
+			_, size := utf8.DecodeLastRuneInString(m.filter)
+			m.filter = m.filter[:len(m.filter)-size]
+		}
+	case "space":
+		m.filter += " "
+	default:
+		if text := message.Key().Text; text != "" {
+			m.filter += text
+		}
+	}
+	m.cursor = 0
+}
+
+func (m *Model) toggleCurrent() {
+	switch m.screen {
+	case CatalogScreen:
+		tools := m.filteredTools()
+		if m.cursor >= 0 && m.cursor < len(tools) {
+			id := tools[m.cursor].ID
+			m.selected[id] = !m.selected[id]
+			m.invalidatePlan("Selection changed. Rebuild the installation plan.")
+		}
+	case ProfilesScreen:
+		profiles := m.catalog.Profiles()
+		if m.cursor >= 0 && m.cursor < len(profiles) {
+			id := profiles[m.cursor].ID
+			m.selectedProfiles[id] = !m.selectedProfiles[id]
+		}
+	case SourcesScreen:
+		m.chooseCurrentManager()
+	}
+}
+
+func (m *Model) applyProfiles() {
+	selection := make(map[string]bool)
+	for _, profile := range m.catalog.Profiles() {
+		if !m.selectedProfiles[profile.ID] {
+			continue
+		}
+		for _, id := range profile.Tools {
+			selection[id] = true
+		}
+	}
+	if len(m.selectedProfiles) == 0 {
+		m.status = "Select one or more profiles, then press Enter to combine them."
+		return
+	}
+	m.selected = selection
+	m.invalidatePlan("Profiles applied. Review and edit the resulting tool selection.")
+	m.screen = CatalogScreen
+	m.cursor = 0
+}
+
+func (m *Model) buildPlan() {
+	selected := m.selectedIDs()
+	plan, err := planning.BuildWithOptions(m.catalog, m.inventory, selected, planning.Options{PreferredManager: m.preferredManager})
+	if err != nil {
+		m.plan = planning.Plan{}
+		m.planReady = false
+		m.status = err.Error()
+		return
+	}
+	m.plan = plan
+	m.planReady = true
+	if plan.Blocked {
+		m.status = "Resolve the blocking items below before any installation can run."
+	} else {
+		m.status = fmt.Sprintf("Plan ready: %d installation step(s), %d preserved tool(s). Review every source and command.", len(plan.InstallItems()), len(plan.Items)-len(plan.InstallItems()))
+	}
+}
+
+func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
+	switch key {
+	case "enter":
+		path := strings.TrimSpace(m.pathInput)
+		if path == "" {
+			m.status = "A file path is required."
+			return
+		}
+		var err error
+		if m.pathMode == "export" {
+			err = m.writeSelection(path)
+		} else {
+			err = m.readSelection(path)
+		}
+		if err != nil {
+			m.status = err.Error()
+		} else if m.pathMode == "export" {
+			m.status = "Selection exported to " + path + "."
+		} else {
+			m.status = "Selection imported. Review the catalog before planning."
+			m.screen = CatalogScreen
+		}
+		m.pathMode = ""
+		m.pathInput = ""
+	case "esc":
+		m.pathMode = ""
+		m.pathInput = ""
+		m.status = "Selection file operation cancelled."
+	case "backspace":
+		if m.pathInput != "" {
+			_, size := utf8.DecodeLastRuneInString(m.pathInput)
+			m.pathInput = m.pathInput[:len(m.pathInput)-size]
+		}
+	case "space":
+		m.pathInput += " "
+	default:
+		if text := message.Key().Text; text != "" {
+			m.pathInput += text
+		}
+	}
+}
+
+func (m *Model) writeSelection(path string) error {
+	data, err := catalog.EncodeSelection(m.catalog, m.selectedIDs())
+	if err != nil {
+		return err
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("create selection file: %w", err)
+	}
+	defer file.Close()
+	if _, err := file.Write(data); err != nil {
+		_ = os.Remove(path)
+		return fmt.Errorf("write selection file: %w", err)
+	}
+	return nil
+}
+
+func (m *Model) readSelection(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read selection file: %w", err)
+	}
+	selected, err := catalog.DecodeSelection(m.catalog, data)
+	if err != nil {
+		return err
+	}
+	m.selected = make(map[string]bool, len(selected))
+	for _, id := range selected {
+		m.selected[id] = true
+	}
+	m.invalidatePlan("Selection imported. Review the catalog before planning.")
+	return nil
+}
+
+func (m *Model) invalidatePlan(message string) {
+	m.planReady = false
+	m.plan = planning.Plan{}
+	m.approval = false
+	m.status = message
+}
+
+func (m *Model) selectedIDs() []string {
+	ids := make([]string, 0, len(m.selected))
+	for id, selected := range m.selected {
+		if selected {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func (m *Model) filteredTools() []tool.Manifest {
+	query := strings.ToLower(strings.TrimSpace(m.filter))
+	tools := make([]tool.Manifest, 0)
+	for _, manifest := range m.catalog.Tools() {
+		if m.categoryFilter != "" && manifest.Category != m.categoryFilter {
+			continue
+		}
+		state := m.inventory.Tools[manifest.ID].State
+		if m.stateFilter == "missing" && state != detection.Missing {
+			continue
+		}
+		if m.stateFilter == "installed" && state != detection.Healthy && state != detection.Outdated && state != detection.Unknown {
+			continue
+		}
+		if query != "" {
+			haystack := strings.ToLower(strings.Join(append([]string{manifest.ID, manifest.Name, manifest.Category, manifest.Description}, manifest.Tags...), " "))
+			if !strings.Contains(haystack, query) {
+				continue
+			}
+		}
+		tools = append(tools, manifest)
+	}
+	return tools
+}
+
+func (m *Model) cycleCategory(direction int) {
+	categories := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, manifest := range m.catalog.Tools() {
+		if !seen[manifest.Category] {
+			seen[manifest.Category] = true
+			categories = append(categories, manifest.Category)
+		}
+	}
+	sort.Strings(categories)
+	if len(categories) == 0 {
+		return
+	}
+	index := -1
+	for i, category := range categories {
+		if category == m.categoryFilter {
+			index = i
+			break
+		}
+	}
+	index = (index + direction + len(categories) + 1) % (len(categories) + 1)
+	if index == len(categories) {
+		m.categoryFilter = ""
+	} else {
+		m.categoryFilter = categories[index]
+	}
+}
+
+func (m *Model) cycleStateFilter() {
+	switch m.stateFilter {
+	case "all":
+		m.stateFilter = "missing"
+	case "missing":
+		m.stateFilter = "installed"
+	default:
+		m.stateFilter = "all"
+	}
+}
+
+func (m *Model) managers() []tool.PackageManager {
+	managers := make([]tool.PackageManager, 0, len(m.inventory.Managers))
+	for _, item := range m.inventory.Managers {
+		managers = append(managers, item.Manager)
+	}
+	return managers
+}
+
+func (m *Model) chooseCurrentManager() {
+	managers := m.managers()
+	if m.cursor < 0 || m.cursor >= len(managers) {
+		return
+	}
+	m.preferredManager = managers[m.cursor]
+	m.invalidatePlan("Package manager preference updated. Rebuild the plan to see the selected source.")
+}
+
+func (m *Model) clampCursor() {
+	var count int
+	switch m.screen {
+	case CatalogScreen:
+		count = len(m.filteredTools())
+	case ProfilesScreen:
+		count = len(m.catalog.Profiles())
+	case EnvironmentScreen:
+		count = len(m.inventory.Tools)
+	case PlanScreen:
+		count = len(m.plan.Items) + len(m.plan.Issues)
+	case SourcesScreen:
+		count = len(m.inventory.Managers)
+	case ResultsScreen:
+		if m.session != nil {
+			count = len(m.session.Report())
+		}
+	}
+	if count == 0 {
+		m.cursor = 0
+	} else if m.cursor >= count {
+		m.cursor = count - 1
+	}
+}
+
+func (m *Model) preflight() tea.Cmd {
+	items := m.catalog
+	machine := m.inventory.Platform
+	ctx := m.ctx
+	return func() tea.Msg {
+		scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+		defer cancel()
+		inventory, err := detection.Scan(scanCtx, items, machine)
+		return preflightMsg{inventory: inventory, err: err, approval: true}
+	}
+}
+
+func (m *Model) handlePreflight(message preflightMsg) (tea.Model, tea.Cmd) {
+	m.preflighting = false
+	if message.err != nil {
+		m.screen = PlanScreen
+		m.status = "Could not refresh inventory; no command was run: " + message.err.Error()
+		return m, nil
+	}
+	if !message.approval {
+		m.inventory = message.inventory
+		if len(m.selected) > 0 {
+			m.buildPlan()
+		} else {
+			m.status = "Inventory refreshed."
+		}
+		return m, nil
+	}
+	previousSignature := planSignature(m.plan)
+	m.inventory = message.inventory
+	updated, err := planning.BuildWithOptions(m.catalog, m.inventory, m.selectedIDs(), planning.Options{PreferredManager: m.preferredManager})
+	if err != nil {
+		m.screen = PlanScreen
+		m.status = "Could not rebuild the plan; no command was run: " + err.Error()
+		return m, nil
+	}
+	m.plan = updated
+	m.planReady = true
+	if updated.Blocked || planSignature(updated) != previousSignature {
+		m.screen = PlanScreen
+		if updated.Blocked {
+			m.status = "The refreshed plan has blocking issues. Review them below; no command was run."
+		} else {
+			m.status = "The machine changed since review. Inspect the refreshed plan and approve it again."
+		}
+		return m, nil
+	}
+	session, err := installation.NewSession(updated)
+	if err != nil {
+		m.screen = PlanScreen
+		m.status = "Could not start the installation session: " + err.Error()
+		return m, nil
+	}
+	m.session = session
+	m.screen = ProgressScreen
+	m.status = "Starting the approved installation plan."
+	return m, m.startNext()
+}
+
+func planSignature(plan planning.Plan) string {
+	parts := make([]string, 0, len(plan.Items)+len(plan.Issues))
+	for _, item := range plan.Items {
+		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display()}, "|"))
+	}
+	for _, issue := range plan.Issues {
+		parts = append(parts, strings.Join([]string{string(issue.Severity), issue.ToolID, issue.Message}, "|"))
+	}
+	return strings.Join(parts, "\n")
+}
+
+func (m *Model) startNext() tea.Cmd {
+	if m.session == nil {
+		return nil
+	}
+	item, exists := m.session.Next()
+	if !exists {
+		m.screen = ResultsScreen
+		m.status = "All planned operations have completed. Review verification results and diagnostics."
+		return nil
+	}
+	m.activeItem = item
+	m.status = "Running the approved package-manager operation for " + item.Name + "."
+	command, err := item.Command.ExecContext(m.ctx)
+	if err != nil {
+		_ = m.session.Record(item, err, detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing})
+		m.status = "Could not start " + item.Name + ": " + err.Error()
+		return m.startNext()
+	}
+	return tea.ExecProcess(command, func(err error) tea.Msg {
+		return processFinishedMsg{toolID: item.ToolID, err: err}
+	})
+}
+
+func (m *Model) verifyCommand(processErr error) tea.Cmd {
+	items := m.catalog
+	machine := m.inventory.Platform
+	item := m.activeItem
+	ctx := m.ctx
+	return func() tea.Msg {
+		scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+		defer cancel()
+		inventory, err := detection.Scan(scanCtx, items, machine)
+		if err != nil {
+			return verificationMsg{item: item, processErr: processErr, verifyError: err}
+		}
+		actual, ok := inventory.Tools[item.ToolID]
+		if !ok {
+			return verificationMsg{item: item, processErr: processErr, inventory: inventory, verifyError: fmt.Errorf("inventory did not return %s", item.ToolID)}
+		}
+		return verificationMsg{item: item, processErr: processErr, inventory: inventory, actual: actual}
+	}
+}
+
+func (m *Model) handleVerification(message verificationMsg) (tea.Model, tea.Cmd) {
+	if m.session == nil {
+		return m, nil
+	}
+	actual := message.actual
+	commandErr := message.processErr
+	if message.verifyError != nil {
+		actual = detection.Tool{ID: message.item.ToolID, Name: message.item.Name, State: detection.Unknown}
+		if commandErr == nil {
+			commandErr = fmt.Errorf("post-install verification failed: %w", message.verifyError)
+		}
+		m.status = "Verification could not finish for " + message.item.Name + ": " + message.verifyError.Error()
+	} else {
+		m.inventory = message.inventory
+		m.status = "Verified " + message.item.Name + " as " + string(actual.State) + "."
+	}
+	if err := m.session.Record(message.item, commandErr, actual); err != nil {
+		m.status = err.Error()
+		return m, nil
+	}
+	m.activeItem = planning.Item{}
+	return m, m.startNext()
+}
+
+func (m *Model) refreshInventory() tea.Cmd {
+	items := m.catalog
+	machine := m.inventory.Platform
+	ctx := m.ctx
+	m.status = "Refreshing the existing tool inventory."
+	return func() tea.Msg {
+		scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+		defer cancel()
+		inventory, err := detection.Scan(scanCtx, items, machine)
+		return preflightMsg{inventory: inventory, err: err, approval: false}
+	}
+}
+
+func (m *Model) View() tea.View { return tea.NewView(m.render()) }
+
+func (m *Model) SessionReport() []installation.Result {
+	if m.session == nil {
+		return nil
+	}
+	return m.session.Report()
+}
