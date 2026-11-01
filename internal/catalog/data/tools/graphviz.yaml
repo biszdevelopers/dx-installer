@@ -1,0 +1,27 @@
+schema_version: 1
+id: graphviz
+name: Graphviz
+category: documentation.graphing
+description: Graph visualization tools, including the dot renderer.
+tags: [documentation, graphing, visualization]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [dot]
+version_args: [-V]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: graphviz
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: graphviz
+    scope: user
+    source: homebrew-core
