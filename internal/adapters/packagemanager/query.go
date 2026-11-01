@@ -21,6 +21,7 @@ type InstalledPackage struct {
 	Manager tool.PackageManager
 	ID      string
 	Version string
+	Source  string
 }
 
 type PackageInventory struct {
@@ -31,6 +32,7 @@ type PackageInventory struct {
 type packageRecord struct {
 	ID      string
 	Version string
+	Source  string
 }
 
 type boundedOutput struct {
@@ -105,7 +107,7 @@ func QueryInstalled(parent context.Context, managers []Detected) PackageInventor
 			if entry.ID == "" {
 				continue
 			}
-			result.Packages = append(result.Packages, InstalledPackage{Manager: manager, ID: entry.ID, Version: entry.Version})
+			result.Packages = append(result.Packages, InstalledPackage{Manager: manager, ID: entry.ID, Version: entry.Version, Source: entry.Source})
 		}
 	}
 	return result
