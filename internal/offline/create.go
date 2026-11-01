@@ -41,6 +41,9 @@ func CreateBundle(output string, manifest Manifest, sourceFiles map[string]strin
 		expectedSources[payload.File] = true
 	}
 	if manifest.Bootstrap != nil {
+		if !manifest.Bootstrap.Executable || manifest.Bootstrap.ToolID != "" || manifest.Bootstrap.Version != "" {
+			return errors.New("optional bootstrap payload must be executable and cannot identify a tool version")
+		}
 		if err := validatePayload(*manifest.Bootstrap); err != nil {
 			return err
 		}
@@ -69,13 +72,28 @@ func CreateBundle(output string, manifest Manifest, sourceFiles map[string]strin
 	if err := os.Mkdir(output, 0o700); err != nil {
 		return fmt.Errorf("create bundle output: %w", err)
 	}
+	outputInfo, err := os.Lstat(output)
+	if err != nil {
+		_ = os.Remove(output)
+		return fmt.Errorf("inspect new bundle output: %w", err)
+	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		current, inspectErr := os.Lstat(output)
+		if inspectErr == nil && os.SameFile(outputInfo, current) {
+			_ = os.RemoveAll(output)
+		}
+	}()
 	for _, payload := range manifest.Artifacts {
-		if err := copyVerified(sourceFiles[payload.File], filepath.Join(output, payload.File), payload.SHA256); err != nil {
+		if err := copyVerified(sourceFiles[payload.File], filepath.Join(output, payload.File), payload.SHA256, payload.Executable); err != nil {
 			return fmt.Errorf("add bundle artifact %q: %w", payload.ToolID, err)
 		}
 	}
 	if manifest.Bootstrap != nil {
-		if err := copyVerified(sourceFiles[manifest.Bootstrap.File], filepath.Join(output, manifest.Bootstrap.File), manifest.Bootstrap.SHA256); err != nil {
+		if err := copyVerified(sourceFiles[manifest.Bootstrap.File], filepath.Join(output, manifest.Bootstrap.File), manifest.Bootstrap.SHA256, manifest.Bootstrap.Executable); err != nil {
 			return fmt.Errorf("add bundle bootstrap: %w", err)
 		}
 	}
@@ -94,10 +112,11 @@ func CreateBundle(output string, manifest Manifest, sourceFiles map[string]strin
 	if err := writeExclusive(filepath.Join(output, "bundle.sig"), []byte(signature+"\n")); err != nil {
 		return fmt.Errorf("write bundle signature: %w", err)
 	}
+	committed = true
 	return nil
 }
 
-func copyVerified(source, destination, expectedSHA256 string) error {
+func copyVerified(source, destination, expectedSHA256 string, executable bool) error {
 	if !filepath.IsAbs(source) {
 		return errors.New("bundle source file must be absolute")
 	}
@@ -135,11 +154,51 @@ func copyVerified(source, destination, expectedSHA256 string) error {
 		_ = output.Close()
 		return errors.New("bundle source does not match its catalog SHA-256 digest")
 	}
+	if executable {
+		if err := output.Chmod(0o700); err != nil {
+			_ = output.Close()
+			return err
+		}
+	}
 	if err := output.Sync(); err != nil {
 		_ = output.Close()
 		return err
 	}
 	return output.Close()
+}
+
+func HashSource(path string) (string, int64, error) {
+	if !filepath.IsAbs(path) {
+		return "", 0, errors.New("bundle source file must be absolute")
+	}
+	linkInfo, err := os.Lstat(path)
+	if err != nil {
+		return "", 0, err
+	}
+	if !linkInfo.Mode().IsRegular() || linkInfo.Mode()&os.ModeSymlink != 0 {
+		return "", 0, errors.New("bundle source must be a regular non-symlink file")
+	}
+	if linkInfo.Size() < 0 || linkInfo.Size() > maxBundleArtifactSize {
+		return "", 0, errors.New("bundle source exceeds the payload size limit")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return "", 0, err
+	}
+	defer file.Close()
+	openedInfo, err := file.Stat()
+	if err != nil || !openedInfo.Mode().IsRegular() || !os.SameFile(linkInfo, openedInfo) {
+		return "", 0, errors.New("bundle source changed while it was being opened")
+	}
+	hasher := sha256.New()
+	written, err := io.Copy(hasher, io.LimitReader(file, maxBundleArtifactSize+1))
+	if err != nil {
+		return "", 0, err
+	}
+	if written > maxBundleArtifactSize {
+		return "", 0, errors.New("bundle source exceeds the payload size limit")
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), written, nil
 }
 
 func writeExclusive(path string, contents []byte) error {
