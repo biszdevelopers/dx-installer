@@ -1058,6 +1058,22 @@ func (m *Model) startNext() tea.Cmd {
 		m.status = "All planned operations have completed. Review verification results and diagnostics."
 		return nil
 	}
+	if item.Action == planning.Provided {
+		actual, found := m.inventory.Tools[item.ToolID]
+		if !found {
+			actual = detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Unknown}
+		}
+		if err := m.session.RecordProvided(item, actual); err != nil {
+			m.status = err.Error()
+			return nil
+		}
+		if actual.State == detection.Healthy {
+			m.status = item.Name + " is provided and verified by " + item.ProvidedBy + "."
+		} else {
+			m.status = item.Name + " was not provided by " + item.ProvidedBy + "; dependent operations will be skipped."
+		}
+		return m.startNext()
+	}
 	m.activeItem = item
 	if item.Artifact != nil {
 		m.status = "Downloading and installing the approved verified archive for " + item.Name + "."
