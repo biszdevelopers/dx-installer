@@ -104,6 +104,12 @@ func showInventory(ctx context.Context, items *catalog.Catalog, args []string) e
 				fmt.Fprintf(os.Stdout, "  diagnostic: %s\n", instance.Diagnostic)
 			}
 		}
+		for _, installed := range item.Packages {
+			fmt.Fprintf(os.Stdout, "  package: %s / %s %s (%s)\n", installed.Manager, installed.ID, installed.Version, installed.Source)
+		}
+	}
+	for _, warning := range inventory.Warnings {
+		fmt.Fprintln(os.Stdout, "warning:", warning)
 	}
 	return nil
 }
@@ -212,6 +218,9 @@ func printPlan(output *os.File, plan planning.Plan) {
 	for _, item := range plan.Items {
 		if item.Action == planning.Preserve {
 			fmt.Fprintf(output, "  PRESERVE %s (%s)\n", item.Name, item.ExistingState)
+			for _, installed := range item.ExistingPackages {
+				fmt.Fprintf(output, "    package: %s / %s %s (%s)\n", installed.Manager, installed.ID, installed.Version, installed.Source)
+			}
 			continue
 		}
 		privilege := "user scope"
