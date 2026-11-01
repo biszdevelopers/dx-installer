@@ -26,6 +26,16 @@ Run `go run ./cmd/bootstrap` in an attached terminal, move to Catalog, select to
 
 The numbered screens are Overview, Catalog, Profiles, Environment, Plan, Sources, Progress, and Results. Use Tab or 1–8 to navigate; `j`/`k` or arrow keys move through lists; `f` searches; `[` and `]` filter categories; `s` changes installation-state filters; `e` exports a selection and `o` imports one. Help is available with `?`.
 
+From Results, press `d` and enter a new path to save a redacted JSON diagnostic report. It omits command lines and executable paths, redacts credentials and user-directory paths, and refuses to overwrite an existing file.
+
+For a deliberately noninteractive run, preselect tools and pass `--yes`:
+
+```powershell
+go run ./cmd/bootstrap install --tools git,go --yes
+```
+
+The reviewed plan is printed before execution. `--yes` is required, and a changed plan is not automatically approved; the line fallback stops when it cannot collect renewed approval.
+
 The Sources screen currently selects a preferred detected package manager. It does not set an official-only policy, custom source, mirror, or offline archive. See [source behavior](source-selection.md).
 
 ## Tests and checks
