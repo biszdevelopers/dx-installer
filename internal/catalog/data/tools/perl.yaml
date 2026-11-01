@@ -1,0 +1,27 @@
+schema_version: 1
+id: perl
+name: Perl
+category: perl.runtime
+description: General-purpose language with powerful text-processing capabilities.
+tags: [perl, scripting, text-processing]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [perl]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: perl
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: perl
+    scope: system
+    source: configured-apt-repositories
