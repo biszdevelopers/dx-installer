@@ -1,0 +1,27 @@
+schema_version: 1
+id: supabase
+name: Supabase CLI
+category: devops.backend
+description: Supabase development and deployment CLI from its official Homebrew tap; does not start local services or authenticate.
+tags: [cloud, backend, database, devops]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [supabase]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: supabase/tap/supabase
+    scope: user
+    source: supabase-homebrew-tap
+  - platform: linux
+    manager: homebrew
+    package_id: supabase/tap/supabase
+    scope: user
+    source: supabase-homebrew-tap
