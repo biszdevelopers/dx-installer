@@ -202,15 +202,19 @@ func (m *Model) renderProfiles(maxRows int) []string {
 }
 
 func (m *Model) renderEnvironment(maxRows int) []string {
-	ids := m.inventory.ToolIDs()
+	ids := m.filteredEnvironmentIDs()
 	start, end := visibleWindow(len(ids), m.cursor, maxRows)
-	lines := []string{strongStyle.Render("Existing environment"), "Each detected executable is checked with its declared version command."}
+	lines := []string{strongStyle.Render("Existing environment"), "Search: " + valueOr(m.environmentFilter, "all"), "Each detected executable is checked with its declared version command."}
 	warningCount := min(len(m.inventory.Warnings), 3)
 	for _, warning := range m.inventory.Warnings[:warningCount] {
 		lines = append(lines, warningStyle.Render("Inventory warning: "+warning))
 	}
 	if len(m.inventory.Warnings) > warningCount {
 		lines = append(lines, mutedStyle.Render(fmt.Sprintf("%d additional inventory warning(s) omitted", len(m.inventory.Warnings)-warningCount)))
+	}
+	if len(ids) == 0 {
+		lines = append(lines, "No installed-tool records match this search.", "Press a to clear the search.")
+		return lines
 	}
 	for index := start; index < end; index++ {
 		item := m.inventory.Tools[ids[index]]
@@ -398,9 +402,14 @@ func (m *Model) keyHelp() string {
 	if m.searching {
 		return "Type to search  |  Enter finish  |  Esc keep current search"
 	}
+	if m.environmentSearching {
+		return "Type to search installed tools, versions, and paths  |  Enter finish  |  Esc keep current search"
+	}
 	switch m.screen {
 	case CatalogScreen:
 		return "Space select  |  f search  |  [ ] category  |  s state filter  |  p plan"
+	case EnvironmentScreen:
+		return "f search inventory  |  a clear search  |  r refresh  |  j/k inspect records"
 	case ProfilesScreen:
 		return "Space combine profiles  |  Enter apply  |  e export  |  o import"
 	case PlanScreen:
@@ -422,7 +431,8 @@ func renderHelp() string {
 		"j / k     Move through lists",
 		"Space     Select a tool, profile, or source manager",
 		"f         Search the catalog",
-		"[ / ]     Change catalog category; s cycles the installation-state filter",
+		"f         Search installed tools, versions, and paths from Environment",
+		"[ / ]     Change catalog category; s cycles the installation-state filter; a clears the active search",
 		"p         Generate a dry-run plan",
 		"i         Review and approve a plan",
 		"r         Refresh inventory",
