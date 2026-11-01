@@ -10,6 +10,65 @@ permissions:
   contents: read
 
 jobs:
+  windows-manager-install:
+    name: Install SQLite through Chocolatey on Windows amd64
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build a temporary Windows bootstrap executable
+        shell: pwsh
+        run: go build -trimpath -buildvcs=false -o "$env:RUNNER_TEMP\dx-bootstrap.exe" ./cmd/bootstrap
+
+      - name: Install SQLite through Chocolatey and verify it
+        shell: pwsh
+        run: |
+          $bootstrap = Join-Path $env:RUNNER_TEMP 'dx-bootstrap.exe'
+          $approvals = (1..8 | ForEach-Object { 'y' }) -join "`n"
+          $approvals | & $bootstrap install --tools sqlite --yes --manager chocolatey
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          sqlite3 --version
+
+  macos-manager-install:
+    name: Install through Homebrew on macOS ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            architecture: amd64
+          - runner: macos-15
+            architecture: arm64
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build a temporary macOS bootstrap executable
+        run: go build -trimpath -buildvcs=false -o "$RUNNER_TEMP/dx-bootstrap" ./cmd/bootstrap
+
+      - name: Install OpenOCD through Homebrew and verify it
+        run: |
+          printf 'yes\n' | "$RUNNER_TEMP/dx-bootstrap" install --tools openocd --yes --manager homebrew
+          openocd --version
+
   linux-manager-install:
     name: Install through ${{ matrix.manager }} in ${{ matrix.image }}
     runs-on: ubuntu-24.04
