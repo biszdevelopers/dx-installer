@@ -1,0 +1,47 @@
+schema_version: 1
+id: gcc
+name: GCC
+category: cpp.compiler
+description: GNU C and C++ compiler toolchain.
+tags: [c, cpp, compiler, gnu]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [gcc, g++]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: gcc
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: apt
+    package_id: gcc
+    scope: system
+    source: configured-apt-repositories
+  - platform: linux
+    manager: dnf
+    package_id: gcc
+    scope: system
+    source: configured-dnf-repositories
+  - platform: linux
+    manager: pacman
+    package_id: gcc
+    scope: system
+    source: configured-pacman-repositories
+  - platform: linux
+    manager: zypper
+    package_id: gcc
+    scope: system
+    source: configured-zypper-repositories
+  - platform: linux
+    manager: apk
+    package_id: gcc
+    scope: system
+    source: configured-apk-repositories
