@@ -273,6 +273,9 @@ func printPlan(output *os.File, plan planning.Plan) {
 	for _, issue := range plan.Issues {
 		fmt.Fprintf(output, "  %s %s: %s\n", strings.ToUpper(string(issue.Severity)), issue.ToolID, issue.Message)
 	}
+	if len(plan.InstallItems()) > 0 {
+		fmt.Fprintf(output, "  NOTICE %s\n", planning.TransactionDisclosure)
+	}
 }
 
 func parseIDs(value string) []string {
