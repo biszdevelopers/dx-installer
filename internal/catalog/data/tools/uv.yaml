@@ -26,3 +26,8 @@ installers:
     package_id: uv
     scope: user
     source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: uv
+    scope: user
+    source: homebrew-core
