@@ -1,0 +1,21 @@
+schema_version: 1
+id: helm
+name: Helm
+category: devops.kubernetes
+description: Package manager for Kubernetes charts.
+tags: [kubernetes, devops, charts]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [helm]
+version_args: [version, --short]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: helm
+    scope: user
+    source: homebrew-core
