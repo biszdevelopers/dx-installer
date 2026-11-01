@@ -18,6 +18,7 @@ import (
 	"developers-club-dx/internal/installation"
 	"developers-club-dx/internal/pathconfig"
 	"developers-club-dx/internal/planning"
+	"developers-club-dx/internal/regional"
 	"developers-club-dx/internal/reporting"
 )
 
@@ -43,6 +44,7 @@ type Model struct {
 	selectedProfiles     map[string]bool
 	preferredManager     tool.PackageManager
 	sourceMode           string
+	regionDetection      regional.Result
 	archiveInstaller     *artifacts.ArchiveInstaller
 	plan                 planning.Plan
 	planReady            bool
@@ -107,6 +109,7 @@ func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inv
 		selected:         selection,
 		selectedProfiles: make(map[string]bool),
 		sourceMode:       "automatic",
+		regionDetection:  regional.Detect(initial.Platform),
 		archiveInstaller: artifacts.NewArchiveInstaller(),
 		stateFilter:      "all",
 		status:           "Review the machine overview, then select tools from the catalog.",
@@ -117,6 +120,16 @@ func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inv
 
 func (m *Model) SetPreferredManager(manager tool.PackageManager) {
 	m.preferredManager = manager
+}
+
+func (m *Model) SetSourceMode(mode string) error {
+	switch mode {
+	case "automatic", "mainland-china", "global", "official-only", "official-first":
+		m.sourceMode = mode
+		return nil
+	default:
+		return fmt.Errorf("unsupported source policy %q", mode)
+	}
 }
 
 func (m *Model) SetArchiveInstaller(installer *artifacts.ArchiveInstaller) {
@@ -266,6 +279,9 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		} else if m.screen == EnvironmentScreen {
 			m.environmentFilter = ""
 			m.cursor = 0
+		} else if m.screen == SourcesScreen {
+			m.sourceMode = "automatic"
+			m.invalidatePlan("Automatic region-based source policy selected.")
 		}
 	case "space":
 		m.toggleCurrent()
@@ -320,6 +336,16 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.screen == SourcesScreen {
 			m.sourceMode = "official-first"
 			m.invalidatePlan("Official-first downloads selected. Verified regional mirrors may be tried after retryable official-source failures.")
+		}
+	case "c":
+		if m.screen == SourcesScreen {
+			m.sourceMode = "mainland-china"
+			m.invalidatePlan("Mainland China selected manually. Official downloads remain first; verified regional mirrors may follow retryable failures.")
+		}
+	case "g":
+		if m.screen == SourcesScreen {
+			m.sourceMode = "global"
+			m.invalidatePlan("Global source policy selected. Regional mirrors will not be contacted.")
 		}
 	}
 	m.clampCursor()
@@ -406,7 +432,7 @@ func (m *Model) applyProfiles() {
 
 func (m *Model) buildPlan() {
 	selected := m.selectedIDs()
-	plan, err := planning.BuildWithOptions(m.catalog, m.inventory, selected, planning.Options{PreferredManager: m.preferredManager, AllowRegionalFallback: m.sourceMode == "official-first"})
+	plan, err := m.buildSelectedPlan(selected)
 	if err != nil {
 		m.plan = planning.Plan{}
 		m.planReady = false
@@ -420,6 +446,32 @@ func (m *Model) buildPlan() {
 	} else {
 		m.status = fmt.Sprintf("Plan ready: %d installation step(s), %d preserved tool(s). Review every source and command.", len(plan.InstallItems()), len(plan.Items)-len(plan.InstallItems()))
 	}
+}
+
+func (m *Model) buildSelectedPlan(selected []string) (planning.Plan, error) {
+	allowRegionalFallback := false
+	switch m.sourceMode {
+	case "automatic":
+		allow, err := m.regionDetection.UseRegionalFallback(regional.Automatic)
+		if err != nil {
+			return planning.Plan{
+				Selected: append([]string(nil), selected...),
+				Blocked:  true,
+				Issues:   []planning.Issue{{Severity: planning.Blocking, Message: err.Error()}},
+			}, nil
+		}
+		allowRegionalFallback = allow
+	case "official-first", "mainland-china":
+		allowRegionalFallback = true
+	case "official-only", "global":
+		allowRegionalFallback = false
+	default:
+		return planning.Plan{}, fmt.Errorf("unknown download source policy %q", m.sourceMode)
+	}
+	return planning.BuildWithOptions(m.catalog, m.inventory, selected, planning.Options{
+		PreferredManager:      m.preferredManager,
+		AllowRegionalFallback: allowRegionalFallback,
+	})
 }
 
 func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
@@ -702,7 +754,7 @@ func (m *Model) handlePreflight(message preflightMsg) (tea.Model, tea.Cmd) {
 	}
 	previousSignature := planSignature(m.plan)
 	m.inventory = message.inventory
-	updated, err := planning.BuildWithOptions(m.catalog, m.inventory, m.selectedIDs(), planning.Options{PreferredManager: m.preferredManager, AllowRegionalFallback: m.sourceMode == "official-first"})
+	updated, err := m.buildSelectedPlan(m.selectedIDs())
 	if err != nil {
 		m.screen = PlanScreen
 		m.status = "Could not rebuild the plan; no command was run: " + err.Error()
