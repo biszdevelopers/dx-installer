@@ -1,0 +1,36 @@
+schema_version: 1
+id: eslint
+name: ESLint
+category: javascript.quality
+description: Pluggable JavaScript and TypeScript code-quality linter.
+tags: [javascript, typescript, linter]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [eslint]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: eslint
+    version: 10.14.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: eslint
+    version: 10.14.0
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: eslint
+    version: 10.14.0
+    scope: user
+    source: https://registry.npmjs.org/
