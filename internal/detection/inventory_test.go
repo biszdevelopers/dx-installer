@@ -93,3 +93,40 @@ func TestFindExecutablesSkipsNonExecutableUnixFiles(t *testing.T) {
 		t.Fatalf("found non-executable file on PATH: %#v", paths)
 	}
 }
+
+func TestFindExecutablesSearchesKnownUserToolDirectoryOutsidePath(t *testing.T) {
+	home := t.TempDir()
+	searchPath := t.TempDir()
+	var directory string
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", home)
+		directory = filepath.Join(home, "scoop", "shims")
+		t.Setenv("SCOOP", filepath.Join(home, "scoop"))
+	} else {
+		t.Setenv("HOME", home)
+		directory = filepath.Join(home, ".local", "bin")
+	}
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	name := "dx-inventory-known-directory-test"
+	filename := name
+	if runtime.GOOS == "windows" {
+		filename += ".exe"
+	}
+	executable := filepath.Join(directory, filename)
+	if err := os.WriteFile(executable, []byte("test executable"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(executable, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", searchPath)
+
+	paths := findExecutables(name)
+	if len(paths) != 1 || filepath.Clean(paths[0]) != filepath.Clean(executable) {
+		t.Fatalf("known-directory executable paths = %#v, want %q", paths, executable)
+	}
+}
