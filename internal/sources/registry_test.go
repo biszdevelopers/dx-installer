@@ -12,6 +12,7 @@ func TestParseRegistryAssignmentsValidatesAndNormalizesURLs(t *testing.T) {
 		"npm=https://registry.example/npm/",
 		"pypi=https://packages.example/simple",
 		"go-modules=https://proxy.example",
+		"cargo=https://index.example/",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -20,6 +21,7 @@ func TestParseRegistryAssignmentsValidatesAndNormalizesURLs(t *testing.T) {
 		tool.NPMRegistry:      "https://registry.example/npm",
 		tool.PyPIRegistry:     "https://packages.example/simple",
 		tool.GoModuleRegistry: "https://proxy.example",
+		tool.CargoRegistry:    "https://index.example",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("registries = %#v, want %#v", got, want)
