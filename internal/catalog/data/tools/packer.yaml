@@ -1,0 +1,27 @@
+schema_version: 1
+id: packer
+name: Packer
+category: devops.infrastructure
+description: HashiCorp machine-image build CLI from its official Homebrew tap; the tap may be added by Homebrew after approval.
+tags: [infrastructure, devops, hashicorp]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [packer]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: hashicorp/tap/packer
+    scope: user
+    source: hashicorp-homebrew-tap
+  - platform: linux
+    manager: homebrew
+    package_id: hashicorp/tap/packer
+    scope: user
+    source: hashicorp-homebrew-tap
