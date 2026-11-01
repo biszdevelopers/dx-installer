@@ -129,6 +129,20 @@ func TestManagerPreferenceTakesPriorityOverScope(t *testing.T) {
 	}
 }
 
+func TestManifestAcceptsLinuxHomebrewInstallers(t *testing.T) {
+	manifest := validManifest()
+	manifest.Platforms[Linux] = []Architecture{AMD64, ARM64}
+	manifest.Installers = append(manifest.Installers,
+		Installer{Platform: Linux, Manager: Homebrew, PackageID: "sample", Scope: UserScope, Source: "homebrew-core"},
+	)
+	if err := manifest.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if installer, exists := manifest.InstallerFor(Linux, []PackageManager{Homebrew}); !exists || installer.Platform != Linux {
+		t.Fatalf("Linux Homebrew installer = %#v, %v", installer, exists)
+	}
+}
+
 func validManifest() Manifest {
 	return Manifest{
 		SchemaVersion: 1,
