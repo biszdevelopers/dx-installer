@@ -78,6 +78,7 @@ type Artifact struct {
 	ApproximateSize      int64           `yaml:"approximate_size,omitempty"`
 	Format               ArchiveFormat   `yaml:"format"`
 	ArchiveRoot          string          `yaml:"archive_root"`
+	InstallSubdirectory  string          `yaml:"install_subdirectory,omitempty"`
 	PathEntries          []string        `yaml:"path_entries,omitempty"`
 	AllowedRedirectHosts []string        `yaml:"allowed_redirect_hosts,omitempty"`
 }
@@ -340,6 +341,9 @@ func (m Manifest) Validate() error {
 		}
 		if artifact.ArchiveRoot == "" || path.Clean(artifact.ArchiveRoot) != artifact.ArchiveRoot || strings.HasPrefix(artifact.ArchiveRoot, "/") || strings.Contains(artifact.ArchiveRoot, "\\") || artifact.ArchiveRoot == "." || artifact.ArchiveRoot == ".." || strings.HasPrefix(artifact.ArchiveRoot, "../") {
 			return fmt.Errorf("artifact %s must declare a safe archive root", key)
+		}
+		if artifact.InstallSubdirectory != "" && !validRelativePathEntry(artifact.InstallSubdirectory) {
+			return fmt.Errorf("artifact %s has an unsafe install subdirectory %q", key, artifact.InstallSubdirectory)
 		}
 		seenPathEntries := make(map[string]bool, len(artifact.PathEntries))
 		for _, entry := range artifact.PathEntries {
