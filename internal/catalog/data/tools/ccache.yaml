@@ -1,0 +1,27 @@
+schema_version: 1
+id: ccache
+name: ccache
+category: cpp.build
+description: Compiler cache that avoids repeating identical compilations.
+tags: [c, cpp, compiler, cache]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [ccache]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: ccache
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: ccache
+    scope: user
+    source: homebrew-core
