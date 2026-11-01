@@ -1,0 +1,36 @@
+schema_version: 1
+id: semantic-release
+name: semantic-release
+category: javascript.release
+description: Automates package releases based on commit messages and configured plugins.
+tags: [javascript, release, automation]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [semantic-release]
+version_args: [--version]
+dependencies: [nodejs-lts]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: semantic-release
+    version: 25.0.9
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: semantic-release
+    version: 25.0.9
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: semantic-release
+    version: 25.0.9
+    scope: user
+    source: https://registry.npmjs.org/
