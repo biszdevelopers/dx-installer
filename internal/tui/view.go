@@ -10,6 +10,7 @@ import (
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/display"
 	"developers-club-dx/internal/planning"
+	"developers-club-dx/internal/regional"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -137,6 +138,8 @@ func (m *Model) renderOverview() []string {
 		fmt.Sprintf("Distribution      %s", valueOr(m.inventory.Platform.Distribution, "not applicable")),
 		fmt.Sprintf("Shell             %s", valueOr(m.inventory.Platform.Shell, "unknown")),
 		fmt.Sprintf("Package managers  %s", strings.Join(managers, ", ")),
+		fmt.Sprintf("Region signals    %s", regionLabel(m.regionDetection.Region)),
+		fmt.Sprintf("Source policy     %s", m.sourceMode),
 		fmt.Sprintf("Existing tools    %d healthy  %d missing  %d needing review", states[detection.Healthy], states[detection.Missing], states[detection.Unknown]+states[detection.Broken]+states[detection.Partial]+states[detection.Conflicting]),
 		fmt.Sprintf("Selected tools    %d", len(m.selectedIDs())),
 		"",
@@ -341,24 +344,42 @@ func (m *Model) renderPlan(maxRows int) []string {
 
 func (m *Model) renderSources(maxRows int) []string {
 	managers := m.inventory.Managers
-	lines := []string{strongStyle.Render("Download sources"), "Package managers already on this machine are preferred when they support the selected tool.", "Direct archives use pinned publisher digests; regional mirrors must match that digest.", "Source policy: " + m.sourceMode, "Press o for official-only, m for official-first with verified fallback, or 0 for automatic.", "A preferred detected package manager is selected when it has a compatible catalog entry.", ""}
-	if len(managers) == 0 {
-		return append(lines, warningStyle.Render("No supported package manager was detected."))
+	lines := []string{strongStyle.Render("Download sources"), "Package managers already on this machine are preferred when they support the selected tool.", "Direct archives use pinned publisher digests; regional mirrors must match that digest.", "Region signals: " + regionLabel(m.regionDetection.Region), "Source policy: " + m.sourceMode, "Keys: a automatic  |  c Mainland China  |  g global  |  o official-only  |  m official-first  |  0 clear manager preference", "A preferred detected package manager is selected when it has a compatible catalog entry.", ""}
+	for _, signal := range m.regionDetection.Signals {
+		lines = append(lines, fmt.Sprintf("  %s: %s (%s)", signal.Source, signal.Value, signal.Region))
 	}
-	start, end := visibleWindow(len(managers), m.cursor, maxRows-5)
-	for index := start; index < end; index++ {
-		manager := managers[index]
-		label := string(manager.Manager)
-		if manager.Manager == m.preferredManager {
-			label += "  (preferred)"
+	if len(managers) == 0 {
+		lines = append(lines, warningStyle.Render("No supported package manager was detected."))
+	} else {
+		start, end := visibleWindow(len(managers), m.cursor, maxRows-len(lines)-3)
+		for index := start; index < end; index++ {
+			manager := managers[index]
+			label := string(manager.Manager)
+			if manager.Manager == m.preferredManager {
+				label += "  (preferred)"
+			}
+			row := fmt.Sprintf("%-22s %s", label, filepath.Base(manager.Path))
+			if index == m.cursor {
+				row = activeStyle.Render("> ") + row
+			} else {
+				row = "  " + row
+			}
+			lines = append(lines, row)
 		}
-		row := fmt.Sprintf("%-22s %s", label, filepath.Base(manager.Path))
-		if index == m.cursor {
-			row = activeStyle.Render("> ") + row
-		} else {
-			row = "  " + row
+	}
+	for _, id := range m.selectedIDs() {
+		manifest, exists := m.catalog.Tool(id)
+		if !exists {
+			continue
 		}
-		lines = append(lines, row)
+		artifact, exists := manifest.ArtifactFor(m.inventory.Platform.OS, m.inventory.Platform.Architecture)
+		if !exists {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s: official %s  SHA-256 %s", id, artifact.URL, artifact.SHA256))
+		if artifact.RegionalURL != "" {
+			lines = append(lines, "  verified regional mirror: "+artifact.RegionalURL)
+		}
 	}
 	return lines
 }
@@ -515,11 +536,24 @@ func (m *Model) keyHelp() string {
 	case PlanScreen:
 		return "p rebuild  |  i review approval  |  r refresh inventory"
 	case SourcesScreen:
-		return "Space or Enter prefer manager  |  0 clear preference"
+		return "a/c/g region  |  o official-only  |  m official-first  |  Space/Enter prefer manager  |  0 reset"
 	case ResultsScreen:
 		return "j/k inspect results  |  d save redacted report  |  4 environment  |  q exit"
 	default:
 		return "Tab navigate  |  j/k move  |  r refresh  |  ? help  |  q exit"
+	}
+}
+
+func regionLabel(region regional.Region) string {
+	switch region {
+	case regional.MainlandChina:
+		return "Mainland China"
+	case regional.Global:
+		return "Global"
+	case regional.Conflict:
+		return warningStyle.Render("conflicting signals; choose c or g")
+	default:
+		return "unknown; automatic policy remains official-only"
 	}
 }
 
@@ -536,6 +570,7 @@ func renderHelp() string {
 		"p         Generate a dry-run plan",
 		"i         Review and approve a plan",
 		"r         Refresh inventory",
+		"Sources: a automatic; c Mainland China; g global; o official-only; m official-first",
 		"e / o     Export or import an explicit selection file",
 		"d         Save a redacted JSON diagnostic report from Results",
 		"q         Exit",
