@@ -1,0 +1,27 @@
+schema_version: 1
+id: avrdude
+name: AVRDUDE
+category: embedded.programmer
+description: Command-line programmer for Atmel AVR microcontrollers.
+tags: [embedded, avr, programmer]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [avrdude]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: avrdude
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: avrdude
+    scope: user
+    source: homebrew-core
