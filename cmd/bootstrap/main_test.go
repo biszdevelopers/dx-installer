@@ -19,6 +19,13 @@ func TestNonInteractiveApprovalRequiresExplicitTools(t *testing.T) {
 	}
 }
 
+func TestPlanRejectsUndetectedManagerPreference(t *testing.T) {
+	err := run([]string{"plan", "--tools", "git", "--manager", "not-a-package-manager"})
+	if err == nil || !strings.Contains(err.Error(), `package manager "not-a-package-manager" is not detected`) {
+		t.Fatalf("undetected package-manager preference was not rejected: %v", err)
+	}
+}
+
 func TestParseIDsDeduplicatesAndSorts(t *testing.T) {
 	ids := parseIDs("go, git go\tuv")
 	want := []string{"git", "go", "uv"}
