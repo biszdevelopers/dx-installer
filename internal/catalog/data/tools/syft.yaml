@@ -1,0 +1,21 @@
+schema_version: 1
+id: syft
+name: Syft
+category: security.sbom
+description: Generates Software Bills of Materials from container images and filesystems.
+tags: [security, sbom, containers]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [syft]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: syft
+    scope: user
+    source: homebrew-core
