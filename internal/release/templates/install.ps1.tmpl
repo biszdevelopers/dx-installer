@@ -27,10 +27,7 @@ try {
     $binaryPath = Join-Path $temporaryDirectory $artifact.Name
     $downloadUri = "$origin/releases/$releaseVersion/$($artifact.Name)"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $response = Invoke-WebRequest -Uri $downloadUri -OutFile $binaryPath -UseBasicParsing -TimeoutSec 600 -MaximumRedirection 5
-    if ($response.BaseResponse.ResponseUri.Scheme -cne 'https') {
-        throw 'The bootstrap download redirected away from HTTPS.'
-    }
+    Invoke-WebRequest -Uri $downloadUri -OutFile $binaryPath -UseBasicParsing -TimeoutSec 600 -MaximumRedirection 0
     if ((Get-Item -LiteralPath $binaryPath).Length -gt 134217728) {
         throw 'The downloaded bootstrap exceeds the 128 MiB size limit.'
     }
