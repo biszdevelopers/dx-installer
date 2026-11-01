@@ -1,0 +1,21 @@
+schema_version: 1
+id: julia
+name: Julia
+category: julia.runtime
+description: High-performance dynamic language for technical computing.
+tags: [julia, scientific-computing, data-science]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [julia]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: julia
+    scope: user
+    source: homebrew-core
