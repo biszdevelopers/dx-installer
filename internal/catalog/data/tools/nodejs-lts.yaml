@@ -1,0 +1,28 @@
+schema_version: 1
+id: nodejs-lts
+name: Node.js LTS
+category: javascript.runtime
+description: Long-term-support JavaScript runtime with npm and npx.
+tags: [javascript, typescript, runtime]
+version:
+  channel: lts
+  upgrade_policy: never_automatically
+executables: [node]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: OpenJS.NodeJS.LTS
+    scope: system
+    source: winget
+  - platform: macos
+    manager: homebrew
+    package_id: node@24
+    scope: user
+    source: homebrew-core
