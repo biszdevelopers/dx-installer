@@ -1,0 +1,27 @@
+schema_version: 1
+id: php-code-sniffer
+name: PHP_CodeSniffer
+category: php.quality
+description: Checks PHP, JavaScript, and CSS code against coding standards.
+tags: [php, lint, coding-standards]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [phpcs, phpcbf]
+version_args: [--version]
+dependencies: [php]
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: php-code-sniffer
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: php-code-sniffer
+    scope: user
+    source: homebrew-core
