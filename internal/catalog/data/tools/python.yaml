@@ -26,8 +26,10 @@ installers:
     package_id: python@3.15
     scope: user
     source: homebrew-core
+    path_entries: [bin, libexec/bin]
   - platform: linux
     manager: homebrew
     package_id: python@3.15
     scope: user
     source: homebrew-core
+    path_entries: [bin, libexec/bin]
