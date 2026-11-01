@@ -78,15 +78,19 @@ func TestPlanAndApprovalDiscloseUnresolvedPackageTransaction(t *testing.T) {
 	model := NewModel(context.Background(), items, detection.Inventory{
 		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
 		Managers: []packagemanager.Detected{{Manager: tool.Winget, Path: `C:\Windows\winget.exe`}},
-		Tools: map[string]detection.Tool{"git": {ID: "git", Name: "Git", State: detection.Missing}},
+		Tools:    map[string]detection.Tool{"git": {ID: "git", Name: "Git", State: detection.Missing}},
 	}, []string{"git"})
 	model.screen = PlanScreen
 	model.Update(keyMessage('p'))
-	if rendered := ansi.Strip(strings.Join(model.renderPlan(80), "\n")); !strings.Contains(rendered, planning.TransactionDisclosure) {
+	disclosure := model.plan.TransactionDisclosure
+	if disclosure == "" {
+		t.Fatal("install plan does not contain the package transaction disclosure")
+	}
+	if rendered := ansi.Strip(strings.Join(model.renderPlan(80), "\n")); !strings.Contains(rendered, disclosure) {
 		t.Fatalf("plan omitted package transaction disclosure: %s", rendered)
 	}
 	model.Update(keyMessage('i'))
-	if rendered := ansi.Strip(model.renderApproval()); !strings.Contains(rendered, planning.TransactionDisclosure) {
+	if rendered := ansi.Strip(model.renderApproval()); !strings.Contains(rendered, disclosure) {
 		t.Fatalf("approval omitted package transaction disclosure: %s", rendered)
 	}
 }
