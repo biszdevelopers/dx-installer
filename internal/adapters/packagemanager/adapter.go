@@ -118,6 +118,9 @@ func BuildCommand(installer tool.Installer, currentOS tool.OperatingSystem) (Com
 	switch installer.Manager {
 	case tool.Winget:
 		command.Arguments = []string{"install", "--id", packageID, "--exact"}
+		if installer.Source != "" {
+			command.Arguments = append(command.Arguments, "--source", installer.Source)
+		}
 		if installer.Scope == tool.UserScope {
 			command.Arguments = append(command.Arguments, "--scope", "user")
 		} else {
