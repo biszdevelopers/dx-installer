@@ -343,6 +343,8 @@ func (m *Model) renderPathPrompt() string {
 	label := "Export selected tools to a new JSON file"
 	if m.pathMode == "import" {
 		label = "Import selected tools from a JSON file"
+	} else if m.pathMode == "diagnostic" {
+		label = "Save a redacted diagnostic report to a new JSON file"
 	}
 	return strings.Join([]string{strongStyle.Render(label), "Path: " + m.pathInput + "_", mutedStyle.Render("Enter confirms  |  Esc cancels")}, "\n")
 }
@@ -378,7 +380,7 @@ func (m *Model) keyHelp() string {
 	case SourcesScreen:
 		return "Space or Enter prefer manager  |  0 clear preference"
 	case ResultsScreen:
-		return "j/k inspect results  |  4 environment  |  q exit"
+		return "j/k inspect results  |  d save redacted report  |  4 environment  |  q exit"
 	default:
 		return "Tab navigate  |  j/k move  |  r refresh  |  ? help  |  q exit"
 	}
@@ -397,6 +399,7 @@ func renderHelp() string {
 		"i         Review and approve a plan",
 		"r         Refresh inventory",
 		"e / o     Export or import an explicit selection file",
+		"d         Save a redacted JSON diagnostic report from Results",
 		"q         Exit",
 		"",
 		mutedStyle.Render("No installation runs until the complete plan is approved. Package-manager prompts remain visible."),
