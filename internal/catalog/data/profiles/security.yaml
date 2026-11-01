@@ -1,5 +1,5 @@
 schema_version: 1
 id: security
 name: Security and code quality
-description: Local secret, shell, workflow, SBOM, and vulnerability analysis tools.
-tools: [trivy, gitleaks, shellcheck, shfmt, actionlint, syft, grype, checkov]
+description: Local code, configuration, container, secret, shell, workflow, SBOM, and vulnerability analysis tools; DX never scans projects automatically.
+tools: [trivy, gitleaks, shellcheck, shfmt, actionlint, syft, grype, checkov, hadolint, pre-commit, osv-scanner, semgrep, markdownlint-cli2, yamllint]
