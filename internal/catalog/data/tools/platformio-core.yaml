@@ -1,0 +1,36 @@
+schema_version: 1
+id: platformio-core
+name: PlatformIO Core
+category: embedded.build
+description: PlatformIO embedded development and firmware build CLI. Device drivers are never installed automatically.
+tags: [embedded, firmware, build, platformio]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [pio]
+version_args: [--version]
+dependencies: [python, uv]
+conflicts: []
+platforms:
+  windows: [amd64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: pypi
+    package_id: platformio
+    version: 6.2.0
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: macos
+    ecosystem: pypi
+    package_id: platformio
+    version: 6.2.0
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: linux
+    ecosystem: pypi
+    package_id: platformio
+    version: 6.2.0
+    scope: user
+    source: https://pypi.org/simple/
