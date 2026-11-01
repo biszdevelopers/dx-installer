@@ -1,0 +1,18 @@
+schema_version: 1
+id: dotnet-format
+name: dotnet-format
+category: dotnet.quality
+description: .NET code formatter included with the .NET SDK; does not edit projects during inventory or planning.
+tags: [dotnet, formatter, quality]
+version:
+  channel: bundled-with-sdk
+  upgrade_policy: never_automatically
+executables: [dotnet]
+version_args: [format, --help]
+dependencies: [dotnet-sdk-10]
+provided_by: dotnet-sdk-10
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
