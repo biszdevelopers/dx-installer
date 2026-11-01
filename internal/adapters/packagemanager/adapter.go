@@ -1,6 +1,7 @@
 package packagemanager
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"os/user"
@@ -189,11 +190,15 @@ func isRoot() bool {
 }
 
 func (c Command) Exec() (*exec.Cmd, error) {
+	return c.ExecContext(context.Background())
+}
+
+func (c Command) ExecContext(ctx context.Context) (*exec.Cmd, error) {
 	if c.PrivilegeWrapper != "" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("Unix privilege wrapper cannot run on Windows")
 		}
-		return exec.Command(c.PrivilegeWrapper, c.Executable, c.Arguments...), nil
+		return exec.CommandContext(ctx, c.PrivilegeWrapper, append([]string{c.Executable}, c.Arguments...)...), nil
 	}
-	return exec.Command(c.Executable, c.Arguments...), nil
+	return exec.CommandContext(ctx, c.Executable, c.Arguments...), nil
 }
