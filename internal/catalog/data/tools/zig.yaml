@@ -1,0 +1,21 @@
+schema_version: 1
+id: zig
+name: Zig
+category: zig.compiler
+description: Systems programming language designed for robustness and cross-compilation.
+tags: [zig, systems, compiler]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [zig]
+version_args: [version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: zig
+    scope: user
+    source: homebrew-core
