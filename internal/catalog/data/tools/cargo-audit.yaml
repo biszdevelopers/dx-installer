@@ -1,0 +1,36 @@
+schema_version: 1
+id: cargo-audit
+name: cargo-audit
+category: rust.security
+description: Audits Rust dependency lockfiles against the RustSec advisory database.
+tags: [rust, security, dependencies]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [cargo]
+version_args: [audit, --version]
+dependencies: [rustup]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+registry_installers:
+  - platform: windows
+    ecosystem: cargo
+    package_id: cargo-audit
+    version: 0.22.2
+    scope: user
+    source: https://index.crates.io/
+  - platform: macos
+    ecosystem: cargo
+    package_id: cargo-audit
+    version: 0.22.2
+    scope: user
+    source: https://index.crates.io/
+  - platform: linux
+    ecosystem: cargo
+    package_id: cargo-audit
+    version: 0.22.2
+    scope: user
+    source: https://index.crates.io/
