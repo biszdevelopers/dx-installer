@@ -1,0 +1,43 @@
+schema_version: 1
+id: govulncheck
+name: govulncheck
+category: go.security
+description: Official Go vulnerability scanner for source code and binaries.
+tags: [go, security, vulnerability, scanner]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [govulncheck]
+version_args: [-version]
+dependencies: [go]
+conflicts: []
+platforms:
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+  bsd: [amd64]
+registry_installers:
+  - platform: windows
+    ecosystem: go-modules
+    package_id: golang.org/x/vuln/cmd/govulncheck
+    version: v1.9.0
+    scope: user
+    source: https://proxy.golang.org
+  - platform: macos
+    ecosystem: go-modules
+    package_id: golang.org/x/vuln/cmd/govulncheck
+    version: v1.9.0
+    scope: user
+    source: https://proxy.golang.org
+  - platform: linux
+    ecosystem: go-modules
+    package_id: golang.org/x/vuln/cmd/govulncheck
+    version: v1.9.0
+    scope: user
+    source: https://proxy.golang.org
+  - platform: bsd
+    ecosystem: go-modules
+    package_id: golang.org/x/vuln/cmd/govulncheck
+    version: v1.9.0
+    scope: user
+    source: https://proxy.golang.org
