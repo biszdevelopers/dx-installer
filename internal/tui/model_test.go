@@ -180,6 +180,45 @@ func TestSourceScreenConfiguresAndPlansCustomAndOfflineArchives(t *testing.T) {
 	}
 }
 
+func TestSourceScreenConfiguresRegistryOverrideAndPlansExactGoTool(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "LocalAppData"))
+	t.Setenv("PATH", "")
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
+		Managers: []packagemanager.Detected{{Manager: tool.Winget, Path: `C:\Windows\winget.exe`}},
+		Tools: map[string]detection.Tool{
+			"go":          {ID: "go", Name: "Go", State: detection.Missing},
+			"govulncheck": {ID: "govulncheck", Name: "govulncheck", State: detection.Missing},
+		},
+	}, []string{"govulncheck"})
+	model.screen = SourcesScreen
+	model.regionDetection = regional.Result{Region: regional.Conflict}
+	model.Update(keyMessage('v'))
+	if model.pathMode != "registry" {
+		t.Fatalf("registry override key opened mode %q", model.pathMode)
+	}
+	model.pathInput = "go-modules=https://proxy.example/goproxy"
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model.screen = PlanScreen
+	model.Update(keyMessage('p'))
+	if !model.planReady || model.plan.Blocked || len(model.plan.Items) != 2 {
+		t.Fatalf("registry source did not produce an executable plan: %#v", model.plan)
+	}
+	item := model.plan.Items[1]
+	if item.RegistryInstaller == nil || item.Source != "https://proxy.example/goproxy" || item.Version != "v1.9.0" {
+		t.Fatalf("plan omitted the explicit registry, exact version, or typed installer: %#v", item)
+	}
+	if rendered := ansi.Strip(strings.Join(model.renderSources(40), "\n")); !strings.Contains(rendered, "Registry override go-modules: https://proxy.example/goproxy") {
+		t.Fatalf("source screen omitted the configured registry: %s", rendered)
+	}
+}
+
 func TestLineFallbackDisplaysPackageOwnedUnknownTool(t *testing.T) {
 	items, err := catalog.LoadEmbedded()
 	if err != nil {
