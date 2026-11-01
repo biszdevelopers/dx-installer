@@ -1,11 +1,11 @@
 # Embedded tool catalog
 
-The catalog currently contains 41 tools and 10 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
+The catalog currently contains 44 tools and 10 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
 
 | Category | Tools |
 | --- | --- |
 | Version control | Git, Git LFS, GitHub CLI |
-| JavaScript | Bun, Node.js LTS |
+| JavaScript | Bun, Node.js LTS, pnpm, Yarn Classic, TypeScript |
 | Python | Python 3, uv |
 | Java | Eclipse Temurin JDK 25, Maven, Gradle, Kotlin |
 | PHP and Ruby | PHP CLI, Ruby |
