@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -16,10 +17,13 @@ import (
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/installation"
+	"developers-club-dx/internal/offline"
 	"developers-club-dx/internal/pathconfig"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/regional"
 	"developers-club-dx/internal/reporting"
+	"developers-club-dx/internal/security"
+	"developers-club-dx/internal/sources"
 )
 
 type Screen int
@@ -46,6 +50,9 @@ type Model struct {
 	sourceMode           string
 	regionDetection      regional.Result
 	archiveInstaller     *artifacts.ArchiveInstaller
+	customSources        map[string]string
+	offlineArchives      map[string]string
+	offlineBundlePath    string
 	plan                 planning.Plan
 	planReady            bool
 	approval             bool
@@ -111,6 +118,8 @@ func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inv
 		sourceMode:       "automatic",
 		regionDetection:  regional.Detect(initial.Platform),
 		archiveInstaller: artifacts.NewArchiveInstaller(),
+		customSources:    make(map[string]string),
+		offlineArchives:  make(map[string]string),
 		stateFilter:      "all",
 		status:           "Review the machine overview, then select tools from the catalog.",
 		width:            80,
@@ -134,6 +143,53 @@ func (m *Model) SetSourceMode(mode string) error {
 
 func (m *Model) SetArchiveInstaller(installer *artifacts.ArchiveInstaller) {
 	m.archiveInstaller = installer
+}
+
+func (m *Model) SetSourceOverrides(customSources, offlineArchives map[string]string) error {
+	for toolID := range customSources {
+		if offlineArchives[toolID] != "" {
+			return fmt.Errorf("tool %q has both a custom source and an offline archive", toolID)
+		}
+	}
+	m.customSources = cloneStringMap(customSources)
+	m.offlineArchives = cloneStringMap(offlineArchives)
+	m.invalidatePlan("Custom and offline sources updated. Rebuild the plan to review the selected archives.")
+	return nil
+}
+
+func (m *Model) LoadOfflineBundle(bundlePath string) error {
+	absolute, err := filepath.Abs(strings.TrimSpace(bundlePath))
+	if err != nil {
+		return fmt.Errorf("resolve offline bundle path: %w", err)
+	}
+	publicKey, err := security.DecodePublicKey(security.PinnedEd25519PublicKey)
+	if err != nil {
+		return fmt.Errorf("pinned offline bundle public key is unavailable: %w", err)
+	}
+	bundle, err := offline.LoadBundle(absolute, m.catalog, m.inventory.Platform, publicKey)
+	if err != nil {
+		return err
+	}
+	for toolID, archivePath := range bundle.Artifacts {
+		if m.customSources[toolID] != "" {
+			return fmt.Errorf("tool %q already has a custom source; clear it before loading this offline bundle", toolID)
+		}
+		if existing := m.offlineArchives[toolID]; existing != "" && existing != archivePath {
+			return fmt.Errorf("tool %q already has a different offline archive configured", toolID)
+		}
+		m.offlineArchives[toolID] = archivePath
+	}
+	m.offlineBundlePath = absolute
+	m.invalidatePlan("Signed offline bundle verified. Rebuild the plan to review its catalog-pinned archives.")
+	return nil
+}
+
+func cloneStringMap(source map[string]string) map[string]string {
+	clone := make(map[string]string, len(source))
+	for key, value := range source {
+		clone[key] = value
+	}
+	return clone
 }
 
 func (m *Model) managerOrder() []tool.PackageManager {
@@ -342,6 +398,31 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.sourceMode = "mainland-china"
 			m.invalidatePlan("Mainland China selected manually. Official downloads remain first; verified regional mirrors may follow retryable failures.")
 		}
+	case "u":
+		if m.screen == SourcesScreen {
+			m.pathMode = "custom-source"
+			m.pathInput = ""
+			m.status = "Enter tool-id=https://mirror.example/archive, then press Enter. The catalog SHA-256 remains mandatory."
+		}
+	case "l":
+		if m.screen == SourcesScreen {
+			m.pathMode = "offline-archive"
+			m.pathInput = ""
+			m.status = "Enter tool-id=absolute-archive-path, then press Enter. The catalog SHA-256 remains mandatory."
+		}
+	case "b":
+		if m.screen == SourcesScreen {
+			m.pathMode = "offline-bundle"
+			m.pathInput = ""
+			m.status = "Enter the absolute directory path of a signed platform bundle, then press Enter."
+		}
+	case "x":
+		if m.screen == SourcesScreen {
+			m.customSources = make(map[string]string)
+			m.offlineArchives = make(map[string]string)
+			m.offlineBundlePath = ""
+			m.invalidatePlan("Custom and offline source overrides cleared.")
+		}
 	case "g":
 		if m.screen == SourcesScreen {
 			m.sourceMode = "global"
@@ -471,6 +552,8 @@ func (m *Model) buildSelectedPlan(selected []string) (planning.Plan, error) {
 	return planning.BuildWithOptions(m.catalog, m.inventory, selected, planning.Options{
 		PreferredManager:      m.preferredManager,
 		AllowRegionalFallback: allowRegionalFallback,
+		CustomSources:         cloneStringMap(m.customSources),
+		OfflineArchives:       cloneStringMap(m.offlineArchives),
 	})
 }
 
@@ -490,6 +573,12 @@ func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
 			err = m.readSelection(path)
 		case "diagnostic":
 			err = m.writeDiagnostic(path)
+		case "custom-source":
+			err = m.setCustomSource(path)
+		case "offline-archive":
+			err = m.setOfflineArchive(path)
+		case "offline-bundle":
+			err = m.LoadOfflineBundle(path)
 		}
 		if err != nil {
 			m.status = err.Error()
@@ -497,6 +586,12 @@ func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
 			m.status = "Selection exported to " + path + "."
 		} else if m.pathMode == "diagnostic" {
 			m.status = "Redacted diagnostic report saved to " + path + "."
+		} else if m.pathMode == "custom-source" {
+			m.status = "Custom HTTPS source recorded. Rebuild the plan to review the catalog-pinned digest."
+		} else if m.pathMode == "offline-archive" {
+			m.status = "Offline archive recorded. Rebuild the plan to review its catalog-pinned digest."
+		} else if m.pathMode == "offline-bundle" {
+			// LoadOfflineBundle sets a more specific verification status.
 		} else {
 			m.status = "Selection imported. Review the catalog before planning."
 			m.screen = CatalogScreen
@@ -519,6 +614,60 @@ func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
 			m.pathInput += text
 		}
 	}
+}
+
+func (m *Model) setCustomSource(input string) error {
+	toolID, sourceURL, found := strings.Cut(input, "=")
+	toolID = strings.TrimSpace(toolID)
+	sourceURL = strings.TrimSpace(sourceURL)
+	if !found || toolID == "" || sourceURL == "" {
+		return errors.New("custom source must use tool-id=https://mirror.example/archive")
+	}
+	manifest, exists := m.catalog.Tool(toolID)
+	if !exists {
+		return fmt.Errorf("unknown catalog tool %q", toolID)
+	}
+	artifact, exists := manifest.ArtifactFor(m.inventory.Platform.OS, m.inventory.Platform.Architecture)
+	if !exists {
+		return fmt.Errorf("%s has no catalog-pinned archive for this platform", toolID)
+	}
+	if err := sources.ValidateRemoteSource(sources.RemoteSource{Name: toolID + " custom source", Kind: sources.Custom, URL: sourceURL, SHA256: artifact.SHA256}); err != nil {
+		return fmt.Errorf("validate custom source: %w", err)
+	}
+	m.customSources[toolID] = sourceURL
+	delete(m.offlineArchives, toolID)
+	m.offlineBundlePath = ""
+	m.invalidatePlan("Custom HTTPS source recorded. Rebuild the plan to review the catalog-pinned digest.")
+	return nil
+}
+
+func (m *Model) setOfflineArchive(input string) error {
+	toolID, archivePath, found := strings.Cut(input, "=")
+	toolID = strings.TrimSpace(toolID)
+	archivePath = strings.Trim(strings.TrimSpace(archivePath), "\"")
+	if !found || toolID == "" || archivePath == "" {
+		return errors.New("offline archive must use tool-id=absolute-archive-path")
+	}
+	manifest, exists := m.catalog.Tool(toolID)
+	if !exists {
+		return fmt.Errorf("unknown catalog tool %q", toolID)
+	}
+	if _, exists := manifest.ArtifactFor(m.inventory.Platform.OS, m.inventory.Platform.Architecture); !exists {
+		return fmt.Errorf("%s has no catalog-pinned archive for this platform", toolID)
+	}
+	absolute, err := filepath.Abs(archivePath)
+	if err != nil {
+		return fmt.Errorf("resolve offline archive path: %w", err)
+	}
+	info, err := os.Lstat(absolute)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("offline archive must be an existing regular, non-symlink file: %s", absolute)
+	}
+	m.offlineArchives[toolID] = absolute
+	delete(m.customSources, toolID)
+	m.offlineBundlePath = ""
+	m.invalidatePlan("Offline archive recorded. Rebuild the plan to review its catalog-pinned digest.")
+	return nil
 }
 
 func (m *Model) writeSelection(path string) error {
@@ -786,7 +935,7 @@ func (m *Model) handlePreflight(message preflightMsg) (tea.Model, tea.Cmd) {
 func planSignature(plan planning.Plan) string {
 	parts := make([]string, 0, len(plan.Items)+len(plan.Issues))
 	for _, item := range plan.Items {
-		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display(), item.Version, item.InstallPath, fmt.Sprint(item.ApproximateSize), fmt.Sprint(item.RegionalFallback)}, "|"))
+		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display(), item.Version, item.InstallPath, fmt.Sprint(item.ApproximateSize), fmt.Sprint(item.RegionalFallback), item.CustomSourceURL, item.OfflineArchivePath}, "|"))
 		if item.Artifact != nil {
 			parts = append(parts, strings.Join([]string{item.Artifact.URL, item.Artifact.RegionalURL, item.Artifact.SHA256, string(item.Artifact.Format), item.Artifact.ArchiveRoot}, "|"))
 		}
@@ -828,7 +977,16 @@ func (m *Model) startNext() tea.Cmd {
 			if err != nil {
 				return artifactInstallMsg{item: item, installErr: err, actual: detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing}}
 			}
-			result, installErr := installer.Install(ctx, item.ToolID, home, *item.Artifact, item.RegionalFallback)
+			policy := sources.OfficialOnly
+			if item.RegionalFallback {
+				policy = sources.OfficialFirst
+			}
+			result, installErr := installer.InstallWithOptions(ctx, item.ToolID, home, *item.Artifact, artifacts.InstallOptions{
+				Policy:                policy,
+				AllowRegionalFallback: item.RegionalFallback,
+				CustomSourceURL:       item.CustomSourceURL,
+				OfflineArchivePath:    item.OfflineArchivePath,
+			})
 			if installErr != nil {
 				return artifactInstallMsg{item: item, result: result, installErr: installErr, actual: detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing}}
 			}
