@@ -74,9 +74,10 @@ type Artifact struct {
 	URL                  string          `yaml:"url"`
 	RegionalURL          string          `yaml:"regional_url,omitempty"`
 	SHA256               string          `yaml:"sha256"`
-	Size                 int64           `yaml:"size"`
+	ApproximateSize      int64           `yaml:"approximate_size,omitempty"`
 	Format               ArchiveFormat   `yaml:"format"`
 	ArchiveRoot          string          `yaml:"archive_root"`
+	PathEntries          []string        `yaml:"path_entries,omitempty"`
 	AllowedRedirectHosts []string        `yaml:"allowed_redirect_hosts,omitempty"`
 }
 
@@ -247,14 +248,24 @@ func (m Manifest) Validate() error {
 		if _, err := hex.DecodeString(artifact.SHA256); err != nil {
 			return fmt.Errorf("artifact %s has an invalid SHA-256 digest", key)
 		}
-		if artifact.Size < 1 || artifact.Size > 1<<30 {
-			return fmt.Errorf("artifact %s size must be between 1 byte and 1 GiB", key)
+		if artifact.ApproximateSize < 0 || artifact.ApproximateSize > 1<<30 {
+			return fmt.Errorf("artifact %s approximate size must be between 0 and 1 GiB", key)
 		}
 		if artifact.Format != TarGzip && artifact.Format != Zip {
 			return fmt.Errorf("artifact %s has unsupported archive format %q", key, artifact.Format)
 		}
 		if artifact.ArchiveRoot == "" || path.Clean(artifact.ArchiveRoot) != artifact.ArchiveRoot || strings.HasPrefix(artifact.ArchiveRoot, "/") || strings.Contains(artifact.ArchiveRoot, "\\") || artifact.ArchiveRoot == "." || artifact.ArchiveRoot == ".." || strings.HasPrefix(artifact.ArchiveRoot, "../") {
 			return fmt.Errorf("artifact %s must declare a safe archive root", key)
+		}
+		seenPathEntries := make(map[string]bool, len(artifact.PathEntries))
+		for _, entry := range artifact.PathEntries {
+			if entry == "" || path.Clean(entry) != entry || strings.HasPrefix(entry, "/") || strings.Contains(entry, "\\") || entry == "." || entry == ".." || strings.HasPrefix(entry, "../") {
+				return fmt.Errorf("artifact %s has an unsafe PATH entry %q", key, entry)
+			}
+			if seenPathEntries[entry] {
+				return fmt.Errorf("artifact %s has duplicate PATH entry %q", key, entry)
+			}
+			seenPathEntries[entry] = true
 		}
 		for _, host := range artifact.AllowedRedirectHosts {
 			if !validRedirectHost(host) {
