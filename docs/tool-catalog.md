@@ -1,6 +1,6 @@
 # Embedded tool catalog
 
-The current catalog is intentionally small: 21 tools and 10 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
+The current catalog is intentionally small: 25 tools and 10 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
 
 | Category | Tools |
 | --- | --- |
@@ -8,6 +8,8 @@ The current catalog is intentionally small: 21 tools and 10 profiles. Inspect ex
 | JavaScript | Bun, Node.js LTS |
 | Python | Python 3, uv |
 | Java | Eclipse Temurin JDK 25, Maven, Gradle |
+| PHP and Ruby | PHP CLI, Ruby |
+| BEAM languages | Erlang/OTP, Elixir |
 | Go | Go |
 | Rust | Rustup |
 | C/C++ | GCC, Clang, CMake, Ninja, GDB, LLDB |
