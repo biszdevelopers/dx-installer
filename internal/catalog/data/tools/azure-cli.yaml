@@ -1,0 +1,22 @@
+schema_version: 1
+id: azure-cli
+name: Azure CLI
+category: devops.cloud
+description: Official command-line interface for Microsoft Azure.
+tags: [azure, cloud, devops]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [az]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: azure-cli
+    kind: cask
+    scope: user
+    source: homebrew-cask
