@@ -399,6 +399,7 @@ func scanKnownInstallDirectories(home string) []string {
 			if root == "" {
 				continue
 			}
+			patterns = append(patterns, filepath.Join(root, "Microsoft Visual Studio", "*", "BuildTools", "VC", "Tools", "MSVC", "*", "bin", "Hostx64", "x64"))
 			for _, vendor := range []string{"Java", filepath.Join("Eclipse Adoptium"), "Microsoft", "Zulu"} {
 				patterns = append(patterns, filepath.Join(root, vendor, "jdk-*", "bin"))
 			}
