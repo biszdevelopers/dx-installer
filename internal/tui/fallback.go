@@ -17,7 +17,6 @@ import (
 	"developers-club-dx/internal/installation"
 	"developers-club-dx/internal/pathconfig"
 	"developers-club-dx/internal/planning"
-	"developers-club-dx/internal/sources"
 )
 
 func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output io.Writer) error {
@@ -54,6 +53,9 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 	if err != nil {
 		return err
 	}
+	previewContext, cancelPreview := context.WithTimeout(ctx, 20*time.Second)
+	plan = planning.PreviewPackageTransactions(previewContext, model.inventory, plan)
+	cancelPreview()
 	if plan.Blocked {
 		printPlan(output, plan)
 		return fmt.Errorf("installation plan is blocked")
@@ -87,6 +89,9 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 		if buildErr != nil {
 			return buildErr
 		}
+		previewContext, cancelPreview = context.WithTimeout(ctx, 20*time.Second)
+		updated = planning.PreviewPackageTransactions(previewContext, model.inventory, updated)
+		cancelPreview()
 		if updated.Blocked {
 			printPlan(output, updated)
 			return fmt.Errorf("refreshed plan is blocked; no commands were run")
@@ -117,6 +122,52 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 		return err
 	}
 	model.session = session
+	home, homeErr := os.UserHomeDir()
+	archiveInstaller := model.archiveInstaller
+	if archiveInstaller == nil {
+		archiveInstaller = artifacts.NewArchiveInstaller()
+	}
+	preparedArchives := make(map[string]artifacts.PrepareResult)
+	defer cleanupPreparedArchives(output, preparedArchives)
+	requests := archivePrepareRequests(plan, home)
+	if len(requests) > 0 {
+		fmt.Fprintf(output, "\nPreparing %d verified archive download(s), up to %d at a time.\n", len(requests), archiveInstaller.Concurrency())
+		progressChannel := make(chan artifacts.PrepareProgress, 32)
+		resultChannel := make(chan []artifacts.PrepareResult, 1)
+		go func() {
+			results := archiveInstaller.PrepareMany(ctx, requests, func(event artifacts.PrepareProgress) {
+				progressChannel <- event
+			})
+			resultChannel <- results
+			close(progressChannel)
+		}()
+		progressOpen := true
+		resultsReceived := false
+		for progressOpen || !resultsReceived {
+			select {
+			case event, open := <-progressChannel:
+				if !open {
+					progressOpen = false
+					continue
+				}
+				label := event.ToolID
+				if event.Progress.SourceName != "" {
+					label += " via " + event.Progress.SourceName
+				}
+				fmt.Fprintf(output, "\r  %s: %s", label, display.DownloadProgress(event.Progress.BytesReceived, event.Progress.TotalBytes))
+			case results := <-resultChannel:
+				resultsReceived = true
+				for _, result := range results {
+					preparedArchives[result.ToolID] = result
+				}
+			}
+		}
+		fmt.Fprintln(output)
+	}
+	if err := ctx.Err(); err != nil {
+		session.Cancel()
+		return err
+	}
 	for {
 		item, ok := session.Next()
 		if !ok {
@@ -135,21 +186,25 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 		var operationErr error
 		details := installation.ExecutionDetails{PathChanges: item.PathChanges}
 		if item.Artifact != nil {
-			fmt.Fprintf(output, "\nDownloading and installing %s %s from %s\n", item.Name, item.Version, item.Source)
-			home, homeErr := os.UserHomeDir()
-			if homeErr != nil {
+			prepared, exists := preparedArchives[item.ToolID]
+			delete(preparedArchives, item.ToolID)
+			if !exists {
+				operationErr = errors.New("approved archive was not prepared")
+			} else if prepared.Err != nil {
+				operationErr = prepared.Err
+			} else if prepared.Prepared == nil {
+				operationErr = errors.New("archive preparation returned no verified payload")
+			} else if homeErr != nil {
 				operationErr = homeErr
 			} else {
-				policy := sources.OfficialOnly
-				if item.RegionalFallback {
-					policy = sources.OfficialFirst
+				fmt.Fprintf(output, "\nInstalling %s from its verified archive\n", item.Name)
+				result, installErr := archiveInstaller.InstallPrepared(ctx, item.ToolID, home, *item.Artifact, prepared.Prepared)
+				if cleanupErr := prepared.Prepared.Cleanup(); cleanupErr != nil {
+					result.CleanupNotice = joinCleanupNotice(result.CleanupNotice, "temporary archive cleanup failed: "+cleanupErr.Error())
+					if installErr != nil {
+						installErr = errors.Join(installErr, cleanupErr)
+					}
 				}
-				result, installErr := artifacts.NewArchiveInstaller().InstallWithOptions(ctx, item.ToolID, home, *item.Artifact, artifacts.InstallOptions{
-					Policy:                policy,
-					AllowRegionalFallback: item.RegionalFallback,
-					CustomSourceURL:       item.CustomSourceURL,
-					OfflineArchivePath:    item.OfflineArchivePath,
-				})
 				operationErr = installErr
 				details.Source = result.SourceName
 				details.SourceURL = result.SourceURL
@@ -229,6 +284,7 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 			}
 		}
 	}
+	cleanupPreparedArchives(output, preparedArchives)
 	fmt.Fprintln(output, "\nResults:")
 	for _, result := range session.Report() {
 		fmt.Fprintf(output, "  %-22s %s\n", result.Name, result.State)
@@ -237,6 +293,17 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 		}
 	}
 	return nil
+}
+
+func cleanupPreparedArchives(output io.Writer, preparedArchives map[string]artifacts.PrepareResult) {
+	for toolID, prepared := range preparedArchives {
+		if prepared.Prepared != nil {
+			if cleanupErr := prepared.Prepared.Cleanup(); cleanupErr != nil {
+				fmt.Fprintf(output, "Temporary archive cleanup for %s needs attention: %v\n", toolID, cleanupErr)
+			}
+		}
+		delete(preparedArchives, toolID)
+	}
 }
 
 func printPlan(output io.Writer, plan planning.Plan) {
@@ -254,7 +321,7 @@ func printPlan(output io.Writer, plan planning.Plan) {
 			continue
 		}
 		if item.Artifact != nil {
-			sizeEstimate := approximateSize(item.ApproximateSize)
+			sizeEstimate := display.ApproximateSize(item.ApproximateSize)
 			if item.SizeEstimateNote != "" {
 				sizeEstimate = item.SizeEstimateNote
 			}
@@ -287,15 +354,27 @@ func printPlan(output io.Writer, plan planning.Plan) {
 					fmt.Fprintf(output, "    PATH: add %s to %s\n", change.Directory, change.Target)
 				}
 			}
+			if item.TransactionNote != "" {
+				fmt.Fprintf(output, "    preview note: %s\n", item.TransactionNote)
+			}
 			continue
 		}
 		fmt.Fprintf(output, "  INSTALL %s\n    source: %s (%s)\n    scope: %s\n", item.Name, item.Source, item.Manager, item.Scope)
 		if item.ApproximateSize > 0 {
-			fmt.Fprintf(output, "    approximate download: %s\n", approximateSize(item.ApproximateSize))
+			fmt.Fprintf(output, "    approximate download: %s\n", display.ApproximateSize(item.ApproximateSize))
 		} else if item.SizeEstimateNote != "" {
 			fmt.Fprintf(output, "    approximate download: %s\n", item.SizeEstimateNote)
 		}
 		fmt.Fprintf(output, "    command: %s\n", item.Command.Display())
+		if item.CandidateVersion != "" {
+			fmt.Fprintf(output, "    candidate version: %s\n", item.CandidateVersion)
+		}
+		if item.TransactionPreview != "" {
+			fmt.Fprintf(output, "    transaction preview: %s\n", item.TransactionPreview)
+		}
+		if item.TransactionNote != "" {
+			fmt.Fprintf(output, "    preview note: %s\n", item.TransactionNote)
+		}
 	}
 	for _, issue := range plan.Issues {
 		fmt.Fprintf(output, "  %s %s: %s\n", strings.ToUpper(string(issue.Severity)), issue.ToolID, issue.Message)
@@ -303,13 +382,6 @@ func printPlan(output io.Writer, plan planning.Plan) {
 	if len(plan.InstallItems()) > 0 {
 		fmt.Fprintf(output, "  NOTICE %s\n", plan.TransactionDisclosure)
 	}
-}
-
-func approximateSize(bytes int64) string {
-	if bytes <= 0 {
-		return "unknown"
-	}
-	return fmt.Sprintf("about %.0f MB", float64(bytes)/1_000_000)
 }
 
 func readLine(reader *bufio.Reader) (string, error) {
