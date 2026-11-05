@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +31,16 @@ const (
 )
 
 func Extract(archivePath, destination, archiveRoot string, format tool.ArchiveFormat, limits Limits) error {
+	return ExtractWithContext(context.Background(), archivePath, destination, archiveRoot, format, limits)
+}
+
+func ExtractWithContext(ctx context.Context, archivePath, destination, archiveRoot string, format tool.ArchiveFormat, limits Limits) error {
+	if ctx == nil {
+		return errors.New("extraction context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if limits.MaxEntries < 1 {
 		limits.MaxEntries = defaultMaxEntries
 	}
@@ -62,6 +73,7 @@ func Extract(archivePath, destination, archiveRoot string, format tool.ArchiveFo
 	}
 
 	state := extractState{
+		ctx:         ctx,
 		destination: destination,
 		root:        archiveRoot,
 		limits:      limits,
@@ -82,6 +94,9 @@ func Extract(archivePath, destination, archiveRoot string, format tool.ArchiveFo
 	if err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if !state.rootSeen {
 		return fmt.Errorf("archive does not contain the declared root %q", archiveRoot)
 	}
@@ -89,6 +104,7 @@ func Extract(archivePath, destination, archiveRoot string, format tool.ArchiveFo
 }
 
 type extractState struct {
+	ctx         context.Context
 	destination string
 	root        string
 	limits      Limits
@@ -105,7 +121,7 @@ func (s *extractState) extractTarGzip(archivePath string) error {
 		return fmt.Errorf("open tar.gz archive: %w", err)
 	}
 	defer file.Close()
-	compressed, err := gzip.NewReader(file)
+	compressed, err := gzip.NewReader(contextReader{ctx: s.ctx, reader: file})
 	if err != nil {
 		return fmt.Errorf("open gzip stream: %w", err)
 	}
@@ -119,7 +135,7 @@ func (s *extractState) extractTarXZ(archivePath string) error {
 		return fmt.Errorf("open tar.xz archive: %w", err)
 	}
 	defer file.Close()
-	compressed, err := (xz.ReaderConfig{DictCap: 64 << 20}).NewReader(file)
+	compressed, err := (xz.ReaderConfig{DictCap: 64 << 20}).NewReader(contextReader{ctx: s.ctx, reader: file})
 	if err != nil {
 		return fmt.Errorf("open xz stream: %w", err)
 	}
@@ -128,6 +144,9 @@ func (s *extractState) extractTarXZ(archivePath string) error {
 
 func (s *extractState) extractTar(reader *tar.Reader) error {
 	for {
+		if err := s.ctx.Err(); err != nil {
+			return err
+		}
 		header, err := reader.Next()
 		if errors.Is(err, io.EOF) {
 			return nil
@@ -180,6 +199,9 @@ func (s *extractState) extractSevenZip(archivePath string) error {
 	}
 	defer reader.Close()
 	for _, entry := range reader.File {
+		if err := s.ctx.Err(); err != nil {
+			return err
+		}
 		s.count++
 		if s.count > s.limits.MaxEntries {
 			return fmt.Errorf("archive exceeds the %d entry safety limit", s.limits.MaxEntries)
@@ -198,7 +220,7 @@ func (s *extractState) extractSevenZip(archivePath string) error {
 		}
 		s.rootSeen = true
 		if mode&os.ModeSymlink != 0 {
-			contents, err := readSevenZipLink(entry)
+			contents, err := readSevenZipLink(s.ctx, entry)
 			if err != nil {
 				return fmt.Errorf("read symbolic link %q: %w", entry.Name, err)
 			}
@@ -223,7 +245,7 @@ func (s *extractState) extractSevenZip(archivePath string) error {
 		if err != nil {
 			return fmt.Errorf("open archive entry %q: %w", entry.Name, err)
 		}
-		writeErr := s.writeFile(pathName, contents, int64(entry.UncompressedSize), int64(mode.Perm()))
+		writeErr := s.writeFile(pathName, contextReader{ctx: s.ctx, reader: contents}, int64(entry.UncompressedSize), int64(mode.Perm()))
 		closeErr := contents.Close()
 		if writeErr != nil {
 			return writeErr
@@ -235,13 +257,13 @@ func (s *extractState) extractSevenZip(archivePath string) error {
 	return nil
 }
 
-func readSevenZipLink(entry *sevenzip.File) (string, error) {
+func readSevenZipLink(ctx context.Context, entry *sevenzip.File) (string, error) {
 	contents, err := entry.Open()
 	if err != nil {
 		return "", err
 	}
 	defer contents.Close()
-	data, err := io.ReadAll(io.LimitReader(contents, 4097))
+	data, err := io.ReadAll(io.LimitReader(contextReader{ctx: ctx, reader: contents}, 4097))
 	if err != nil {
 		return "", err
 	}
@@ -258,6 +280,9 @@ func (s *extractState) extractZip(archivePath string) error {
 	}
 	defer reader.Close()
 	for _, entry := range reader.File {
+		if err := s.ctx.Err(); err != nil {
+			return err
+		}
 		s.count++
 		if s.count > s.limits.MaxEntries {
 			return fmt.Errorf("archive exceeds the %d entry safety limit", s.limits.MaxEntries)
@@ -293,7 +318,7 @@ func (s *extractState) extractZip(archivePath string) error {
 		if err != nil {
 			return fmt.Errorf("open archive entry %q: %w", entry.Name, err)
 		}
-		writeErr := s.writeFile(pathName, contents, int64(entry.UncompressedSize64), modeBits(entry.Mode()))
+		writeErr := s.writeFile(pathName, contextReader{ctx: s.ctx, reader: contents}, int64(entry.UncompressedSize64), modeBits(entry.Mode()))
 		closeErr := contents.Close()
 		if writeErr != nil {
 			return writeErr
@@ -346,6 +371,9 @@ func (s *extractState) makeDirectory(relative string) error {
 }
 
 func (s *extractState) writeFile(relative string, reader io.Reader, size int64, sourceMode int64) error {
+	if err := s.ctx.Err(); err != nil {
+		return err
+	}
 	if err := s.rejectSymlinkAncestors(relative); err != nil {
 		return err
 	}
@@ -369,7 +397,7 @@ func (s *extractState) writeFile(relative string, reader io.Reader, size int64, 
 	if err != nil {
 		return fmt.Errorf("create extracted file %q: %w", relative, err)
 	}
-	written, copyErr := io.CopyN(file, reader, size)
+	written, copyErr := io.CopyN(file, contextReader{ctx: s.ctx, reader: reader}, size)
 	closeErr := file.Close()
 	if copyErr != nil {
 		_ = os.Remove(filePath)
@@ -380,6 +408,18 @@ func (s *extractState) writeFile(relative string, reader io.Reader, size int64, 
 		return fmt.Errorf("close extracted file %q: %w", relative, closeErr)
 	}
 	return nil
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (reader contextReader) Read(buffer []byte) (int, error) {
+	if err := reader.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return reader.reader.Read(buffer)
 }
 
 func (s *extractState) makeSymlink(relative, target string) error {
