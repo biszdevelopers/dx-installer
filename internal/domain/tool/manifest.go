@@ -38,6 +38,7 @@ const (
 	MacPorts     PackageManager = "macports"
 	APT          PackageManager = "apt"
 	DNF          PackageManager = "dnf"
+	YUM          PackageManager = "yum"
 	Pacman       PackageManager = "pacman"
 	Zypper       PackageManager = "zypper"
 	APK          PackageManager = "apk"
@@ -577,7 +578,7 @@ func validArchitecture(architecture Architecture) bool {
 
 func validManager(manager PackageManager) bool {
 	switch manager {
-	case Winget, Scoop, Chocolatey, Homebrew, MacPorts, APT, DNF, Pacman, Zypper, APK, FreeBSDPkg, AndroidSDK, EspressifEIM:
+	case Winget, Scoop, Chocolatey, Homebrew, MacPorts, APT, DNF, YUM, Pacman, Zypper, APK, FreeBSDPkg, AndroidSDK, EspressifEIM:
 		return true
 	default:
 		return false
@@ -592,7 +593,7 @@ func managerSupportsPlatform(manager PackageManager, os OperatingSystem) bool {
 		return os == MacOS || os == Linux
 	case MacPorts:
 		return os == MacOS
-	case APT, DNF, Pacman, Zypper, APK:
+	case APT, DNF, YUM, Pacman, Zypper, APK:
 		return os == Linux
 	case FreeBSDPkg:
 		return os == BSD
@@ -611,7 +612,7 @@ func managerSupportsScope(manager PackageManager, scope Scope) bool {
 		return scope == UserScope || scope == SystemScope
 	case Scoop, Homebrew, AndroidSDK, EspressifEIM:
 		return scope == UserScope
-	case Chocolatey, MacPorts, APT, DNF, Pacman, Zypper, APK, FreeBSDPkg:
+	case Chocolatey, MacPorts, APT, DNF, YUM, Pacman, Zypper, APK, FreeBSDPkg:
 		return scope == SystemScope
 	default:
 		return false
