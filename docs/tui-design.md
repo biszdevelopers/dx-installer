@@ -23,6 +23,6 @@ The complete plan is shown before any package-manager or archive installation st
 
 If Bubble Tea cannot render, the CLI offers a line-oriented selection and approval flow. A non-TTY install invocation exits before changes. `catalog`, `inventory`, and `plan` remain available without a TTY. Progress reports completed operations and the current task; it does not invent byte percentages.
 
-## Automated coverage and remaining gaps
+## Automated coverage and terminal fallback
 
-Tests cover source configuration and plan invalidation, approval refresh, fallback interaction, an Environment golden snapshot, a narrow-terminal resize bound, and fuzzed environment-search input. Broader snapshots and resize/fuzz coverage for every screen remain to be added. Mouse input and terminal capability detection beyond Bubble Tea are not implemented.
+Tests cover source configuration and plan invalidation, approval refresh, fallback interaction, golden snapshots for all eight screens, resize bounds for every screen, Unicode display width, ASCII fallback, and fuzzed environment-search input. The renderer responds to `DX_ASCII=1`, `TERM=dumb`, ASCII locales, and legacy Windows console output code pages. Set `DX_ASCII=0` to force Unicode rendering. Mouse input is optional and is not required.
