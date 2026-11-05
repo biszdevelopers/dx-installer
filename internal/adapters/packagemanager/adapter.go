@@ -60,26 +60,26 @@ func detectRemaining(os tool.OperatingSystem, distribution string, first tool.Pa
 func managerOrder(os tool.OperatingSystem, distribution string) []tool.PackageManager {
 	switch os {
 	case tool.Windows:
-		return []tool.PackageManager{tool.Winget, tool.Scoop, tool.Chocolatey, tool.AndroidSDK}
+		return []tool.PackageManager{tool.Winget, tool.Scoop, tool.Chocolatey, tool.AndroidSDK, tool.EspressifEIM}
 	case tool.MacOS:
-		return []tool.PackageManager{tool.Homebrew, tool.MacPorts, tool.AndroidSDK}
+		return []tool.PackageManager{tool.Homebrew, tool.MacPorts, tool.AndroidSDK, tool.EspressifEIM}
 	case tool.Linux:
 		id := strings.Fields(strings.ToLower(distribution))
 		if len(id) > 0 {
 			switch id[0] {
 			case "debian", "ubuntu", "linuxmint", "pop", "elementary", "raspbian":
-				return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK}
+				return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
 			case "fedora", "rhel", "centos", "rocky", "almalinux":
-				return []tool.PackageManager{tool.DNF, tool.APT, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK}
+				return []tool.PackageManager{tool.DNF, tool.APT, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
 			case "arch", "manjaro", "endeavouros":
-				return []tool.PackageManager{tool.Pacman, tool.APT, tool.DNF, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK}
+				return []tool.PackageManager{tool.Pacman, tool.APT, tool.DNF, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
 			case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "sles":
-				return []tool.PackageManager{tool.Zypper, tool.APT, tool.DNF, tool.Pacman, tool.APK, tool.Homebrew, tool.AndroidSDK}
+				return []tool.PackageManager{tool.Zypper, tool.APT, tool.DNF, tool.Pacman, tool.APK, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
 			case "alpine":
-				return []tool.PackageManager{tool.APK, tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.Homebrew, tool.AndroidSDK}
+				return []tool.PackageManager{tool.APK, tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
 			}
 		}
-		return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK}
+		return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
 	case tool.BSD:
 		if strings.EqualFold(strings.TrimSpace(distribution), "freebsd") {
 			return []tool.PackageManager{tool.FreeBSDPkg}
@@ -116,6 +116,8 @@ func managerExecutable(manager tool.PackageManager) string {
 		return "pkg"
 	case tool.AndroidSDK:
 		return "sdkmanager"
+	case tool.EspressifEIM:
+		return "eim"
 	default:
 		return ""
 	}
@@ -189,6 +191,27 @@ func BuildCommand(installer tool.Installer, currentOS tool.OperatingSystem) (Com
 			return Command{}, fmt.Errorf("unsupported Android SDK package identifier %q", packageID)
 		}
 		command.Arguments = []string{packageID}
+	case tool.EspressifEIM:
+		if !tool.ValidEspressifEIMVersion(packageID) {
+			return Command{}, fmt.Errorf("unsupported ESP-IDF version identifier %q", packageID)
+		}
+		if installer.Scope != tool.UserScope {
+			return Command{}, errors.New("Espressif EIM only supports user-scoped installs")
+		}
+		home, err := os.UserHomeDir()
+		if err != nil || !filepath.IsAbs(home) {
+			return Command{}, errors.New("could not determine an absolute user home directory for ESP-IDF")
+		}
+		root := filepath.Join(home, ".espressif")
+		toolsDirectory := filepath.Join(root, "tools")
+		command.Arguments = []string{
+			"--do-not-track", "true", "--log-file", os.DevNull,
+			"install", "--idf-versions", packageID, "--path", root, "--cleanup", "true",
+			"--tool-install-folder-name", toolsDirectory,
+			"--tool-download-folder-name", filepath.Join(root, "dist"),
+			"--activation-script-path-override", toolsDirectory,
+			"--esp-idf-json-path", toolsDirectory,
+		}
 	}
 	if command.RequiresPrivilege && currentOS != tool.Windows && !isRoot() {
 		command.PrivilegeWrapper = "sudo"
