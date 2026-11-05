@@ -1,6 +1,6 @@
 # Embedded tool catalog
 
-The embedded catalog contains **219 tool manifests and 18 profiles**. The complete, current list is available from `go run ./cmd/bootstrap catalog`; `go run ./cmd/bootstrap catalog --json` emits the manifest data as JSON. Source manifests are in `internal/catalog/data/tools/`, and profiles are in `internal/catalog/data/profiles/`.
+The embedded catalog contains **220 tool manifests and 18 profiles**. The complete, current list is available from `go run ./cmd/bootstrap catalog`; `go run ./cmd/bootstrap catalog --json` emits the manifest data as JSON. Source manifests are in `internal/catalog/data/tools/`, and profiles are in `internal/catalog/data/profiles/`.
 
 The catalog covers version control, JavaScript and TypeScript, JVM, C and C++, Python, Go, Rust, .NET, PHP, Ruby, Swift, Dart and Flutter, Zig, Lua, BEAM, Haskell, OCaml, Clojure, Julia, R, Perl, Fortran, additional languages, mobile and embedded development, database clients, API and protocol tooling, containers and DevOps, security and code quality, and documentation utilities.
 
@@ -8,7 +8,7 @@ The 18 editable profiles are Additional languages, API and protocol tooling, Com
 
 ## Manifest and installer model
 
-Manifests declare tool IDs, version channels, no-automatic-upgrade policy, executables and version arguments, dependencies and conflicts, supported platforms, and any compatible installer methods. Installer methods include existing OS package managers, exact-version npm/PyPI/Go/Cargo registry entries, and catalog-pinned direct archives. Direct archives may include size limits, digest-verified regional URLs, expected archive roots, version markers, PATH entries, user-visible setup actions, and installation disclosures. Manifests cannot contain arbitrary shell fragments.
+Manifests declare tool IDs, version channels, no-automatic-upgrade policy, executables and version arguments, common and platform-specific dependencies, conflicts, supported platforms, and compatible installer methods. Installer methods include existing OS package managers, exact-version npm/PyPI/Go/Cargo registry entries, and catalog-pinned direct archives. Direct archives may include size limits, digest-verified regional URLs, expected archive roots, version markers, PATH entries, user-visible setup actions, and installation disclosures. Manifests cannot contain arbitrary shell fragments.
 
 The runtime loader uses typed Go structures and strict YAML decoding. It rejects unknown fields, invalid manager/platform/scope combinations, malformed artifact metadata, duplicate IDs, missing dependencies, and dependency cycles. `go run ./cmd/catalog-check` validates the embedded catalog and profiles.
 
