@@ -350,7 +350,11 @@ func (m *Model) renderPlan(maxRows int) []string {
 				}
 			}
 		} else {
-			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s  %s", item.ToolID, item.Manager, item.PackageID, privilege), "          source: "+item.Source, "          command: "+item.Command.Display())
+			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s  %s", item.ToolID, item.Manager, item.PackageID, privilege), "          source: "+item.Source)
+			if item.ApproximateSize > 0 {
+				rows = append(rows, "          approximate download: "+approximateSize(item.ApproximateSize))
+			}
+			rows = append(rows, "          command: "+item.Command.Display())
 		}
 	}
 	for _, issue := range m.plan.Issues {
