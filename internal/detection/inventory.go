@@ -570,7 +570,7 @@ func inspectVersion(parent context.Context, path, executable string, args []stri
 	stderr := &boundedBuffer{limit: 8192}
 	command.Stdout = stdout
 	command.Stderr = stderr
-	err := command.Run()
+	err = command.Run()
 	output := strings.TrimSpace(stdout.String())
 	if output == "" {
 		output = strings.TrimSpace(stderr.String())
