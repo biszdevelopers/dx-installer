@@ -1,0 +1,173 @@
+=== Overview ===
+Developers' Club DX  /  Bootstrap
+windows  /  amd64
+[1 Overview]   2 Catalog   3 Profiles   4 Environment   5 Plan   6 Sources   7
+Progress   8 Results
+--------------------------------------------------------------------------------
+Machine overview
+Operating system  windows
+Architecture      amd64
+Distribution      not applicable
+Shell             unknown
+Package managers  winget
+Region signals    Global
+Source policy     automatic
+Existing tools    1 healthy  1 missing  0 needing review
+Selected tools    1
+
+No machine health score is calculated. Existing installations are preserved
+unless a reviewed plan says otherwise.
+--------------------------------------------------------------------------------
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
+command.
+Tab navigate  |  j/k move  |  r refresh  |  ? help  |  q exit
+
+=== Catalog ===
+Developers' Club DX  /  Bootstrap
+windows  /  amd64
+1 Overview   [2 Catalog]   3 Profiles   4 Environment   5 Plan   6 Sources   7
+Progress   8 Results
+--------------------------------------------------------------------------------
+Tool catalog
+Search: all   Category: all   State: all
+> [ ] actionlint         actionlint
+  [ ] adb                Android Platform Tools
+  [ ] android-build-tools Android SDK Build Tools 36.0.0
+  [ ] android-emulator   Android Emulator
+  [ ] android-platform-tools Android Platform Tools
+  [ ] android-sdk-command-line-tools Android SDK Command-Line Tools
+  [ ] ansible            Ansible CLI
+  [ ] ant                Apache Ant
+  [ ] arduino-cli        Arduino CLI
+  [ ] arm-none-eabi-gcc  ARM GNU Toolchain
+  [ ] aspnetcore-runtime-10 ASP.NET Core Runtime 10
+  [ ] avrdude            AVRDUDE
+  [ ] aws-cli            AWS CLI
+--------------------------------------------------------------------------------
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
+command.
+Space select  |  f search  |  [ ] category  |  s state filter  |  p plan
+
+=== Profiles ===
+Developers' Club DX  /  Bootstrap
+windows  /  amd64
+1 Overview   2 Catalog   [3 Profiles]   4 Environment   5 Plan   6 Sources   7
+Progress   8 Results
+--------------------------------------------------------------------------------
+Profiles
+Select multiple profiles to combine them, then press Enter to apply.
+> [ ] Additional languages     21 tools
+    Selectable language runtimes, compilers, package tooling, and language
+servers beyond the core profiles.
+  [ ] API and protocol tooling 7 tools
+    Protocol Buffers, gRPC, OpenAPI, and GraphQL command-line tools.
+  [ ] Complete catalog         220 tools
+    Review every catalog entry and remove anything you do not want.
+  [ ] Database clients         7 tools
+    Database clients only; no database servers are selected.
+  [ ] DevOps tooling           17 tools
+    Container, Kubernetes, infrastructure, cloud, and automation CLIs; does not
+start services or authenticate.
+  [ ] .NET development         6 tools
+--------------------------------------------------------------------------------
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
+command.
+Space combine profiles  |  Enter apply  |  e export  |  o import
+
+=== Environment ===
+Developers' Club DX  /  Bootstrap
+windows  /  amd64
+1 Overview   2 Catalog   3 Profiles   [4 Environment]   5 Plan   6 Sources   7
+Progress   8 Results
+--------------------------------------------------------------------------------
+Existing environment
+Search: all
+Each detected executable is checked with its declared version command.
+> git                Git                          healthy
+  go                 Go                           missing
+Path: C:\Program Files\Git\cmd\git.exe
+Version: git version 2.48.1
+Architecture:
+--------------------------------------------------------------------------------
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
+command.
+f search inventory  |  a clear search  |  r refresh  |  j/k inspect records
+
+=== Plan ===
+Developers' Club DX  /  Bootstrap
+windows  /  amd64
+1 Overview   2 Catalog   3 Profiles   4 Environment   [5 Plan]   6 Sources   7
+Progress   8 Results
+--------------------------------------------------------------------------------
+Installation plan
+Every install is explicit. Existing tools are preserved and no upgrades are
+planned.
+INSTALL   go                 winget  GoLang.Go  system scope / privilege may be
+required
+          source: winget
+          command: winget "install" "--id" "GoLang.Go" "--exact" "--no-upgrade"
+"--source" "winget" "--scope" "machine"
+DX has not resolved a candidate package version or simulated the package-manager
+transaction. Dependencies or other affected packages may be added; review any
+manager confirmation before accepting.
+--------------------------------------------------------------------------------
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
+command.
+p rebuild  |  i review approval  |  r refresh inventory
+
+=== Sources ===
+Developers' Club DX  /  Bootstrap
+windows  /  amd64
+1 Overview   2 Catalog   3 Profiles   4 Environment   5 Plan   [6 Sources]   7
+Progress   8 Results
+--------------------------------------------------------------------------------
+Download sources
+Package managers already on this machine are preferred when they support the
+selected tool.
+Direct archives use pinned publisher digests; regional mirrors must match that
+digest.
+Region signals: Global
+Source policy: automatic
+Keys: a automatic  |  c Mainland China  |  g global  |  o official-only  |  m
+official-first  |  u custom archive source  |  v registry override  |  l local
+archive  |  b signed bundle  |  x clear overrides  |  Space/Enter manager  |  0
+reset
+A preferred detected package manager is selected when it has a compatible
+catalog entry.
+
+--------------------------------------------------------------------------------
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
+command.
+a/c/g region  |  o official-only  |  m official-first  |  u custom URL  |  l
+local archive  |  b signed bundle  |  Space/Enter manager  |  x clear sources
+
+=== Progress ===
+Developers' Club DX  /  Bootstrap
+windows  /  amd64
+1 Overview   2 Catalog   3 Profiles   4 Environment   5 Plan   6 Sources   [7
+Progress]   8 Results
+--------------------------------------------------------------------------------
+Installation progress
+Completed tasks: 1 of 1
+Go                     installed_and_verified
+--------------------------------------------------------------------------------
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
+command.
+Tab navigate  |  j/k move  |  r refresh  |  ? help  |  q exit
+
+=== Results ===
+Developers' Club DX  /  Bootstrap
+windows  /  amd64
+1 Overview   2 Catalog   3 Profiles   4 Environment   5 Plan   6 Sources   7
+Progress   [8 Results]
+--------------------------------------------------------------------------------
+Results and diagnostics
+> Go                     installed_and_verified
+Verification: go1.27.3
+Source: winget
+Temporary bootstrap artifacts are removed when the application exits.
+--------------------------------------------------------------------------------
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
+command.
+j/k inspect results  |  d save redacted report  |  4 environment  |  q exit
+
