@@ -86,8 +86,7 @@ type scanResult struct {
 const maxDiscoveredInstallDirectories = 512
 
 var (
-	installDirectoryCache  = sync.Map{}
-	artifactVersionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$`)
+	installDirectoryCache = sync.Map{}
 )
 
 func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (Inventory, error) {
@@ -167,7 +166,7 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 		return nil, nil, Unsupported
 	}
 	packages := installedPackagesFor(manifest, machine.OS, managers, installedPackages)
-	if instances, found := inspectArtifactVersionFiles(manifest, machine); found {
+	if instances, found := inspectArtifactVersionFiles(ctx, manifest, machine); found {
 		healthyCount := 0
 		for _, instance := range instances {
 			if instance.State == Healthy {
@@ -205,21 +204,7 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 	}
 	instances := make([]Instance, 0, len(paths))
 	for path, executable := range paths {
-		instance := inspectVersion(ctx, path, executable, manifest.VersionArgs, manifest.HealthPattern)
-		architectures, recognized, architectureErr := binaryArchitectures(path)
-		instance.Architecture = architectures
-		instance.ArchitectureStatus = ArchitectureUnverified
-		if architectureErr != nil {
-			instance.ArchitectureDiagnostic = "binary architecture could not be read: " + architectureErr.Error()
-		} else if recognized {
-			if containsArchitecture(architectures, machine.Architecture) {
-				instance.ArchitectureStatus = ArchitectureCompatible
-			} else {
-				instance.ArchitectureStatus = ArchitectureMismatch
-				instance.State = Conflicting
-				instance.ArchitectureDiagnostic = fmt.Sprintf("binary architecture %s does not match host architecture %s", joinArchitectures(architectures), machine.Architecture)
-			}
-		}
+		instance := inspectExecutableVersion(ctx, path, executable, manifest, machine)
 		instances = append(instances, instance)
 	}
 	sort.Slice(instances, func(i, j int) bool { return instances[i].Path < instances[j].Path })
@@ -258,7 +243,7 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 	return instances, packages, Broken
 }
 
-func inspectArtifactVersionFiles(manifest tool.Manifest, machine platform.Info) ([]Instance, bool) {
+func inspectArtifactVersionFiles(ctx context.Context, manifest tool.Manifest, machine platform.Info) ([]Instance, bool) {
 	artifact, exists := manifest.ArtifactFor(machine.OS, machine.Architecture)
 	if !exists || artifact.VersionFile == "" {
 		return nil, false
@@ -298,7 +283,7 @@ func inspectArtifactVersionFiles(manifest tool.Manifest, machine platform.Info) 
 			key = strings.ToLower(key)
 		}
 		seen[key] = true
-		instances = append(instances, inspectArtifactVersionFile(installPath, artifact.VersionFile))
+		instances = append(instances, inspectArtifactVersionFile(ctx, manifest, machine, installPath, artifact.VersionFile)...)
 	}
 	for _, base := range bases {
 		entries, err := os.ReadDir(base)
@@ -321,7 +306,7 @@ func inspectArtifactVersionFiles(manifest tool.Manifest, machine platform.Info) 
 			if len(instances) >= maxDiscoveredInstallDirectories {
 				break
 			}
-			instances = append(instances, inspectArtifactVersionFile(installPath, artifact.VersionFile))
+			instances = append(instances, inspectArtifactVersionFile(ctx, manifest, machine, installPath, artifact.VersionFile)...)
 		}
 	}
 	if len(instances) == 0 {
@@ -330,43 +315,87 @@ func inspectArtifactVersionFiles(manifest tool.Manifest, machine platform.Info) 
 	return instances, true
 }
 
-func inspectArtifactVersionFile(installPath, relativeVersionFile string) Instance {
+func inspectArtifactVersionFile(ctx context.Context, manifest tool.Manifest, machine platform.Info, installPath, relativeVersionFile string) []Instance {
 	rootInfo, err := os.Lstat(installPath)
 	if err != nil {
-		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not inspect installed SDK directory: " + err.Error()}
+		return []Instance{{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not inspect installed SDK directory: " + err.Error()}}
 	}
 	if !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
-		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "installed SDK path is not a real directory"}
+		return []Instance{{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "installed SDK path is not a real directory"}}
 	}
 	versionPath := filepath.Join(installPath, filepath.FromSlash(relativeVersionFile))
 	linkInfo, err := os.Lstat(versionPath)
 	if os.IsNotExist(err) {
-		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file is missing"}
+		return []Instance{{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file is missing"}}
 	}
 	if err != nil {
-		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not inspect SDK version file: " + err.Error()}
+		return []Instance{{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not inspect SDK version file: " + err.Error()}}
 	}
 	if !linkInfo.Mode().IsRegular() || linkInfo.Mode()&os.ModeSymlink != 0 {
-		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file is not a regular non-symlink file"}
+		return []Instance{{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file is not a regular non-symlink file"}}
 	}
 	file, err := os.Open(versionPath)
 	if err != nil {
-		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not read SDK version file: " + err.Error()}
+		return []Instance{{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not read SDK version file: " + err.Error()}}
 	}
 	defer file.Close()
 	openedInfo, err := file.Stat()
 	if err != nil || !openedInfo.Mode().IsRegular() || !os.SameFile(linkInfo, openedInfo) {
-		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file changed while being opened"}
+		return []Instance{{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file changed while being opened"}}
 	}
 	contents, err := io.ReadAll(io.LimitReader(file, 129))
 	if err != nil {
-		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not read SDK version file: " + err.Error()}
+		return []Instance{{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not read SDK version file: " + err.Error()}}
 	}
 	version := strings.TrimSpace(string(contents))
-	if len(contents) > 128 || !artifactVersionPattern.MatchString(version) {
-		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file contains an invalid version"}
+	if len(contents) > 128 || !tool.IsValidArtifactVersion(version) {
+		return []Instance{{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file contains an invalid version"}}
 	}
-	return Instance{Executable: "SDK version file", Path: installPath, Version: version, State: Healthy}
+	if len(manifest.Executables) == 0 {
+		return []Instance{{Executable: "artifact metadata", Path: installPath, Version: version, State: Unknown, Diagnostic: "artifact declares no executable to verify"}}
+	}
+	var instances []Instance
+	for _, executable := range manifest.Executables {
+		directories := []string{filepath.Join(installPath, "bin")}
+		if manifest.ID == "zephyr-sdk" {
+			toolchain := strings.TrimSuffix(executable, filepath.Ext(executable))
+			if separator := strings.LastIndexByte(toolchain, '-'); separator > 0 {
+				directories = append(directories, filepath.Join(installPath, toolchain[:separator], "bin"))
+			}
+		}
+		paths := findExecutablesInDirectories(executable, directories)
+		if len(paths) == 0 {
+			instances = append(instances, Instance{Executable: executable, Path: installPath, Version: version, State: Unknown, Diagnostic: "declared SDK executable is missing from the installed artifact"})
+			continue
+		}
+		for _, path := range paths {
+			instance := inspectExecutableVersion(ctx, path, executable, manifest, machine)
+			if instance.State == Healthy {
+				instance.Version = version
+			}
+			instances = append(instances, instance)
+		}
+	}
+	return instances
+}
+
+func inspectExecutableVersion(ctx context.Context, path, executable string, manifest tool.Manifest, machine platform.Info) Instance {
+	instance := inspectVersion(ctx, path, executable, manifest.VersionArgs, manifest.HealthPattern)
+	architectures, recognized, architectureErr := binaryArchitectures(path)
+	instance.Architecture = architectures
+	instance.ArchitectureStatus = ArchitectureUnverified
+	if architectureErr != nil {
+		instance.ArchitectureDiagnostic = "binary architecture could not be read: " + architectureErr.Error()
+	} else if recognized {
+		if containsArchitecture(architectures, machine.Architecture) {
+			instance.ArchitectureStatus = ArchitectureCompatible
+		} else {
+			instance.ArchitectureStatus = ArchitectureMismatch
+			instance.State = Conflicting
+			instance.ArchitectureDiagnostic = fmt.Sprintf("binary architecture %s does not match host architecture %s", joinArchitectures(architectures), machine.Architecture)
+		}
+	}
+	return instance
 }
 
 func findExecutables(name string) []string {
