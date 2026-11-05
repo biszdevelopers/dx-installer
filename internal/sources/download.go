@@ -56,6 +56,12 @@ type DownloadResult struct {
 	Size       int64
 }
 
+type DownloadProgress struct {
+	SourceName    string
+	BytesReceived int64
+	TotalBytes    int64
+}
+
 type DownloadOptions struct {
 	Transport   http.RoundTripper
 	MaxAttempts int
@@ -131,6 +137,10 @@ func (d *Downloader) WithArtifactLimit(maxBytes int64) (*Downloader, error) {
 }
 
 func (d *Downloader) Download(ctx context.Context, policy Policy, candidates []RemoteSource, workspace string) (DownloadResult, error) {
+	return d.DownloadWithProgress(ctx, policy, candidates, workspace, nil)
+}
+
+func (d *Downloader) DownloadWithProgress(ctx context.Context, policy Policy, candidates []RemoteSource, workspace string, progress func(DownloadProgress)) (DownloadResult, error) {
 	ordered, err := orderSources(policy, candidates)
 	if err != nil {
 		return DownloadResult{}, err
@@ -149,7 +159,7 @@ func (d *Downloader) Download(ctx context.Context, policy Policy, candidates []R
 	var lastErr error
 	for _, source := range ordered {
 		for attempt := 0; attempt < d.options.MaxAttempts; attempt++ {
-			result, retryAfter, attemptErr := d.downloadOnce(ctx, source, workspace)
+			result, retryAfter, attemptErr := d.downloadOnce(ctx, source, workspace, progress)
 			if attemptErr == nil {
 				return result, nil
 			}
@@ -259,6 +269,10 @@ func ValidateRemoteSource(source RemoteSource) error {
 }
 
 func (d *Downloader) CopyLocal(ctx context.Context, sourcePath, expectedSHA256, workspace string, publicKey ed25519.PublicKey, signature []byte) (DownloadResult, error) {
+	return d.CopyLocalWithProgress(ctx, sourcePath, expectedSHA256, workspace, publicKey, signature, nil)
+}
+
+func (d *Downloader) CopyLocalWithProgress(ctx context.Context, sourcePath, expectedSHA256, workspace string, publicKey ed25519.PublicKey, signature []byte, progress func(DownloadProgress)) (DownloadResult, error) {
 	if !filepath.IsAbs(sourcePath) {
 		return DownloadResult{}, errors.New("offline archive path must be absolute")
 	}
@@ -301,7 +315,9 @@ func (d *Downloader) CopyLocal(ctx context.Context, sourcePath, expectedSHA256, 
 		return DownloadResult{}, fmt.Errorf("restrict temporary offline archive permissions: %w", err)
 	}
 	hasher := sha256.New()
-	written, copyErr := io.Copy(io.MultiWriter(output, hasher), io.LimitReader(contextReader{ctx: ctx, reader: input}, d.options.MaxBytes+1))
+	reader := &progressReader{reader: io.LimitReader(contextReader{ctx: ctx, reader: input}, d.options.MaxBytes+1), sourceName: "offline local archive", totalBytes: info.Size(), report: progress}
+	written, copyErr := io.Copy(io.MultiWriter(output, hasher), reader)
+	reader.ReportFinal()
 	if copyErr != nil {
 		cleanup()
 		return DownloadResult{}, fmt.Errorf("copy offline archive: %w", copyErr)
@@ -346,7 +362,7 @@ func (reader contextReader) Read(buffer []byte) (int, error) {
 	return reader.reader.Read(buffer)
 }
 
-func (d *Downloader) downloadOnce(parent context.Context, source RemoteSource, workspace string) (DownloadResult, time.Duration, error) {
+func (d *Downloader) downloadOnce(parent context.Context, source RemoteSource, workspace string, progress func(DownloadProgress)) (DownloadResult, time.Duration, error) {
 	ctx, cancel := context.WithTimeout(parent, d.options.Timeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, source.URL, nil)
@@ -393,7 +409,13 @@ func (d *Downloader) downloadOnce(parent context.Context, source RemoteSource, w
 		return DownloadResult{}, 0, fmt.Errorf("restrict temporary artifact permissions: %w", err)
 	}
 	hasher := sha256.New()
-	written, copyErr := io.Copy(io.MultiWriter(file, hasher), io.LimitReader(response.Body, d.options.MaxBytes+1))
+	totalBytes := response.ContentLength
+	if totalBytes < 0 {
+		totalBytes = source.Size
+	}
+	reader := &progressReader{reader: io.LimitReader(response.Body, d.options.MaxBytes+1), sourceName: source.Name, totalBytes: totalBytes, report: progress}
+	written, copyErr := io.Copy(io.MultiWriter(file, hasher), reader)
+	reader.ReportFinal()
 	if copyErr != nil {
 		cleanup()
 		return DownloadResult{}, 0, fmt.Errorf("read artifact from %s: %w", source.Name, copyErr)
@@ -428,6 +450,36 @@ func (d *Downloader) downloadOnce(parent context.Context, source RemoteSource, w
 		return DownloadResult{}, 0, fmt.Errorf("%w: Ed25519 signature mismatch from %s", ErrIntegrity, source.Name)
 	}
 	return DownloadResult{Path: path, SourceName: source.Name, SourceKind: source.Kind, URL: source.URL, SHA256: actual, Size: written}, 0, nil
+}
+
+type progressReader struct {
+	reader            io.Reader
+	sourceName        string
+	bytesRead         int64
+	totalBytes        int64
+	lastReported      time.Time
+	lastReportedBytes int64
+	report            func(DownloadProgress)
+}
+
+func (reader *progressReader) Read(buffer []byte) (int, error) {
+	count, err := reader.reader.Read(buffer)
+	if count > 0 {
+		reader.bytesRead += int64(count)
+		if reader.lastReported.IsZero() || time.Since(reader.lastReported) >= 250*time.Millisecond || (reader.totalBytes > 0 && reader.bytesRead >= reader.totalBytes) {
+			reader.ReportFinal()
+		}
+	}
+	return count, err
+}
+
+func (reader *progressReader) ReportFinal() {
+	if reader.report == nil || reader.lastReportedBytes == reader.bytesRead {
+		return
+	}
+	reader.report(DownloadProgress{SourceName: reader.sourceName, BytesReceived: reader.bytesRead, TotalBytes: reader.totalBytes})
+	reader.lastReported = time.Now()
+	reader.lastReportedBytes = reader.bytesRead
 }
 
 type statusError struct{ code int }
