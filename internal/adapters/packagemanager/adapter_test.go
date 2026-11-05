@@ -42,6 +42,13 @@ func TestBuildCommandUsesTypedArgumentsWithoutSilentAcceptance(t *testing.T) {
 			want:      []string{"install", "--no-install-recommends", "git"},
 			privilege: true,
 		},
+		{
+			name:      "yum system scope",
+			installer: tool.Installer{Manager: tool.YUM, PackageID: "git", Platform: tool.Linux, Scope: tool.SystemScope},
+			os:        tool.Linux,
+			want:      []string{"install", "git"},
+			privilege: true,
+		},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -90,6 +97,22 @@ func TestLinuxManagerOrderChecksExistingHomebrewAfterNativeManagers(t *testing.T
 		if len(order) == 0 || order[len(order)-1] != tool.Homebrew {
 			t.Errorf("%s manager order = %#v, want Homebrew as the last fallback", distribution, order)
 		}
+	}
+}
+
+func TestYUMIsDetectedAfterDNFOnRPMDistributions(t *testing.T) {
+	order := managerOrder(tool.Linux, "centos")
+	dnfIndex, yumIndex := -1, -1
+	for index, manager := range order {
+		if manager == tool.DNF {
+			dnfIndex = index
+		}
+		if manager == tool.YUM {
+			yumIndex = index
+		}
+	}
+	if dnfIndex < 0 || yumIndex <= dnfIndex || managerExecutable(tool.YUM) != "yum" {
+		t.Fatalf("RPM manager order/executable = %#v / %q, want DNF then yum", order, managerExecutable(tool.YUM))
 	}
 }
 
