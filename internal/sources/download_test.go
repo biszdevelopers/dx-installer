@@ -59,6 +59,25 @@ func TestDownloadVerifiesHashAndEd25519Signature(t *testing.T) {
 	}
 }
 
+func TestWithArtifactLimitRaisesOnlyTheDefaultSafetyLimit(t *testing.T) {
+	const required = int64(2 << 30)
+	defaultDownloader := NewDownloader(DownloadOptions{})
+	large, err := defaultDownloader.WithArtifactLimit(required)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if large.options.MaxBytes != required || defaultDownloader.options.MaxBytes != defaultMaxBytes {
+		t.Fatalf("raised limit = %d, original limit = %d", large.options.MaxBytes, defaultDownloader.options.MaxBytes)
+	}
+	strict, err := NewDownloader(DownloadOptions{MaxBytes: 512}).WithArtifactLimit(required)
+	if err == nil || strict != nil {
+		t.Fatalf("explicitly capped downloader was raised: %#v, %v", strict, err)
+	}
+	if _, err := defaultDownloader.WithArtifactLimit(maxArtifactBytes + 1); err == nil {
+		t.Fatal("limit above the implementation maximum was accepted")
+	}
+}
+
 func TestCopyLocalVerifiesPinnedDigestWithoutChangingTheBundle(t *testing.T) {
 	contents := []byte("offline archive payload")
 	digest := sha256.Sum256(contents)
