@@ -30,6 +30,16 @@
     "version_args": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?:[A-Za-z0-9-][A-Za-z0-9._=:+/?-]*|@DEVNULL@|@ESPRESSIF-TOOLS@)$" } },
     "health_pattern": { "type": "string", "minLength": 1 },
     "dependencies": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/identifier" } },
+    "platform_dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "windows": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/identifier" } },
+        "macos": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/identifier" } },
+        "linux": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/identifier" } },
+        "bsd": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/identifier" } }
+      }
+    },
     "provided_by": { "$ref": "#/$defs/identifier" },
     "conflicts": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/identifier" } },
     "platforms": {
