@@ -21,6 +21,7 @@ import (
 )
 
 func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output io.Writer) error {
+	output = asciiFallbackWriter{Writer: output, ASCII: asciiFallbackEnabled()}
 	reader := bufio.NewReader(input)
 	fmt.Fprintln(output, "DX Bootstrap — line-oriented terminal mode")
 	for _, warning := range model.inventory.Warnings {
