@@ -130,16 +130,20 @@ func TestPlanDisclosesZephyrSDKSizeAndVendorSetupBeforeApproval(t *testing.T) {
 	}
 	home := t.TempDir()
 	t.Setenv("USERPROFILE", home)
-	current := windowsInventory(nil,
+	current := windowsInventory([]packagemanager.Detected{{Manager: tool.Winget}},
 		detection.Tool{ID: "cmake", Name: "CMake", State: detection.Healthy},
+		detection.Tool{ID: "seven-zip", Name: "7-Zip", State: detection.Missing},
 		detection.Tool{ID: "zephyr-sdk", Name: "Zephyr SDK", State: detection.Missing},
 	)
 	plan, err := Build(items, current, []string{"zephyr-sdk"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Blocked || len(plan.Items) != 2 {
+	if plan.Blocked || len(plan.Items) != 3 {
 		t.Fatalf("Zephyr SDK plan is blocked or has unexpected items: %#v", plan)
+	}
+	if plan.Items[0].ToolID != "cmake" || plan.Items[0].Action != Preserve || plan.Items[1].ToolID != "seven-zip" || plan.Items[1].Action != Install || plan.Items[1].Manager != tool.Winget {
+		t.Fatalf("Zephyr SDK prerequisites were not planned in dependency order: %#v", plan.Items)
 	}
 	var item Item
 	for _, planned := range plan.Items {
@@ -151,8 +155,36 @@ func TestPlanDisclosesZephyrSDKSizeAndVendorSetupBeforeApproval(t *testing.T) {
 	if item.ToolID != "zephyr-sdk" || item.Artifact == nil || item.SizeEstimateNote == "" || !strings.Contains(item.SizeEstimateNote, "1.87 GB") {
 		t.Fatalf("plan omitted the SDK download estimate: %#v", item)
 	}
-	if item.InstallationNote == "" || !strings.Contains(item.InstallationNote, "setup script") || item.InstallPath != filepath.Join(home, "zephyr-sdk-1.0.1") || len(item.PathChanges) != 0 {
+	if item.InstallationNote == "" || !strings.Contains(item.InstallationNote, "arm-zephyr-eabi") || item.InstallPath != filepath.Join(home, "zephyr-sdk-1.0.1") || len(item.PathChanges) != 0 {
 		t.Fatalf("plan omitted setup behavior or declared an unnecessary PATH change: %#v", item)
+	}
+	if len(item.Dependencies) != 2 || item.Dependencies[0] != "cmake" || item.Dependencies[1] != "seven-zip" {
+		t.Fatalf("Windows plan omitted the conditional archive dependency: %#v", item.Dependencies)
+	}
+}
+
+func TestPlanOmitsWindowsOnlyZephyrArchiveDependencyOnLinux(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+		Managers: []packagemanager.Detected{{Manager: tool.APT}},
+		Tools: map[string]detection.Tool{
+			"cmake":      {ID: "cmake", Name: "CMake", State: detection.Healthy},
+			"zephyr-sdk": {ID: "zephyr-sdk", Name: "Zephyr SDK", State: detection.Missing},
+		},
+	}
+	plan, err := Build(items, current, []string{"zephyr-sdk"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Blocked || len(plan.Items) != 2 || plan.Items[0].ToolID != "cmake" || plan.Items[1].ToolID != "zephyr-sdk" {
+		t.Fatalf("Linux Zephyr SDK plan included an unnecessary prerequisite or was blocked: %#v", plan)
+	}
+	if len(plan.Items[1].Dependencies) != 1 || plan.Items[1].Dependencies[0] != "cmake" {
+		t.Fatalf("Linux Zephyr dependencies = %#v, want only cmake", plan.Items[1].Dependencies)
 	}
 }
 
