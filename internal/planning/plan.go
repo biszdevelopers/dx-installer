@@ -60,6 +60,7 @@ type Item struct {
 	Version            string
 	ApproximateSize    int64
 	SizeEstimateNote   string
+	InstallationNote   string
 	InstallPath        string
 	PathChanges        []pathconfig.Change
 	RegionalFallback   bool
@@ -501,6 +502,8 @@ func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool
 		Artifact:           &manifestCopy,
 		Version:            artifact.Version,
 		ApproximateSize:    artifact.ApproximateSize,
+		SizeEstimateNote:   artifact.SizeEstimateNote,
+		InstallationNote:   artifact.InstallationNote,
 		InstallPath:        installPath,
 		PathChanges:        pathChanges,
 		RegionalFallback:   allowRegionalFallback && artifact.RegionalURL != "" && customURL == "" && offlinePath == "",
