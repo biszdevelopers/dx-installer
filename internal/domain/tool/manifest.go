@@ -446,7 +446,7 @@ func installerSupportsArchitecture(installer Installer, architecture Architectur
 }
 
 func validRelativePathEntry(entry string) bool {
-	return entry != "" && path.Clean(entry) == entry && !strings.HasPrefix(entry, "/") && !strings.Contains(entry, "\\") && entry != "." && entry != ".." && !strings.HasPrefix(entry, "../")
+	return entry != "" && path.Clean(entry) == entry && !strings.HasPrefix(entry, "/") && !strings.ContainsRune(entry, '\\') && !strings.ContainsAny(entry, ":\x00") && entry != "." && entry != ".." && !strings.HasPrefix(entry, "../")
 }
 
 func validRegistryEcosystem(ecosystem RegistryEcosystem) bool {
