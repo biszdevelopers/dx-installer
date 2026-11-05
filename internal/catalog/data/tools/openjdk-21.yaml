@@ -12,15 +12,21 @@ version_args: [-version]
 dependencies: []
 conflicts: []
 platforms:
-  macos: [arm64]
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
   linux: [amd64, arm64]
 installers:
+  - platform: windows
+    manager: winget
+    package_id: EclipseAdoptium.Temurin.21.JDK
+    scope: system
+    source: winget
   - platform: macos
     manager: homebrew
-    package_id: openjdk@21
+    package_id: temurin@21
+    kind: cask
     scope: user
-    source: homebrew-core
-    path_entries: [bin]
+    source: homebrew-cask
   - platform: linux
     manager: homebrew
     package_id: openjdk@21
