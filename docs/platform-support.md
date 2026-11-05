@@ -1,20 +1,28 @@
 # Platform support
 
-Platform detection maps Go targets to Windows, macOS, Linux, and BSD families. Linux distribution identification reads only `ID` and `VERSION_ID` from `/etc/os-release`. The manager adapter detects existing winget, Scoop, Chocolatey, Homebrew, MacPorts, APT, DNF, Pacman, Zypper, APK, and FreeBSD `pkg` executables.
+Platform detection maps Go targets to Windows, macOS, Linux, and BSD families. Linux distribution identification reads `ID` and `VERSION_ID` from `/etc/os-release`. Manifest support is per tool: a tool can be installed only when its declared platform and architecture match and a compatible installer is available.
 
-The default release target matrix is:
+## Release and install targets
 
-| OS | Architectures in release generator | Package-manager adapters |
+| OS | Bootstrap release architectures | Available installer families |
 | --- | --- | --- |
-| Windows | amd64, arm64 | winget, Scoop, Chocolatey |
-| macOS | amd64, arm64 | Homebrew, MacPorts |
-| Linux | amd64, arm64 | APT, DNF, Pacman, Zypper, APK |
-| FreeBSD | amd64 | FreeBSD `pkg` |
+| Windows | amd64, arm64 | WinGet, Scoop, Chocolatey; Android SDK and Espressif EIM special-purpose installers; catalog-pinned archives and registry installers where declared |
+| macOS | amd64, arm64 | Homebrew, MacPorts; Android SDK and Espressif EIM special-purpose installers; catalog-pinned archives and registry installers where declared |
+| Linux | amd64, arm64 | APT, DNF, Pacman, Zypper, APK, existing Homebrew; Android SDK and Espressif EIM special-purpose installers; catalog-pinned archives and registry installers where declared |
+| FreeBSD | amd64 | FreeBSD `pkg`; catalog-pinned archives where declared |
 
-The CI workflow runs native Go tests and native builds on the six Windows/macOS/Linux architecture pairs. The package-manager workflow tests Ninja through five Linux managers in disposable containers and through `pkg` in a FreeBSD 15.1 VM, SQLite through Chocolatey on Windows amd64, and OpenOCD through Homebrew on macOS amd64 and arm64. Release publication waits for both workflows. Confirm all jobs are green before publishing. Scoop, WinGet, MacPorts, and other manager/tool pairs are not integration-tested.
+CI runs native Go tests and builds on the six Windows/macOS/Linux architecture pairs. The release generator also cross-builds and validates FreeBSD amd64. The package-manager workflow tests Ninja through five Linux managers in disposable containers and through `pkg` in a FreeBSD 15.1 VM, SQLite through Chocolatey on Windows amd64, and OpenOCD through Homebrew on macOS amd64 and arm64. Release publication waits for both workflows. WinGet, Scoop, MacPorts, Android SDK, Espressif EIM, and other manager/tool combinations are not live integration-tested.
 
-Tool support is per manifest. A tool is installable only if its declared platform/architecture matches and a compatible already-installed package manager is found. Unsupported selections block the whole plan. The engine does not install managers, change repositories, or substitute another architecture.
+Direct artifact support is declared separately from package-manager support. Catalog manifests may provide ZIP, tar.gz, tar.xz, or 7z archives for exact OS/architecture pairs. The archive is hash-checked, size-bounded, safely extracted to a user-level path, and verified with its declared version command. Registry installs are available only for manifests that declare an exact-version npm, PyPI, Go module, or Cargo installer. Neither capability implies universal support across the catalog.
 
-The BSD value in the domain model groups BSD-family operating systems, but the only implemented BSD package-manager adapter is FreeBSD `pkg`. FreeBSD is the only BSD release and integration target. OpenBSD, NetBSD, and DragonFly are identified by their distribution name, but have no catalog install adapter yet; their tool selections block instead of running FreeBSD package commands.
+## Operating-system boundaries
 
-Inventory checks executable names on `PATH` and in a bounded set of standard installation directories. It includes common JDK, Python, Node version-manager, Scoop-version, and Homebrew Cellar locations, so multiple instances found there are reported separately. DX does not scan the whole disk; nonstandard locations can still be missed. It also queries local package records on Windows through Scoop's application directories and Chocolatey's `lib` metadata, Linux through `dpkg-query`, `rpm`, `pacman`, or `apk`, macOS through Homebrew or MacPorts, and FreeBSD through `pkg`. WinGet inventory runs `winget export` with version information into a unique temporary directory, bounds the export to 8 MiB and 50,000 packages, and removes the temporary file. Microsoft documents that export can consult configured sources to match installed apps; DX disables interaction, does not accept source agreements, requests English diagnostics, and treats export warnings as an incomplete query ([WinGet export command](https://learn.microsoft.com/en-us/windows/package-manager/winget/export), [global output options](https://github.com/microsoft/winget-cli/blob/master/doc/windows/package-manager/winget/index.md)). If a detected manager's inventory query fails, tools supported by that manager remain unknown rather than being classified as missing. A package record without a discoverable executable is shown as unknown and preserved; it is not claimed to be functional. Health checks currently confirm the declared version command, not a tool-specific build or runtime probe.
+The BSD value groups BSD-family systems, but the only implemented BSD package-manager adapter is FreeBSD `pkg`; FreeBSD is the only BSD release and integration target. OpenBSD, NetBSD, and DragonFly can be identified, but have no catalog install adapter. Their selections block instead of running FreeBSD package commands.
+
+Package managers must already exist. DX does not install them or change their repositories. System-scope package commands may require approval for `sudo` on Unix-like systems; package-manager prompts remain visible. Direct artifact installers use user-level paths and disclose any planned persistent PATH change before approval.
+
+## Inventory and verification boundaries
+
+Inventory checks executable names on `PATH` and a bounded set of standard locations, including common JDK, Python, Node version-manager, Scoop-version, and Homebrew Cellar paths. DX does not scan the entire disk, so nonstandard locations can be missed. It queries local package records through Scoop and Chocolatey metadata, `dpkg-query`, `rpm`, Pacman, APK, Homebrew, MacPorts, and FreeBSD `pkg`. WinGet inventory uses a temporary export bounded to 8 MiB and 50,000 packages; its query may consult configured sources, but DX accepts no source agreements. If a manager query fails, affected tools remain unknown. A package record without a discoverable executable is also preserved as unknown.
+
+Health checks currently run each manifest's declared version command and verify detected architecture where supported. They do not run a tool-specific build or runtime probe. CI integration coverage is intentionally narrower than the declared manager matrix; see [release process](release-process.md) for the current jobs.
