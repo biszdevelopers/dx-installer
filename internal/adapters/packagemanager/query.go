@@ -61,6 +61,13 @@ func (b *boundedOutput) Write(value []byte) (int, error) {
 // manager queries. A failed query is a warning, never proof that a package is
 // absent.
 func QueryInstalled(parent context.Context, managers []Detected) PackageInventory {
+	queryable := make([]Detected, 0, len(managers))
+	for _, manager := range managers {
+		if manager.Manager != tool.AndroidSDK {
+			queryable = append(queryable, manager)
+		}
+	}
+	managers = queryable
 	if len(managers) == 0 {
 		return PackageInventory{}
 	}
