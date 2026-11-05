@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"embed"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +14,9 @@ import (
 
 	"developers-club-dx/internal/domain/tool"
 )
+
+//go:embed testdata/archive-fixture.7z
+var sevenZipFixture embed.FS
 
 func TestExtractZipArchiveUnderDeclaredRoot(t *testing.T) {
 	archivePath := filepath.Join(t.TempDir(), "go.zip")
@@ -76,6 +80,25 @@ func TestExtractTarXZArchiveUnderDeclaredRoot(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(destination, "arm-zephyr-eabi", "bin", "compiler"))
 	if err != nil || string(got) != "binary" {
 		t.Fatalf("extracted tar.xz compiler = %q, %v", got, err)
+	}
+}
+
+func TestExtractSevenZipArchiveUnderDeclaredRoot(t *testing.T) {
+	archiveBytes, err := sevenZipFixture.ReadFile("testdata/archive-fixture.7z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	archivePath := filepath.Join(t.TempDir(), "sample.7z")
+	if err := os.WriteFile(archivePath, archiveBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	destination := t.TempDir()
+	if err := Extract(archivePath, destination, "sample", tool.SevenZip, Limits{MaxExpandedBytes: 1024}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(destination, "bin", "tool.txt"))
+	if err != nil || string(got) != "7z fixture payload" {
+		t.Fatalf("extracted 7z payload = %q, %v", got, err)
 	}
 }
 
