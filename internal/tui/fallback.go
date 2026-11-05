@@ -253,7 +253,14 @@ func printPlan(output io.Writer, plan planning.Plan) {
 			continue
 		}
 		if item.Artifact != nil {
-			fmt.Fprintf(output, "  INSTALL %s %s\n    official source: %s\n    SHA-256: %s\n    approximate download: %s\n    install path: %s\n", item.Name, item.Version, item.Source, item.Artifact.SHA256, approximateSize(item.ApproximateSize), item.InstallPath)
+			sizeEstimate := approximateSize(item.ApproximateSize)
+			if item.SizeEstimateNote != "" {
+				sizeEstimate = item.SizeEstimateNote
+			}
+			fmt.Fprintf(output, "  INSTALL %s %s\n    official source: %s\n    SHA-256: %s\n    approximate download: %s\n    install path: %s\n", item.Name, item.Version, item.Source, item.Artifact.SHA256, sizeEstimate, item.InstallPath)
+			if item.InstallationNote != "" {
+				fmt.Fprintf(output, "    setup: %s\n", item.InstallationNote)
+			}
 			for _, change := range item.PathChanges {
 				if change.Manual {
 					fmt.Fprintf(output, "    PATH: manual update required (%s)\n    command: %s\n", change.Target, change.ManualCommand)
