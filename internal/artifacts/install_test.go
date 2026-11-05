@@ -105,17 +105,44 @@ func TestPostInstallRejectsUnknownAction(t *testing.T) {
 
 func TestPostInstallRunsOnlyTypedVendorSetupAction(t *testing.T) {
 	root := t.TempDir()
+	if runtime.GOOS == "windows" {
+		if err := os.WriteFile(filepath.Join(root, "7z.exe"), []byte("test 7-Zip command"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+	}
+	if err := os.MkdirAll(filepath.Join(root, "gnu", "arm-zephyr-eabi"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	scriptName := "setup.sh"
-	script := []byte("#!/bin/sh\nexit 0\n")
+	script := []byte("#!/bin/sh\n[ \"$1\" = \"-t\" ] && [ \"$2\" = \"arm-zephyr-eabi\" ] && [ \"$3\" = \"-h\" ]\n")
 	if runtime.GOOS == "windows" {
 		scriptName = "setup.cmd"
-		script = []byte("@echo off\r\nexit /b 0\r\n")
+		script = []byte("@echo off\r\nif /i not \"%~1\"==\"/t\" exit /b 11\r\nif /i not \"%~2\"==\"arm-zephyr-eabi\" exit /b 12\r\nexit /b 0\r\n")
 	}
 	if err := os.WriteFile(filepath.Join(root, scriptName), script, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if err := runPostInstallAction(context.Background(), root, tool.ZephyrSDKSetup); err != nil {
 		t.Fatalf("typed Zephyr setup action failed to launch: %v", err)
+	}
+}
+
+func TestPrependExecutableDirectoryPreservesOtherEnvironment(t *testing.T) {
+	environment := []string{"HOME=example", "Path=original", "OTHER=value"}
+	got := prependExecutableDirectory(environment, "tool-bin")
+	if len(got) != 3 || got[1] != "Path=tool-bin"+string(os.PathListSeparator)+"original" || got[0] != environment[0] || got[2] != environment[2] {
+		t.Fatalf("updated environment = %#v", got)
+	}
+	if environment[1] != "Path=original" {
+		t.Fatalf("input environment was mutated: %#v", environment)
+	}
+}
+
+func TestPostInstallRejectsMissingBundledZephyrToolchain(t *testing.T) {
+	root := t.TempDir()
+	if err := runPostInstallAction(context.Background(), root, tool.ZephyrSDKSetup); err == nil {
+		t.Fatal("Zephyr setup was allowed to run without the pinned bundled toolchain")
 	}
 }
 
