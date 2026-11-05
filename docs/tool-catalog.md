@@ -1,34 +1,21 @@
 # Embedded tool catalog
 
-The catalog currently contains 61 tools and 16 profiles. Inspect exact manifests with `go run ./cmd/bootstrap catalog --json`; each manifest also lives under `internal/catalog/data/tools/`.
+The embedded catalog contains **219 tool manifests and 18 profiles**. The complete, current list is available from `go run ./cmd/bootstrap catalog`; `go run ./cmd/bootstrap catalog --json` emits the manifest data as JSON. Source manifests are in `internal/catalog/data/tools/`, and profiles are in `internal/catalog/data/profiles/`.
 
-| Category | Tools |
-| --- | --- |
-| Version control | Git, Git LFS, GitHub CLI |
-| JavaScript | Bun, Node.js LTS, pnpm, Yarn Classic, TypeScript |
-| Python | Python 3, uv |
-| Java | Eclipse Temurin JDK 25, Maven, Gradle, Kotlin |
-| PHP and Ruby | PHP CLI, Ruby |
-| BEAM languages | Erlang/OTP, Elixir |
-| Other languages | GHC, OCaml, R, GNU Fortran, Perl, Julia, Zig, Swift |
-| Mobile and infrastructure | Dart SDK, Flutter SDK, Android Platform Tools (ADB), kubectl, Docker CLI |
-| Go | Go |
-| Rust | Rustup |
-| C/C++ | GCC, Clang, CMake, Ninja, GDB, LLDB |
-| .NET | .NET SDK 10 |
-| Shell | PowerShell |
-| API and protocols | Protocol Buffers, buf, grpcurl, grpcui |
-| Database | SQLite CLI, PostgreSQL Client, DuckDB |
-| Embedded | OpenOCD |
-| DevOps and cloud | Helm, Ansible, AWS CLI, Azure CLI |
-| Security and code quality | Trivy, Gitleaks, ShellCheck, shfmt, actionlint, Syft, Grype, Checkov |
+The catalog covers version control, JavaScript and TypeScript, JVM, C and C++, Python, Go, Rust, .NET, PHP, Ruby, Swift, Dart and Flutter, Zig, Lua, BEAM, Haskell, OCaml, Clojure, Julia, R, Perl, Fortran, additional languages, mobile and embedded development, database clients, API and protocol tooling, containers and DevOps, security and code quality, and documentation utilities.
 
-Profiles are API and Protocol, Complete, Database, DevOps, Embedded, Essential, Full Stack, Go, Java, Mobile, Python, Rust, Security, Swift, Systems Programming, and Web Development. Profiles are editable selections; applying one does not run a command. Mobile selects ADB and Flutter, Embedded selects the existing C toolchains and OpenOCD, DevOps selects Docker CLI, kubectl, Helm, Ansible, AWS CLI, and Azure CLI, Security selects local secret, shell, workflow, SBOM, and vulnerability analysis tools, Database selects SQLite, PostgreSQL, and DuckDB, API and Protocol selects Protocol Buffers and gRPC tools, and Swift selects the Swift compiler and Swift Package Manager.
+The 18 editable profiles are Additional languages, API and protocol tooling, Complete catalog, Database clients, DevOps tooling, .NET development, Embedded development, Essential, Full-stack, Go, Java, Mobile development, Python, Rust, Security and code quality, Swift, Systems programming, and Web development. Applying a profile changes the selection; it does not execute an installation.
 
-Manifests specify catalog IDs, version channel and no-automatic-upgrade policy, executable names and version arguments, dependencies/conflicts, declared platforms, and package-manager installers. They do not contain shell fragments or URLs. The runtime loader uses typed Go structs, rejects unknown YAML fields, validates manager/platform/scope combinations, and rejects missing dependencies, duplicate IDs, and graph cycles.
+## Manifest and installer model
 
-## Coverage limits
+Manifests declare tool IDs, version channels, no-automatic-upgrade policy, executables and version arguments, dependencies and conflicts, supported platforms, and any compatible installer methods. Installer methods include existing OS package managers, exact-version npm/PyPI/Go/Cargo registry entries, and catalog-pinned direct archives. Direct archives may include size limits, digest-verified regional URLs, expected archive roots, version markers, PATH entries, user-visible setup actions, and installation disclosures. Manifests cannot contain arbitrary shell fragments.
 
-The catalog still does not include every Phase 7 and Phase 9 language, mobile, embedded, database-server, DevOps, and security tool listed in the product specification. Swift currently has a Homebrew mapping for macOS arm64, matching the upstream Homebrew bottle matrix. The new API, cloud, and security entries currently have Homebrew mappings for macOS arm64; Gitleaks, ShellCheck, and actionlint also declare amd64. A package-manager installer is only a declared adapter mapping; actual availability still depends on the OS, architecture, configured repository, and detected manager. CI exercises Ninja through apt, dnf, pacman, zypper, and apk in disposable Linux containers and FreeBSD `pkg` in a FreeBSD VM, SQLite through Chocolatey on Windows amd64, and OpenOCD through Homebrew on macOS amd64 and arm64. It does not exercise every declared manager/platform pair.
+The runtime loader uses typed Go structures and strict YAML decoding. It rejects unknown fields, invalid manager/platform/scope combinations, malformed artifact metadata, duplicate IDs, missing dependencies, and dependency cycles. `go run ./cmd/catalog-check` validates the embedded catalog and profiles.
 
-Before adding a manifest, verify every package identifier against the named package manager's maintained metadata and check the package's publisher and scope. Add a focused manifest validation test, update relevant profiles, run the catalog checker, and document any real platform test.
+## Availability and verification
+
+Catalog entries are declarations, not a promise that every installer is available on every machine. The selected tool must match the detected OS and architecture, and the declared package manager or runtime must be present. Direct archive and registry methods are also limited to the exact platform and tool entries in each manifest. A plan reports the chosen source, command, integrity digest, install target, and any persistent PATH change before approval.
+
+CI exercises native builds on Windows, macOS, and Linux amd64/arm64. Live package-manager integration currently covers Ninja through APT, DNF, Pacman, Zypper, APK, and FreeBSD `pkg`; SQLite through Chocolatey on Windows amd64; and OpenOCD through Homebrew on macOS amd64 and arm64. Other declared manager/tool pairs are not claimed as live-tested. See [platform support](platform-support.md) for the current matrix.
+
+When adding a manifest, verify each package identifier and source against maintained upstream or package-manager metadata, check publisher and scope, declare only tested platform mappings, update relevant profiles, add focused validation coverage, and run the catalog checker.
