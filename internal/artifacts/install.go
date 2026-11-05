@@ -1,6 +1,7 @@
 package artifacts
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,7 +11,9 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
+	"developers-club-dx/internal/adapters/packagemanager"
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/platform"
 	"developers-club-dx/internal/sources"
@@ -48,6 +51,12 @@ func InstallationPath(machine tool.OperatingSystem, toolID, version, home string
 	if !toolIDPattern.MatchString(toolID) || !versionPattern.MatchString(version) || !filepath.IsAbs(home) {
 		return "", errors.New("tool ID, version, and absolute home directory are required")
 	}
+	if toolID == "zephyr-sdk" {
+		if machine == tool.Windows {
+			return filepath.Join(home, "zephyr-sdk-"+version), nil
+		}
+		return filepath.Join(home, ".local", "opt", "zephyr-sdk-"+version), nil
+	}
 	parent, err := installParent(machine, toolID, home)
 	if err != nil {
 		return "", err
@@ -73,17 +82,14 @@ func (i *ArchiveInstaller) InstallWithOptions(ctx context.Context, toolID, home 
 	if !versionPattern.MatchString(artifact.Version) {
 		return result, errors.New("archive version is invalid")
 	}
-	if artifact.Format != tool.TarGzip && artifact.Format != tool.Zip {
+	if artifact.Format != tool.TarGzip && artifact.Format != tool.TarXZ && artifact.Format != tool.Zip && artifact.Format != tool.SevenZip {
 		return result, fmt.Errorf("unsupported archive format %q", artifact.Format)
-	}
-	parent, err := installParent(machine.OS, toolID, home)
-	if err != nil {
-		return result, err
 	}
 	target, err := InstallationPath(machine.OS, toolID, artifact.Version, home)
 	if err != nil {
 		return result, err
 	}
+	parent := filepath.Dir(target)
 	if _, err := os.Lstat(target); err == nil {
 		return result, fmt.Errorf("installation target already exists; refusing to replace %s", target)
 	} else if !os.IsNotExist(err) {
@@ -92,6 +98,12 @@ func (i *ArchiveInstaller) InstallWithOptions(ctx context.Context, toolID, home 
 	downloader := i.Downloader
 	if downloader == nil {
 		downloader = sources.NewDownloader(sources.DownloadOptions{})
+	}
+	if artifact.MaxDownloadBytes > 0 {
+		downloader, err = downloader.WithArtifactLimit(artifact.MaxDownloadBytes)
+		if err != nil {
+			return result, fmt.Errorf("configure %s download limit: %w", toolID, err)
+		}
 	}
 
 	workspace, err := os.MkdirTemp(i.TempRoot, "dx-tool-install-")
@@ -119,7 +131,7 @@ func (i *ArchiveInstaller) InstallWithOptions(ctx context.Context, toolID, home 
 		if err != nil {
 			return result, fmt.Errorf("verify offline %s %s: %w", toolID, artifact.Version, err)
 		}
-		return i.extractAndPublish(toolID, download, target, parent, artifact)
+		return i.extractAndPublish(ctx, toolID, download, target, parent, artifact)
 	}
 	candidates := []sources.RemoteSource{{
 		Name:                 toolID + " " + artifact.Version + " official source",
@@ -155,10 +167,10 @@ func (i *ArchiveInstaller) InstallWithOptions(ctx context.Context, toolID, home 
 	if err != nil {
 		return result, fmt.Errorf("download %s %s: %w", toolID, artifact.Version, err)
 	}
-	return i.extractAndPublish(toolID, download, target, parent, artifact)
+	return i.extractAndPublish(ctx, toolID, download, target, parent, artifact)
 }
 
-func (i *ArchiveInstaller) extractAndPublish(toolID string, download sources.DownloadResult, target, parent string, artifact tool.Artifact) (result InstallResult, installErr error) {
+func (i *ArchiveInstaller) extractAndPublish(ctx context.Context, toolID string, download sources.DownloadResult, target, parent string, artifact tool.Artifact) (result InstallResult, installErr error) {
 	if err := os.MkdirAll(parent, 0o700); err != nil {
 		return result, fmt.Errorf("create user-level installation directory: %w", err)
 	}
@@ -188,7 +200,7 @@ func (i *ArchiveInstaller) extractAndPublish(toolID string, download sources.Dow
 			}
 		}
 	}()
-	if err := Extract(download.Path, staging, artifact.ArchiveRoot, artifact.Format, Limits{}); err != nil {
+	if err := Extract(download.Path, staging, artifact.ArchiveRoot, artifact.Format, Limits{MaxExpandedBytes: artifact.MaxExpandedBytes}); err != nil {
 		return result, fmt.Errorf("extract %s %s: %w", toolID, artifact.Version, err)
 	}
 	if artifact.InstallSubdirectory != "" {
@@ -206,7 +218,90 @@ func (i *ArchiveInstaller) extractAndPublish(toolID string, download sources.Dow
 		return result, fmt.Errorf("publish user-level installation: %w", err)
 	}
 	staging = ""
+	if artifact.PostInstallAction != "" {
+		if err := runPostInstallAction(ctx, target, artifact.PostInstallAction); err != nil {
+			cleanupErr := os.RemoveAll(target)
+			return result, errors.Join(fmt.Errorf("initialize %s after extraction: %w", toolID, err), cleanupErr)
+		}
+	}
 	return InstallResult{Path: target, Version: artifact.Version, SourceName: download.SourceName, SourceURL: download.URL, SHA256: download.SHA256}, nil
+}
+
+func runPostInstallAction(ctx context.Context, installPath string, action tool.PostInstallAction) error {
+	if action != tool.ZephyrSDKSetup {
+		return fmt.Errorf("unsupported typed post-install action %q", action)
+	}
+	setupScript := "setup.sh"
+	arguments := []string{"-t", "all", "-h"}
+	if runtime.GOOS == "windows" {
+		setupScript = "setup.cmd"
+		arguments = []string{"//t", "all", "//h"}
+	}
+	scriptPath := filepath.Join(installPath, setupScript)
+	info, err := os.Lstat(scriptPath)
+	if err != nil {
+		return fmt.Errorf("inspect bundled setup script: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("bundled setup script must be a regular non-symlink file")
+	}
+	setupContext, cancel := context.WithTimeout(ctx, 2*time.Hour)
+	defer cancel()
+	commandSpec := packagemanager.Command{Executable: scriptPath, Arguments: arguments}
+	command, err := commandSpec.ExecContext(setupContext)
+	if err != nil {
+		return fmt.Errorf("prepare bundled setup command: %w", err)
+	}
+	var stdout, stderr limitedCommandOutput
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("vendor setup command failed: %w%s", err, setupOutput(stdout.String(), stderr.String()))
+	}
+	if setupContext.Err() != nil {
+		return setupContext.Err()
+	}
+	return nil
+}
+
+type limitedCommandOutput struct {
+	buffer    bytes.Buffer
+	truncated bool
+}
+
+func (output *limitedCommandOutput) Write(contents []byte) (int, error) {
+	const maximum = 16 << 10
+	written := len(contents)
+	remaining := maximum - output.buffer.Len()
+	if remaining > 0 {
+		if remaining > len(contents) {
+			remaining = len(contents)
+		}
+		_, _ = output.buffer.Write(contents[:remaining])
+	}
+	if written > remaining {
+		output.truncated = true
+	}
+	return written, nil
+}
+
+func (output *limitedCommandOutput) String() string {
+	text := strings.TrimSpace(output.buffer.String())
+	if output.truncated {
+		text += " [output truncated]"
+	}
+	return text
+}
+
+func setupOutput(stdout, stderr string) string {
+	parts := make([]string, 0, 2)
+	if stdout != "" {
+		parts = append(parts, " stdout: "+stdout)
+	}
+	if stderr != "" {
+		parts = append(parts, " stderr: "+stderr)
+	}
+	return strings.Join(parts, ";")
 }
 
 func placeInSubdirectory(staging, parent, subdirectory string) (string, error) {
