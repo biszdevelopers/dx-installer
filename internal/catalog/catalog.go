@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"regexp"
+	"slices"
 	"sort"
 
 	"developers-club-dx/internal/domain/tool"
@@ -135,14 +136,24 @@ var profileIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 func (c *Catalog) validateGraph() error {
 	for _, id := range c.toolIDs {
 		manifest := c.tools[id]
-		for _, dependency := range manifest.Dependencies {
+		for _, dependency := range manifest.AllDependencies() {
 			if _, exists := c.tools[dependency]; !exists {
 				return fmt.Errorf("tool %q references unknown dependency %q", id, dependency)
 			}
 		}
-		dependencies := make(map[string]bool, len(manifest.Dependencies))
-		for _, dependency := range manifest.Dependencies {
+		dependencies := make(map[string]bool, len(manifest.AllDependencies()))
+		for _, dependency := range manifest.AllDependencies() {
 			dependencies[dependency] = true
+		}
+		for os, platformDependencies := range manifest.PlatformDependencies {
+			for _, dependencyID := range platformDependencies {
+				dependency := c.tools[dependencyID]
+				for _, architecture := range manifest.Platforms[os] {
+					if !dependency.Supports(os, architecture) {
+						return fmt.Errorf("tool %q requires dependency %q on unsupported %s/%s", id, dependencyID, os, architecture)
+					}
+				}
+			}
 		}
 		if manifest.ProvidedBy != "" {
 			if _, exists := c.tools[manifest.ProvidedBy]; !exists {
@@ -157,7 +168,7 @@ func (c *Catalog) validateGraph() error {
 		}
 		for _, installer := range manifest.RegistryInstallers {
 			runtimeTool := tool.RegistryRuntimeTool(installer.Ecosystem)
-			if runtimeTool == "" || !dependencies[runtimeTool] {
+			if runtimeTool == "" || !slices.Contains(manifest.DependenciesFor(installer.Platform), runtimeTool) {
 				return fmt.Errorf("tool %q registry installer %q requires declared dependency %q", id, installer.Ecosystem, runtimeTool)
 			}
 		}
@@ -167,27 +178,29 @@ func (c *Catalog) validateGraph() error {
 			}
 		}
 	}
-	state := make(map[string]uint8, len(c.tools))
-	var visit func(string, []string) error
-	visit = func(id string, chain []string) error {
-		switch state[id] {
-		case 1:
-			return fmt.Errorf("dependency cycle: %v -> %s", chain, id)
-		case 2:
+	for _, os := range []tool.OperatingSystem{tool.Windows, tool.MacOS, tool.Linux, tool.BSD} {
+		state := make(map[string]uint8, len(c.tools))
+		var visit func(string, []string) error
+		visit = func(id string, chain []string) error {
+			switch state[id] {
+			case 1:
+				return fmt.Errorf("dependency cycle on %s: %v -> %s", os, chain, id)
+			case 2:
+				return nil
+			}
+			state[id] = 1
+			for _, dependency := range c.tools[id].DependenciesFor(os) {
+				if err := visit(dependency, append(chain, id)); err != nil {
+					return err
+				}
+			}
+			state[id] = 2
 			return nil
 		}
-		state[id] = 1
-		for _, dependency := range c.tools[id].Dependencies {
-			if err := visit(dependency, append(chain, id)); err != nil {
+		for _, id := range c.toolIDs {
+			if err := visit(id, nil); err != nil {
 				return err
 			}
-		}
-		state[id] = 2
-		return nil
-	}
-	for _, id := range c.toolIDs {
-		if err := visit(id, nil); err != nil {
-			return err
 		}
 	}
 	return nil
