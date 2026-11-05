@@ -42,6 +42,7 @@ const (
 	Zypper     PackageManager = "zypper"
 	APK        PackageManager = "apk"
 	FreeBSDPkg PackageManager = "freebsd-pkg"
+	AndroidSDK PackageManager = "android-sdk"
 )
 
 type Scope string
@@ -139,6 +140,7 @@ var (
 	identifierPattern   = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 	executablePattern   = regexp.MustCompile(`^[A-Za-z0-9_.+-]+$`)
 	packageIDPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$`)
+	androidSDKPackagePattern = regexp.MustCompile(`^(?:platform-tools|emulator|build-tools;[0-9]+(?:\.[0-9]+){1,2})$`)
 	versionArgPattern   = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._=:+/-]*$`)
 	npmPackagePattern   = regexp.MustCompile(`^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/)?[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`)
 	pypiPackagePattern  = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,127})(?:\[[A-Za-z0-9][A-Za-z0-9._-]*(?:,[A-Za-z0-9][A-Za-z0-9._-]*)*\])?$`)
@@ -240,7 +242,7 @@ func (m Manifest) Validate() error {
 	}
 	seenInstallers := make(map[string]bool, len(m.Installers))
 	for _, installer := range m.Installers {
-		if !validPlatform(installer.Platform) || !validManager(installer.Manager) || !packageIDPattern.MatchString(installer.PackageID) {
+		if !validPlatform(installer.Platform) || !validManager(installer.Manager) || !validInstallerPackageID(installer.Manager, installer.PackageID) {
 			return fmt.Errorf("installer %q/%q has an invalid platform, manager, or package identifier", installer.Platform, installer.Manager)
 		}
 		if installer.Scope != UserScope && installer.Scope != SystemScope {
@@ -259,8 +261,8 @@ func (m Manifest) Validate() error {
 			}
 			seenInstallerArchitectures[architecture] = true
 		}
-		if len(installer.PathEntries) > 0 && installer.Manager != Homebrew {
-			return fmt.Errorf("installer %q/%q can declare formula-relative PATH entries only for Homebrew", installer.Platform, installer.Manager)
+		if len(installer.PathEntries) > 0 && installer.Manager != Homebrew && installer.Manager != AndroidSDK {
+			return fmt.Errorf("installer %q/%q can declare package-relative PATH entries only for Homebrew or Android SDK packages", installer.Platform, installer.Manager)
 		}
 		seenInstallerPathEntries := make(map[string]bool, len(installer.PathEntries))
 		for _, entry := range installer.PathEntries {
@@ -474,7 +476,7 @@ func validArchitecture(architecture Architecture) bool {
 
 func validManager(manager PackageManager) bool {
 	switch manager {
-	case Winget, Scoop, Chocolatey, Homebrew, MacPorts, APT, DNF, Pacman, Zypper, APK, FreeBSDPkg:
+	case Winget, Scoop, Chocolatey, Homebrew, MacPorts, APT, DNF, Pacman, Zypper, APK, FreeBSDPkg, AndroidSDK:
 		return true
 	default:
 		return false
@@ -493,6 +495,8 @@ func managerSupportsPlatform(manager PackageManager, os OperatingSystem) bool {
 		return os == Linux
 	case FreeBSDPkg:
 		return os == BSD
+	case AndroidSDK:
+		return os == Windows || os == MacOS || os == Linux
 	default:
 		return false
 	}
@@ -502,13 +506,20 @@ func managerSupportsScope(manager PackageManager, scope Scope) bool {
 	switch manager {
 	case Winget:
 		return scope == UserScope || scope == SystemScope
-	case Scoop, Homebrew:
+	case Scoop, Homebrew, AndroidSDK:
 		return scope == UserScope
 	case Chocolatey, MacPorts, APT, DNF, Pacman, Zypper, APK, FreeBSDPkg:
 		return scope == SystemScope
 	default:
 		return false
 	}
+}
+
+func validInstallerPackageID(manager PackageManager, packageID string) bool {
+	if manager == AndroidSDK {
+		return androidSDKPackagePattern.MatchString(packageID)
+	}
+	return packageIDPattern.MatchString(packageID)
 }
 
 func hasPlatform(platforms map[OperatingSystem][]Architecture, os OperatingSystem) bool {
