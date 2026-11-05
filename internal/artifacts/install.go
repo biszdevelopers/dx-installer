@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -230,11 +231,19 @@ func runPostInstallAction(ctx context.Context, installPath string, action tool.P
 	if action != tool.ZephyrSDKSetup {
 		return fmt.Errorf("unsupported typed post-install action %q", action)
 	}
+	toolchainPath := filepath.Join(installPath, "gnu", "arm-zephyr-eabi")
+	toolchainInfo, err := os.Lstat(toolchainPath)
+	if err != nil {
+		return fmt.Errorf("inspect bundled arm-zephyr-eabi toolchain: %w", err)
+	}
+	if !toolchainInfo.IsDir() || toolchainInfo.Mode()&os.ModeSymlink != 0 {
+		return errors.New("bundled arm-zephyr-eabi toolchain must be a real directory")
+	}
 	setupScript := "setup.sh"
-	arguments := []string{"-t", "all", "-h"}
+	arguments := []string{"-t", "arm-zephyr-eabi", "-h"}
 	if runtime.GOOS == "windows" {
 		setupScript = "setup.cmd"
-		arguments = []string{"//t", "all", "//h"}
+		arguments = []string{"/t", "arm-zephyr-eabi"}
 	}
 	scriptPath := filepath.Join(installPath, setupScript)
 	info, err := os.Lstat(scriptPath)
@@ -251,6 +260,13 @@ func runPostInstallAction(ctx context.Context, installPath string, action tool.P
 	if err != nil {
 		return fmt.Errorf("prepare bundled setup command: %w", err)
 	}
+	if runtime.GOOS == "windows" {
+		sevenZip, err := findSevenZipExecutable()
+		if err != nil {
+			return err
+		}
+		command.Env = prependExecutableDirectory(os.Environ(), filepath.Dir(sevenZip))
+	}
 	var stdout, stderr limitedCommandOutput
 	command.Stdout = &stdout
 	command.Stderr = &stderr
@@ -261,6 +277,45 @@ func runPostInstallAction(ctx context.Context, installPath string, action tool.P
 		return setupContext.Err()
 	}
 	return nil
+}
+
+func findSevenZipExecutable() (string, error) {
+	if path, err := exec.LookPath("7z.exe"); err == nil {
+		return path, nil
+	}
+	var candidates []string
+	for _, variable := range []string{"ProgramFiles", "ProgramFiles(x86)"} {
+		if root := os.Getenv(variable); filepath.IsAbs(root) {
+			candidates = append(candidates, filepath.Join(root, "7-Zip", "7z.exe"))
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil && filepath.IsAbs(home) {
+		candidates = append(candidates, filepath.Join(home, "scoop", "apps", "7zip", "current", "7z.exe"))
+	}
+	for _, root := range []string{os.Getenv("SCOOP"), os.Getenv("SCOOP_GLOBAL")} {
+		if filepath.IsAbs(root) {
+			candidates = append(candidates, filepath.Join(root, "apps", "7zip", "current", "7z.exe"))
+		}
+	}
+	for _, candidate := range candidates {
+		info, err := os.Stat(candidate)
+		if err == nil && info.Mode().IsRegular() {
+			return candidate, nil
+		}
+	}
+	return "", errors.New("7-Zip is required by the bundled Windows Zephyr SDK setup script but was not found")
+}
+
+func prependExecutableDirectory(environment []string, directory string) []string {
+	updated := append([]string(nil), environment...)
+	for index, variable := range updated {
+		separator := strings.IndexByte(variable, '=')
+		if separator > 0 && strings.EqualFold(variable[:separator], "PATH") {
+			updated[index] = variable[:separator+1] + directory + string(os.PathListSeparator) + variable[separator+1:]
+			return updated
+		}
+	}
+	return append(updated, "PATH="+directory)
 }
 
 type limitedCommandOutput struct {
