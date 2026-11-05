@@ -67,18 +67,18 @@ func managerOrder(os tool.OperatingSystem, distribution string) []tool.PackageMa
 		if len(id) > 0 {
 			switch id[0] {
 			case "debian", "ubuntu", "linuxmint", "pop", "elementary", "raspbian":
-				return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
+				return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.AndroidSDK, tool.EspressifEIM, tool.Homebrew}
 			case "fedora", "rhel", "centos", "rocky", "almalinux":
-				return []tool.PackageManager{tool.DNF, tool.APT, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
+				return []tool.PackageManager{tool.DNF, tool.APT, tool.Pacman, tool.Zypper, tool.APK, tool.AndroidSDK, tool.EspressifEIM, tool.Homebrew}
 			case "arch", "manjaro", "endeavouros":
-				return []tool.PackageManager{tool.Pacman, tool.APT, tool.DNF, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
+				return []tool.PackageManager{tool.Pacman, tool.APT, tool.DNF, tool.Zypper, tool.APK, tool.AndroidSDK, tool.EspressifEIM, tool.Homebrew}
 			case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "sles":
-				return []tool.PackageManager{tool.Zypper, tool.APT, tool.DNF, tool.Pacman, tool.APK, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
+				return []tool.PackageManager{tool.Zypper, tool.APT, tool.DNF, tool.Pacman, tool.APK, tool.AndroidSDK, tool.EspressifEIM, tool.Homebrew}
 			case "alpine":
-				return []tool.PackageManager{tool.APK, tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
+				return []tool.PackageManager{tool.APK, tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.AndroidSDK, tool.EspressifEIM, tool.Homebrew}
 			}
 		}
-		return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK, tool.EspressifEIM}
+		return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.AndroidSDK, tool.EspressifEIM, tool.Homebrew}
 	case tool.BSD:
 		if strings.EqualFold(strings.TrimSpace(distribution), "freebsd") {
 			return []tool.PackageManager{tool.FreeBSDPkg}
