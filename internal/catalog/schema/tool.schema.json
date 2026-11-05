@@ -56,14 +56,29 @@
       "required": ["platform", "manager", "package_id", "scope", "source"],
       "properties": {
         "platform": { "enum": ["windows", "macos", "linux", "bsd"] },
-        "manager": { "enum": ["winget", "scoop", "chocolatey", "homebrew", "macports", "apt", "dnf", "pacman", "zypper", "apk", "freebsd-pkg"] },
+        "manager": { "enum": ["winget", "scoop", "chocolatey", "homebrew", "macports", "apt", "dnf", "pacman", "zypper", "apk", "freebsd-pkg", "android-sdk"] },
         "package_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$" },
         "kind": { "enum": ["package", "cask"] },
         "scope": { "enum": ["user", "system"] },
         "source": { "type": "string", "minLength": 1 },
         "architectures": { "$ref": "#/$defs/architectures" },
         "path_entries": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*(/[A-Za-z0-9][A-Za-z0-9._+-]*)*$" } }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "manager": { "const": "android-sdk" } } },
+          "then": {
+            "properties": {
+              "package_id": { "type": "string", "pattern": "^(platform-tools|emulator|build-tools;[0-9]+(\\.[0-9]+){1,2})$" },
+              "scope": { "const": "user" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "manager": { "not": { "const": "android-sdk" } } } },
+          "then": { "properties": { "package_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$" } } }
+        }
+      ]
     },
     "registryInstaller": {
       "type": "object",
