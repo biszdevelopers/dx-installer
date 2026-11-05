@@ -353,6 +353,8 @@ func (m *Model) renderPlan(maxRows int) []string {
 			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s  %s", item.ToolID, item.Manager, item.PackageID, privilege), "          source: "+item.Source)
 			if item.ApproximateSize > 0 {
 				rows = append(rows, "          approximate download: "+approximateSize(item.ApproximateSize))
+			} else if item.SizeEstimateNote != "" {
+				rows = append(rows, "          approximate download: "+item.SizeEstimateNote)
 			}
 			rows = append(rows, "          command: "+item.Command.Display())
 		}
