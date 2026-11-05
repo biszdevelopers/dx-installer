@@ -1,0 +1,23 @@
+schema_version: 1
+id: msvc-build-tools
+name: MSVC Build Tools
+category: cpp.compiler
+description: Microsoft C++ compiler and linker through the Visual Studio Build Tools C++ workload. Visual Studio setup resolves the selected component set before installation.
+tags: [cpp, msvc, compiler, linker, windows]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [cl.exe, link.exe]
+version_args: [-?]
+health_pattern: '(?:Compiler|Incremental Linker) Version ([0-9.]+)'
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: Microsoft.VisualStudio.BuildTools
+    scope: system
+    source: winget
+    workloads: [Microsoft.VisualStudio.Workload.VCTools]
