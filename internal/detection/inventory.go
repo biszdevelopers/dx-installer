@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -84,7 +85,10 @@ type scanResult struct {
 
 const maxDiscoveredInstallDirectories = 512
 
-var installDirectoryCache sync.Map
+var (
+	installDirectoryCache  = sync.Map{}
+	artifactVersionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$`)
+)
 
 func Scan(ctx context.Context, items *catalog.Catalog, machine platform.Info) (Inventory, error) {
 	return ScanWithSearchPaths(ctx, items, machine, nil)
@@ -163,6 +167,21 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 		return nil, nil, Unsupported
 	}
 	packages := installedPackagesFor(manifest, machine.OS, managers, installedPackages)
+	if instances, found := inspectArtifactVersionFiles(manifest, machine); found {
+		healthyCount := 0
+		for _, instance := range instances {
+			if instance.State == Healthy {
+				healthyCount++
+			}
+		}
+		state := Unknown
+		if healthyCount == len(instances) {
+			state = Healthy
+		} else if healthyCount > 0 {
+			state = Partial
+		}
+		return instances, packages, state
+	}
 	paths := make(map[string]string)
 	for _, executable := range manifest.Executables {
 		for _, path := range findExecutablesInDirectories(executable, searchPaths) {
@@ -237,6 +256,117 @@ func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info
 		return instances, packages, Partial
 	}
 	return instances, packages, Broken
+}
+
+func inspectArtifactVersionFiles(manifest tool.Manifest, machine platform.Info) ([]Instance, bool) {
+	artifact, exists := manifest.ArtifactFor(machine.OS, machine.Architecture)
+	if !exists || artifact.VersionFile == "" {
+		return nil, false
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || !filepath.IsAbs(home) {
+		return []Instance{{Executable: "artifact metadata", State: Unknown, Diagnostic: "could not determine an absolute user home directory"}}, true
+	}
+	var bases []string
+	switch machine.OS {
+	case tool.Windows:
+		bases = []string{home}
+		for _, key := range []string{"ProgramFiles", "ProgramFiles(x86)"} {
+			if root := os.Getenv(key); filepath.IsAbs(root) {
+				bases = append(bases, root)
+			}
+		}
+	case tool.MacOS:
+		bases = []string{home, filepath.Join(home, ".local"), filepath.Join(home, ".local", "opt"), filepath.Join(home, "bin"), "/opt", "/usr/local"}
+	default:
+		bases = []string{home, filepath.Join(home, ".local"), filepath.Join(home, ".local", "opt"), filepath.Join(home, "bin"), "/opt", "/usr/local"}
+	}
+	var directRoots []string
+	if configured := os.Getenv("ZEPHYR_SDK_INSTALL_DIR"); filepath.IsAbs(configured) {
+		bases = append(bases, configured)
+		if strings.HasPrefix(strings.ToLower(filepath.Base(configured)), "zephyr-sdk-") {
+			directRoots = append(directRoots, configured)
+		} else if _, err := os.Lstat(filepath.Join(configured, filepath.FromSlash(artifact.VersionFile))); err == nil {
+			directRoots = append(directRoots, configured)
+		}
+	}
+	seen := make(map[string]bool)
+	var instances []Instance
+	for _, installPath := range directRoots {
+		key := filepath.Clean(installPath)
+		if runtime.GOOS == "windows" {
+			key = strings.ToLower(key)
+		}
+		seen[key] = true
+		instances = append(instances, inspectArtifactVersionFile(installPath, artifact.VersionFile))
+	}
+	for _, base := range bases {
+		entries, err := os.ReadDir(base)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !strings.HasPrefix(strings.ToLower(entry.Name()), "zephyr-sdk-") || !entry.IsDir() {
+				continue
+			}
+			installPath := filepath.Join(base, entry.Name())
+			key := filepath.Clean(installPath)
+			if runtime.GOOS == "windows" {
+				key = strings.ToLower(key)
+			}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			if len(instances) >= maxDiscoveredInstallDirectories {
+				break
+			}
+			instances = append(instances, inspectArtifactVersionFile(installPath, artifact.VersionFile))
+		}
+	}
+	if len(instances) == 0 {
+		return nil, false
+	}
+	return instances, true
+}
+
+func inspectArtifactVersionFile(installPath, relativeVersionFile string) Instance {
+	rootInfo, err := os.Lstat(installPath)
+	if err != nil {
+		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not inspect installed SDK directory: " + err.Error()}
+	}
+	if !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "installed SDK path is not a real directory"}
+	}
+	versionPath := filepath.Join(installPath, filepath.FromSlash(relativeVersionFile))
+	linkInfo, err := os.Lstat(versionPath)
+	if os.IsNotExist(err) {
+		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file is missing"}
+	}
+	if err != nil {
+		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not inspect SDK version file: " + err.Error()}
+	}
+	if !linkInfo.Mode().IsRegular() || linkInfo.Mode()&os.ModeSymlink != 0 {
+		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file is not a regular non-symlink file"}
+	}
+	file, err := os.Open(versionPath)
+	if err != nil {
+		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not read SDK version file: " + err.Error()}
+	}
+	defer file.Close()
+	openedInfo, err := file.Stat()
+	if err != nil || !openedInfo.Mode().IsRegular() || !os.SameFile(linkInfo, openedInfo) {
+		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file changed while being opened"}
+	}
+	contents, err := io.ReadAll(io.LimitReader(file, 129))
+	if err != nil {
+		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "could not read SDK version file: " + err.Error()}
+	}
+	version := strings.TrimSpace(string(contents))
+	if len(contents) > 128 || !artifactVersionPattern.MatchString(version) {
+		return Instance{Executable: "artifact metadata", Path: installPath, State: Unknown, Diagnostic: "SDK version file contains an invalid version"}
+	}
+	return Instance{Executable: "SDK version file", Path: installPath, Version: version, State: Healthy}
 }
 
 func findExecutables(name string) []string {
