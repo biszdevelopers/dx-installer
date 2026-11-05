@@ -517,9 +517,13 @@ func managerSupportsScope(manager PackageManager, scope Scope) bool {
 
 func validInstallerPackageID(manager PackageManager, packageID string) bool {
 	if manager == AndroidSDK {
-		return androidSDKPackagePattern.MatchString(packageID)
+		return ValidAndroidSDKPackageID(packageID)
 	}
 	return packageIDPattern.MatchString(packageID)
+}
+
+func ValidAndroidSDKPackageID(packageID string) bool {
+	return androidSDKPackagePattern.MatchString(packageID)
 }
 
 func hasPlatform(platforms map[OperatingSystem][]Architecture, os OperatingSystem) bool {
