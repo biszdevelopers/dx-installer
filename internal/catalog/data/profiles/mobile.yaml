@@ -1,5 +1,5 @@
 schema_version: 1
 id: mobile
 name: Mobile development
-description: Android device tools and Flutter SDK for mobile development; Android Studio and device drivers are never installed automatically.
-tools: [adb, fastboot, flutter]
+description: Android command-line tools, platform tools, build tools, optional emulator, and Flutter for mobile development; Android Studio, emulator images, and device drivers are never installed automatically.
+tools: [adb, android-build-tools, android-emulator, android-platform-tools, android-sdk-command-line-tools, fastboot, flutter]
