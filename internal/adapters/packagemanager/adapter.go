@@ -2,14 +2,17 @@ package packagemanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"developers-club-dx/internal/domain/tool"
 )
@@ -57,26 +60,26 @@ func detectRemaining(os tool.OperatingSystem, distribution string, first tool.Pa
 func managerOrder(os tool.OperatingSystem, distribution string) []tool.PackageManager {
 	switch os {
 	case tool.Windows:
-		return []tool.PackageManager{tool.Winget, tool.Scoop, tool.Chocolatey}
+		return []tool.PackageManager{tool.Winget, tool.Scoop, tool.Chocolatey, tool.AndroidSDK}
 	case tool.MacOS:
-		return []tool.PackageManager{tool.Homebrew, tool.MacPorts}
+		return []tool.PackageManager{tool.Homebrew, tool.MacPorts, tool.AndroidSDK}
 	case tool.Linux:
 		id := strings.Fields(strings.ToLower(distribution))
 		if len(id) > 0 {
 			switch id[0] {
 			case "debian", "ubuntu", "linuxmint", "pop", "elementary", "raspbian":
-				return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew}
+				return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK}
 			case "fedora", "rhel", "centos", "rocky", "almalinux":
-				return []tool.PackageManager{tool.DNF, tool.APT, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew}
+				return []tool.PackageManager{tool.DNF, tool.APT, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK}
 			case "arch", "manjaro", "endeavouros":
-				return []tool.PackageManager{tool.Pacman, tool.APT, tool.DNF, tool.Zypper, tool.APK, tool.Homebrew}
+				return []tool.PackageManager{tool.Pacman, tool.APT, tool.DNF, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK}
 			case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "sles":
-				return []tool.PackageManager{tool.Zypper, tool.APT, tool.DNF, tool.Pacman, tool.APK, tool.Homebrew}
+				return []tool.PackageManager{tool.Zypper, tool.APT, tool.DNF, tool.Pacman, tool.APK, tool.Homebrew, tool.AndroidSDK}
 			case "alpine":
-				return []tool.PackageManager{tool.APK, tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.Homebrew}
+				return []tool.PackageManager{tool.APK, tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.Homebrew, tool.AndroidSDK}
 			}
 		}
-		return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew}
+		return []tool.PackageManager{tool.APT, tool.DNF, tool.Pacman, tool.Zypper, tool.APK, tool.Homebrew, tool.AndroidSDK}
 	case tool.BSD:
 		if strings.EqualFold(strings.TrimSpace(distribution), "freebsd") {
 			return []tool.PackageManager{tool.FreeBSDPkg}
@@ -111,6 +114,8 @@ func managerExecutable(manager tool.PackageManager) string {
 		return "apk"
 	case tool.FreeBSDPkg:
 		return "pkg"
+	case tool.AndroidSDK:
+		return "sdkmanager"
 	default:
 		return ""
 	}
@@ -168,6 +173,11 @@ func BuildCommand(installer tool.Installer, currentOS tool.OperatingSystem) (Com
 	case tool.FreeBSDPkg:
 		command.Arguments = []string{"install", packageID}
 		command.RequiresPrivilege = true
+	case tool.AndroidSDK:
+		if !tool.ValidAndroidSDKPackageID(packageID) {
+			return Command{}, fmt.Errorf("unsupported Android SDK package identifier %q", packageID)
+		}
+		command.Arguments = []string{packageID}
 	}
 	if command.RequiresPrivilege && currentOS != tool.Windows && !isRoot() {
 		command.PrivilegeWrapper = "sudo"
@@ -204,6 +214,9 @@ func (c Command) Exec() (*exec.Cmd, error) {
 }
 
 func (c Command) ExecContext(ctx context.Context) (*exec.Cmd, error) {
+	if runtime.GOOS == "windows" && strings.EqualFold(filepath.Ext(c.Executable), ".bat") {
+		return c.execBatch(ctx)
+	}
 	var command *exec.Cmd
 	if c.PrivilegeWrapper != "" {
 		if runtime.GOOS == "windows" {
@@ -213,6 +226,33 @@ func (c Command) ExecContext(ctx context.Context) (*exec.Cmd, error) {
 	} else {
 		command = exec.CommandContext(ctx, c.Executable, c.Arguments...)
 	}
+	if len(c.Environment) > 0 {
+		command.Env = mergedEnvironment(os.Environ(), c.Environment)
+	}
+	return command, nil
+}
+
+func (c Command) execBatch(ctx context.Context) (*exec.Cmd, error) {
+	if strings.ContainsAny(c.Executable, "%\r\n\x00\"") {
+		return nil, errors.New("batch executable path contains characters that cannot be passed safely to cmd.exe")
+	}
+	for _, argument := range c.Arguments {
+		if argument == "" || strings.ContainsAny(argument, " \t\r\n\x00\"&|<>^%!") {
+			return nil, errors.New("batch executable arguments contain characters that cannot be passed safely to cmd.exe")
+		}
+	}
+	commandProcessor, err := exec.LookPath("cmd.exe")
+	if err != nil {
+		return nil, errors.New("cmd.exe is unavailable for the verified batch executable")
+	}
+	commandLine := `"` + commandProcessor + `" /d /s /c ""` + c.Executable + `"`
+	for _, argument := range c.Arguments {
+		commandLine += " " + argument
+	}
+	commandLine += `"`
+	command := exec.CommandContext(ctx, commandProcessor)
+	command.Args = nil
+	command.SysProcAttr = &syscall.SysProcAttr{CmdLine: commandLine}
 	if len(c.Environment) > 0 {
 		command.Env = mergedEnvironment(os.Environ(), c.Environment)
 	}
