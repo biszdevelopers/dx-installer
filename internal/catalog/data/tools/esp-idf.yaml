@@ -1,0 +1,37 @@
+schema_version: 1
+id: esp-idf
+name: ESP-IDF
+category: embedded.framework
+description: Espressif IoT Development Framework v6.1 with its vendor-managed compiler, debugger, build tools, and Python environment.
+tags: [embedded, esp32, espressif, firmware]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [eim]
+version_args: [--do-not-track, "true", --log-file, "@DEVNULL@", --esp-idf-json-path, "@ESPRESSIF-TOOLS@", list]
+health_pattern: '(?m)^(v6\.1(?:\.[0-9]+)?)[^\r\n]*\[Finished\]'
+dependencies: [esp-idf-installation-manager]
+conflicts: []
+platforms:
+  windows: [amd64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: espressif-eim
+    package_id: v6.1
+    scope: user
+    source: Espressif ESP-IDF Installation Manager
+    size_estimate_note: Several GB; the exact download depends on ESP-IDF toolchains selected by EIM.
+  - platform: macos
+    manager: espressif-eim
+    package_id: v6.1
+    scope: user
+    source: Espressif ESP-IDF Installation Manager
+    size_estimate_note: Several GB; the exact download depends on ESP-IDF toolchains selected by EIM.
+  - platform: linux
+    manager: espressif-eim
+    package_id: v6.1
+    scope: user
+    source: Espressif ESP-IDF Installation Manager
+    size_estimate_note: Several GB; the exact download depends on ESP-IDF toolchains selected by EIM.
