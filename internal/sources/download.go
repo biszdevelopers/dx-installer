@@ -60,6 +60,7 @@ type DownloadProgress struct {
 	SourceName    string
 	BytesReceived int64
 	TotalBytes    int64
+	Phase         string
 }
 
 type DownloadOptions struct {
@@ -322,6 +323,7 @@ func (d *Downloader) CopyLocalWithProgress(ctx context.Context, sourcePath, expe
 		cleanup()
 		return DownloadResult{}, fmt.Errorf("copy offline archive: %w", copyErr)
 	}
+	reader.ReportPhase("verifying SHA-256 and signature")
 	if written > d.options.MaxBytes {
 		cleanup()
 		return DownloadResult{}, fmt.Errorf("offline archive exceeds the %d byte safety limit", d.options.MaxBytes)
@@ -339,6 +341,7 @@ func (d *Downloader) CopyLocalWithProgress(ctx context.Context, sourcePath, expe
 		cleanup()
 		return DownloadResult{}, fmt.Errorf("%w: offline archive Ed25519 signature mismatch", ErrIntegrity)
 	}
+	reader.ReportPhase("archive verified")
 	if err := output.Sync(); err != nil {
 		cleanup()
 		return DownloadResult{}, fmt.Errorf("flush temporary offline archive: %w", err)
@@ -420,6 +423,7 @@ func (d *Downloader) downloadOnce(parent context.Context, source RemoteSource, w
 		cleanup()
 		return DownloadResult{}, 0, fmt.Errorf("read artifact from %s: %w", source.Name, copyErr)
 	}
+	reader.ReportPhase("verifying SHA-256 and signature")
 	if written > d.options.MaxBytes {
 		cleanup()
 		return DownloadResult{}, 0, fmt.Errorf("artifact from %s exceeds the %d byte safety limit", source.Name, d.options.MaxBytes)
@@ -449,6 +453,7 @@ func (d *Downloader) downloadOnce(parent context.Context, source RemoteSource, w
 		_ = os.Remove(path)
 		return DownloadResult{}, 0, fmt.Errorf("%w: Ed25519 signature mismatch from %s", ErrIntegrity, source.Name)
 	}
+	reader.ReportPhase("archive verified")
 	return DownloadResult{Path: path, SourceName: source.Name, SourceKind: source.Kind, URL: source.URL, SHA256: actual, Size: written}, 0, nil
 }
 
@@ -459,6 +464,7 @@ type progressReader struct {
 	totalBytes        int64
 	lastReported      time.Time
 	lastReportedBytes int64
+	phase             string
 	report            func(DownloadProgress)
 }
 
@@ -477,7 +483,21 @@ func (reader *progressReader) ReportFinal() {
 	if reader.report == nil || reader.lastReportedBytes == reader.bytesRead {
 		return
 	}
-	reader.report(DownloadProgress{SourceName: reader.sourceName, BytesReceived: reader.bytesRead, TotalBytes: reader.totalBytes})
+	phase := reader.phase
+	if phase == "" {
+		phase = "downloading"
+	}
+	reader.report(DownloadProgress{SourceName: reader.sourceName, BytesReceived: reader.bytesRead, TotalBytes: reader.totalBytes, Phase: phase})
+	reader.lastReported = time.Now()
+	reader.lastReportedBytes = reader.bytesRead
+}
+
+func (reader *progressReader) ReportPhase(phase string) {
+	if reader.report == nil || phase == "" || reader.phase == phase {
+		return
+	}
+	reader.phase = phase
+	reader.report(DownloadProgress{SourceName: reader.sourceName, BytesReceived: reader.bytesRead, TotalBytes: reader.totalBytes, Phase: phase})
 	reader.lastReported = time.Now()
 	reader.lastReportedBytes = reader.bytesRead
 }
