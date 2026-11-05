@@ -315,6 +315,9 @@ func knownExecutableDirectories() []string {
 				filepath.Join(localAppData, "Programs", "Git", "cmd"),
 				filepath.Join(localAppData, "Programs", "Git", "bin"),
 				filepath.Join(localAppData, "Microsoft", "WinGet", "Links"),
+				filepath.Join(localAppData, "Android", "Sdk", "cmdline-tools", "latest", "bin"),
+				filepath.Join(localAppData, "Android", "Sdk", "platform-tools"),
+				filepath.Join(localAppData, "Android", "Sdk", "emulator"),
 			)
 		}
 		appendHome(".cargo", "bin")
@@ -325,6 +328,10 @@ func knownExecutableDirectories() []string {
 		}
 	case "darwin":
 		directories = append(directories, "/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin")
+		appendHome("Library", "Android", "sdk", "cmdline-tools", "latest", "bin")
+		appendHome("Library", "Android", "sdk", "platform-tools")
+		appendHome("Library", "Android", "sdk", "emulator")
+		appendHome("Library", "Android", "sdk", "build-tools", "36.0.0")
 		appendHome(".local", "bin")
 		appendHome("bin")
 		appendHome(".cargo", "bin")
@@ -337,6 +344,10 @@ func knownExecutableDirectories() []string {
 		appendHome("go", "bin")
 	default:
 		directories = append(directories, "/usr/local/bin", "/usr/bin", "/bin", "/snap/bin")
+		appendHome("Android", "Sdk", "cmdline-tools", "latest", "bin")
+		appendHome("Android", "Sdk", "platform-tools")
+		appendHome("Android", "Sdk", "emulator")
+		appendHome("Android", "Sdk", "build-tools", "36.0.0")
 		appendHome(".local", "bin")
 		appendHome("bin")
 		appendHome(".cargo", "bin")
@@ -362,7 +373,7 @@ func knownExecutableDirectories() []string {
 
 func discoveredInstallDirectories(home string) []string {
 	cacheParts := []string{runtime.GOOS, home}
-	for _, name := range []string{"ProgramFiles", "ProgramFiles(x86)", "ProgramData", "LOCALAPPDATA", "SCOOP", "SCOOP_GLOBAL"} {
+	for _, name := range []string{"ProgramFiles", "ProgramFiles(x86)", "ProgramData", "LOCALAPPDATA", "SCOOP", "SCOOP_GLOBAL", "ANDROID_HOME", "ANDROID_SDK_ROOT"} {
 		cacheParts = append(cacheParts, os.Getenv(name))
 	}
 	cacheKey := strings.Join(cacheParts, "\x00")
@@ -406,6 +417,10 @@ func scanKnownInstallDirectories(home string) []string {
 			patterns = append(patterns,
 				filepath.Join(localAppData, "Programs", "*", "*", "bin"),
 				filepath.Join(localAppData, "Programs", "*", "*", "node_modules", ".bin"),
+				filepath.Join(localAppData, "Android", "Sdk", "cmdline-tools", "*", "bin"),
+				filepath.Join(localAppData, "Android", "Sdk", "platform-tools"),
+				filepath.Join(localAppData, "Android", "Sdk", "emulator"),
+				filepath.Join(localAppData, "Android", "Sdk", "build-tools", "*"),
 			)
 		}
 		for _, root := range []string{os.Getenv("SCOOP"), os.Getenv("SCOOP_GLOBAL")} {
@@ -426,6 +441,10 @@ func scanKnownInstallDirectories(home string) []string {
 			"/System/Library/Frameworks/JavaVM.framework/Versions/Current/Commands",
 		)
 		appendHomePattern("Library", "Java", "JavaVirtualMachines", "*", "Contents", "Home", "bin")
+		appendHomePattern("Library", "Android", "sdk", "cmdline-tools", "*", "bin")
+		appendHomePattern("Library", "Android", "sdk", "platform-tools")
+		appendHomePattern("Library", "Android", "sdk", "emulator")
+		appendHomePattern("Library", "Android", "sdk", "build-tools", "*")
 		appendHomePattern(".nvm", "versions", "node", "*", "bin")
 		appendHomePattern(".pyenv", "versions", "*", "bin")
 		appendHomePattern(".asdf", "installs", "*", "*", "bin")
@@ -443,12 +462,27 @@ func scanKnownInstallDirectories(home string) []string {
 		appendHomePattern(".local", "opt", "*", "*", "node_modules", ".bin")
 	default:
 		patterns = append(patterns, "/usr/lib/jvm/*/bin", "/usr/lib/jvm/*/jre/bin", "/usr/local/lib/nodejs/node-v*/bin")
+		appendHomePattern("Android", "Sdk", "cmdline-tools", "*", "bin")
+		appendHomePattern("Android", "Sdk", "platform-tools")
+		appendHomePattern("Android", "Sdk", "emulator")
+		appendHomePattern("Android", "Sdk", "build-tools", "*")
 		appendHomePattern(".nvm", "versions", "node", "*", "bin")
 		appendHomePattern(".pyenv", "versions", "*", "bin")
 		appendHomePattern(".asdf", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "opt", "*", "*", "bin")
 		appendHomePattern(".local", "opt", "*", "*", "node_modules", ".bin")
+	}
+	for _, sdkRoot := range []string{os.Getenv("ANDROID_HOME"), os.Getenv("ANDROID_SDK_ROOT")} {
+		if !filepath.IsAbs(sdkRoot) {
+			continue
+		}
+		patterns = append(patterns,
+			filepath.Join(sdkRoot, "cmdline-tools", "*", "bin"),
+			filepath.Join(sdkRoot, "platform-tools"),
+			filepath.Join(sdkRoot, "emulator"),
+			filepath.Join(sdkRoot, "build-tools", "*"),
+		)
 	}
 
 	directories := make([]string, 0, min(len(patterns), maxDiscoveredInstallDirectories))
