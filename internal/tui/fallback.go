@@ -281,7 +281,11 @@ func printPlan(output io.Writer, plan planning.Plan) {
 			}
 			continue
 		}
-		fmt.Fprintf(output, "  INSTALL %s\n    source: %s (%s)\n    scope: %s\n    command: %s\n", item.Name, item.Source, item.Manager, item.Scope, item.Command.Display())
+		fmt.Fprintf(output, "  INSTALL %s\n    source: %s (%s)\n    scope: %s\n", item.Name, item.Source, item.Manager, item.Scope)
+		if item.ApproximateSize > 0 {
+			fmt.Fprintf(output, "    approximate download: %s\n", approximateSize(item.ApproximateSize))
+		}
+		fmt.Fprintf(output, "    command: %s\n", item.Command.Display())
 	}
 	for _, issue := range plan.Issues {
 		fmt.Fprintf(output, "  %s %s: %s\n", strings.ToUpper(string(issue.Severity)), issue.ToolID, issue.Message)
