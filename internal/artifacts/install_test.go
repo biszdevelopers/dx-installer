@@ -103,6 +103,22 @@ func TestPostInstallRejectsUnknownAction(t *testing.T) {
 	}
 }
 
+func TestPostInstallRunsOnlyTypedVendorSetupAction(t *testing.T) {
+	root := t.TempDir()
+	scriptName := "setup.sh"
+	script := []byte("#!/bin/sh\nexit 0\n")
+	if runtime.GOOS == "windows" {
+		scriptName = "setup.cmd"
+		script = []byte("@echo off\r\nexit /b 0\r\n")
+	}
+	if err := os.WriteFile(filepath.Join(root, scriptName), script, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := runPostInstallAction(context.Background(), root, tool.ZephyrSDKSetup); err != nil {
+		t.Fatalf("typed Zephyr setup action failed to launch: %v", err)
+	}
+}
+
 func TestArchiveInstallerRefusesExistingTargetsBeforeDownloading(t *testing.T) {
 	home := t.TempDir()
 	parent, err := installParent(platform.Detect().OS, "go", home)
