@@ -2,4 +2,4 @@ schema_version: 1
 id: api
 name: API and protocol tooling
 description: Protocol Buffers, gRPC, OpenAPI, and GraphQL command-line tools.
-tools: [protobuf, buf, grpcurl, grpcui, openapi-generator, gql]
+tools: [protobuf, buf, grpcurl, grpcui, openapi-generator, redocly-cli, gql]
