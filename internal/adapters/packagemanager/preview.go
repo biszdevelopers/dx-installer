@@ -47,13 +47,13 @@ func InspectInstall(ctx context.Context, managers []Detected, manager tool.Packa
 		return unavailablePreview("the package manager exceeded the preview output limit")
 	}
 	preview := parseInstallPreview(manager, packageID, stdout.String())
+	if previewContext.Err() != nil {
+		return incompletePreview(preview, "the cache-only preview timed out")
+	}
+	if processErr != nil {
+		return incompletePreview(preview, "the package manager exited unsuccessfully")
+	}
 	if preview.CandidateVersion == "" && preview.Transaction == "" {
-		if previewContext.Err() != nil {
-			return unavailablePreview("the cache-only preview timed out")
-		}
-		if processErr != nil {
-			return unavailablePreview("the package manager could not resolve a transaction from its current local metadata")
-		}
 		return unavailablePreview("the package manager returned no parseable candidate or transaction details")
 	}
 	preview.Disclosure = "Preview used cached package metadata without refreshing repositories. The live transaction can differ if package metadata or machine state changes before installation; review any manager confirmation before accepting it."
@@ -295,4 +295,15 @@ func appendUnique(values []string, value string) []string {
 
 func unavailablePreview(reason string) InstallPreview {
 	return InstallPreview{Disclosure: "Package-manager preview unavailable: " + reason + ". DX will not refresh repositories automatically; dependencies or other system changes may be unresolved. Review this uncertainty and any manager confirmation before accepting the operation."}
+}
+
+func incompletePreview(preview InstallPreview, reason string) InstallPreview {
+	if preview.CandidateVersion == "" && preview.Transaction == "" {
+		return unavailablePreview(reason + "; no usable details were returned")
+	}
+	if preview.Transaction != "" {
+		preview.Transaction = strings.Replace(preview.Transaction, "Cached dry-run resolved", "Incomplete cached dry-run output reported", 1)
+	}
+	preview.Disclosure = "Package-manager preview did not complete because " + reason + ". Any candidate version or package list shown may be incomplete and must not be treated as a complete transaction. DX will not refresh repositories automatically; review this uncertainty and any manager confirmation before accepting the operation."
+	return preview
 }
