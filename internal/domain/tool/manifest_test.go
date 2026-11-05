@@ -19,6 +19,20 @@ func TestManifestAcceptsTypedWindowsInstaller(t *testing.T) {
 	}
 }
 
+func TestManifestAcceptsYUMSystemInstaller(t *testing.T) {
+	manifest := validManifest()
+	manifest.Platforms = map[OperatingSystem][]Architecture{Linux: {AMD64}}
+	manifest.Installers = []Installer{{
+		Platform: Linux, Manager: YUM, PackageID: "git", Scope: SystemScope, Source: "configured-yum-repositories",
+	}}
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("valid YUM installer was rejected: %v", err)
+	}
+	if installer, exists := manifest.InstallerFor(Linux, []PackageManager{YUM}); !exists || installer.Manager != YUM {
+		t.Fatalf("YUM installer lookup = %#v, %v", installer, exists)
+	}
+}
+
 func TestManifestSelectsPlatformSpecificDependencies(t *testing.T) {
 	manifest := validManifest()
 	manifest.PlatformDependencies = map[OperatingSystem][]string{Windows: {"seven-zip"}}
