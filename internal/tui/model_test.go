@@ -470,6 +470,23 @@ func TestPlanSignatureIncludesPreservedPackageOwnership(t *testing.T) {
 	}
 }
 
+func TestPlanSignatureIncludesArchiveSetupAndLimits(t *testing.T) {
+	base := planning.Plan{Items: []planning.Item{{
+		ToolID:           "zephyr-sdk",
+		Action:           planning.Install,
+		InstallationNote: "run bundled setup",
+		Artifact:         &tool.Artifact{URL: "https://downloads.example/sdk.7z", SHA256: strings.Repeat("a", 64), MaxDownloadBytes: 2 << 30},
+	}}}
+	changed := base
+	changed.Items = append([]planning.Item(nil), base.Items...)
+	artifact := *base.Items[0].Artifact
+	artifact.MaxExpandedBytes = 16 << 30
+	changed.Items[0].Artifact = &artifact
+	if planSignature(base) == planSignature(changed) {
+		t.Fatal("archive extraction limits must invalidate the approval signature")
+	}
+}
+
 func TestDiagnosticReportRequiresExplicitExportAndDoesNotOverwrite(t *testing.T) {
 	model := NewModel(context.Background(), nil, detection.Inventory{
 		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
