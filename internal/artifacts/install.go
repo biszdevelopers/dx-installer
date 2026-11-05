@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"developers-club-dx/internal/adapters/packagemanager"
@@ -30,21 +31,96 @@ type InstallResult struct {
 }
 
 type ArchiveInstaller struct {
-	Downloader *sources.Downloader
-	TempRoot   string
+	Downloader             *sources.Downloader
+	TempRoot               string
+	MaxConcurrentDownloads int
+	DownloadTimeout        time.Duration
 }
+
+type ArchiveInstallerOptions struct {
+	TempRoot               string
+	MaxConcurrentDownloads int
+	DownloadTimeout        time.Duration
+}
+
+type PreparedArtifact struct {
+	toolID    string
+	version   string
+	sha256    string
+	workspace string
+	download  sources.DownloadResult
+}
+
+type PrepareRequest struct {
+	ToolID   string
+	Home     string
+	Artifact tool.Artifact
+	Options  InstallOptions
+}
+
+type PrepareProgress struct {
+	ToolID   string
+	Progress sources.DownloadProgress
+}
+
+type PrepareResult struct {
+	ToolID   string
+	Prepared *PreparedArtifact
+	Progress sources.DownloadProgress
+	Err      error
+}
+
+const (
+	DefaultConcurrentDownloads = 3
+	MaxConcurrentDownloads     = 8
+	DefaultDownloadTimeout     = 10 * time.Minute
+	MaxDownloadTimeout         = 24 * time.Hour
+)
 
 type InstallOptions struct {
 	Policy                sources.Policy
 	AllowRegionalFallback bool
 	CustomSourceURL       string
 	OfflineArchivePath    string
+	Progress              func(sources.DownloadProgress)
 }
 
 var toolIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 func NewArchiveInstaller() *ArchiveInstaller {
-	return &ArchiveInstaller{Downloader: sources.NewDownloader(sources.DownloadOptions{})}
+	return &ArchiveInstaller{
+		Downloader:             sources.NewDownloader(sources.DownloadOptions{Timeout: DefaultDownloadTimeout}),
+		MaxConcurrentDownloads: DefaultConcurrentDownloads,
+		DownloadTimeout:        DefaultDownloadTimeout,
+	}
+}
+
+func NewArchiveInstallerWithOptions(options ArchiveInstallerOptions) (*ArchiveInstaller, error) {
+	if options.MaxConcurrentDownloads == 0 {
+		options.MaxConcurrentDownloads = DefaultConcurrentDownloads
+	}
+	if options.MaxConcurrentDownloads < 1 || options.MaxConcurrentDownloads > MaxConcurrentDownloads {
+		return nil, fmt.Errorf("download concurrency must be between 1 and %d", MaxConcurrentDownloads)
+	}
+	if options.DownloadTimeout == 0 {
+		options.DownloadTimeout = DefaultDownloadTimeout
+	}
+	if options.DownloadTimeout < time.Second || options.DownloadTimeout > MaxDownloadTimeout {
+		return nil, fmt.Errorf("download timeout must be between 1s and %s", MaxDownloadTimeout)
+	}
+	return &ArchiveInstaller{
+		Downloader:             sources.NewDownloader(sources.DownloadOptions{Timeout: options.DownloadTimeout}),
+		TempRoot:               options.TempRoot,
+		MaxConcurrentDownloads: options.MaxConcurrentDownloads,
+		DownloadTimeout:        options.DownloadTimeout,
+	}, nil
+}
+
+func (i *ArchiveInstaller) Concurrency() int {
+	if i == nil || i.MaxConcurrentDownloads < 1 || i.MaxConcurrentDownloads > MaxConcurrentDownloads {
+		return DefaultConcurrentDownloads
+	}
+	return i.MaxConcurrentDownloads
 }
 
 func InstallationPath(machine tool.OperatingSystem, toolID, version, home string) (string, error) {
@@ -69,69 +145,180 @@ func (i *ArchiveInstaller) Install(ctx context.Context, toolID, home string, art
 }
 
 func (i *ArchiveInstaller) InstallWithOptions(ctx context.Context, toolID, home string, artifact tool.Artifact, options InstallOptions) (result InstallResult, installErr error) {
-	if !toolIDPattern.MatchString(toolID) {
-		return result, fmt.Errorf("invalid tool identifier %q", toolID)
-	}
-	if !filepath.IsAbs(home) {
-		return result, errors.New("an absolute user home directory is required")
-	}
-	machine := platform.Detect()
-	if artifact.Platform != machine.OS || artifact.Architecture != machine.Architecture {
-		return result, errors.New("archive platform and architecture do not match the current machine")
-	}
-	if !tool.IsValidArtifactVersion(artifact.Version) {
-		return result, errors.New("archive version is invalid")
-	}
-	if artifact.Format != tool.TarGzip && artifact.Format != tool.TarXZ && artifact.Format != tool.Zip && artifact.Format != tool.SevenZip {
-		return result, fmt.Errorf("unsupported archive format %q", artifact.Format)
-	}
-	target, err := InstallationPath(machine.OS, toolID, artifact.Version, home)
+	prepared, err := i.Prepare(ctx, toolID, home, artifact, options)
 	if err != nil {
 		return result, err
 	}
-	parent := filepath.Dir(target)
-	if _, err := os.Lstat(target); err == nil {
-		return result, fmt.Errorf("installation target already exists; refusing to replace %s", target)
-	} else if !os.IsNotExist(err) {
-		return result, fmt.Errorf("inspect installation target: %w", err)
-	}
-	downloader := i.Downloader
-	if downloader == nil {
-		downloader = sources.NewDownloader(sources.DownloadOptions{})
-	}
-	if artifact.MaxDownloadBytes > 0 {
-		downloader, err = downloader.WithArtifactLimit(artifact.MaxDownloadBytes)
-		if err != nil {
-			return result, fmt.Errorf("configure %s download limit: %w", toolID, err)
-		}
-	}
-
-	workspace, err := os.MkdirTemp(i.TempRoot, "dx-tool-install-")
-	if err != nil {
-		return result, fmt.Errorf("create temporary tool installation workspace: %w", err)
-	}
-	if err := os.Chmod(workspace, 0o700); err != nil {
-		_ = os.RemoveAll(workspace)
-		return result, fmt.Errorf("restrict temporary tool installation workspace: %w", err)
-	}
 	defer func() {
-		if cleanupErr := os.RemoveAll(workspace); cleanupErr != nil {
-			result.CleanupNotice = "temporary artifact cleanup failed: " + cleanupErr.Error()
+		if cleanupErr := prepared.Cleanup(); cleanupErr != nil {
+			result.CleanupNotice = joinNotice(result.CleanupNotice, "temporary artifact cleanup failed: "+cleanupErr.Error())
 			if installErr != nil {
 				installErr = errors.Join(installErr, cleanupErr)
 			}
 		}
 	}()
+	return i.InstallPrepared(ctx, toolID, home, artifact, prepared)
+}
+
+func (i *ArchiveInstaller) Prepare(ctx context.Context, toolID, home string, artifact tool.Artifact, options InstallOptions) (*PreparedArtifact, error) {
+	_, target, err := validateInstallRequest(toolID, home, artifact)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Lstat(target); err == nil {
+		return nil, fmt.Errorf("installation target already exists; refusing to replace %s", target)
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("inspect installation target: %w", err)
+	}
+	download, workspace, err := i.downloadArtifact(ctx, toolID, artifact, options)
+	if err != nil {
+		return nil, err
+	}
+	return &PreparedArtifact{toolID: toolID, version: artifact.Version, sha256: download.SHA256, workspace: workspace, download: download}, nil
+}
+
+func (i *ArchiveInstaller) InstallPrepared(ctx context.Context, toolID, home string, artifact tool.Artifact, prepared *PreparedArtifact) (InstallResult, error) {
+	_, target, err := validateInstallRequest(toolID, home, artifact)
+	if err != nil {
+		return InstallResult{}, err
+	}
+	if prepared == nil || prepared.toolID != toolID || prepared.version != artifact.Version || !strings.EqualFold(prepared.sha256, artifact.SHA256) {
+		return InstallResult{}, errors.New("prepared archive does not match the selected tool and catalog digest")
+	}
+	if err := ctx.Err(); err != nil {
+		return InstallResult{}, err
+	}
+	workspaceInfo, err := os.Lstat(prepared.workspace)
+	if err != nil || !workspaceInfo.IsDir() || workspaceInfo.Mode()&os.ModeSymlink != 0 {
+		return InstallResult{}, errors.New("prepared archive workspace must be a real directory")
+	}
+	archiveInfo, err := os.Lstat(prepared.download.Path)
+	if err != nil || !archiveInfo.Mode().IsRegular() || archiveInfo.Mode()&os.ModeSymlink != 0 {
+		return InstallResult{}, errors.New("prepared archive must be a regular non-symlink file")
+	}
+	relative, err := filepath.Rel(prepared.workspace, prepared.download.Path)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return InstallResult{}, errors.New("prepared archive must remain inside its temporary workspace")
+	}
+	return i.extractAndPublish(ctx, toolID, prepared.download, target, filepath.Dir(target), artifact)
+}
+
+func (prepared *PreparedArtifact) Cleanup() error {
+	if prepared == nil || prepared.workspace == "" {
+		return nil
+	}
+	info, err := os.Lstat(prepared.workspace)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect temporary artifact workspace: %w", err)
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("temporary artifact workspace is not a real directory")
+	}
+	if err := os.RemoveAll(prepared.workspace); err != nil {
+		return fmt.Errorf("remove temporary artifact workspace: %w", err)
+	}
+	prepared.workspace = ""
+	return nil
+}
+
+func (i *ArchiveInstaller) PrepareMany(ctx context.Context, requests []PrepareRequest, progress func(PrepareProgress)) []PrepareResult {
+	results := make([]PrepareResult, len(requests))
+	if len(requests) == 0 {
+		return results
+	}
+	workers := min(i.Concurrency(), len(requests))
+	jobs := make(chan int)
+	var waitGroup sync.WaitGroup
+	var progressMutex sync.Mutex
+	for range workers {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			for index := range jobs {
+				request := requests[index]
+				result := PrepareResult{ToolID: request.ToolID}
+				originalProgress := request.Options.Progress
+				request.Options.Progress = func(value sources.DownloadProgress) {
+					result.Progress = value
+					if originalProgress != nil {
+						originalProgress(value)
+					}
+					if progress != nil {
+						progressMutex.Lock()
+						progress(PrepareProgress{ToolID: request.ToolID, Progress: value})
+						progressMutex.Unlock()
+					}
+				}
+				result.Prepared, result.Err = i.Prepare(ctx, request.ToolID, request.Home, request.Artifact, request.Options)
+				results[index] = result
+			}
+		}()
+	}
+	for index := range requests {
+		jobs <- index
+	}
+	close(jobs)
+	waitGroup.Wait()
+	return results
+}
+
+func validateInstallRequest(toolID, home string, artifact tool.Artifact) (platform.Info, string, error) {
+	if !toolIDPattern.MatchString(toolID) {
+		return platform.Info{}, "", fmt.Errorf("invalid tool identifier %q", toolID)
+	}
+	if !filepath.IsAbs(home) {
+		return platform.Info{}, "", errors.New("an absolute user home directory is required")
+	}
+	machine := platform.Detect()
+	if artifact.Platform != machine.OS || artifact.Architecture != machine.Architecture {
+		return platform.Info{}, "", errors.New("archive platform and architecture do not match the current machine")
+	}
+	if !tool.IsValidArtifactVersion(artifact.Version) {
+		return platform.Info{}, "", errors.New("archive version is invalid")
+	}
+	if artifact.Format != tool.TarGzip && artifact.Format != tool.TarXZ && artifact.Format != tool.Zip && artifact.Format != tool.SevenZip {
+		return platform.Info{}, "", fmt.Errorf("unsupported archive format %q", artifact.Format)
+	}
+	target, err := InstallationPath(machine.OS, toolID, artifact.Version, home)
+	if err != nil {
+		return platform.Info{}, "", err
+	}
+	return machine, target, nil
+}
+
+func (i *ArchiveInstaller) downloadArtifact(ctx context.Context, toolID string, artifact tool.Artifact, options InstallOptions) (sources.DownloadResult, string, error) {
+	downloader := i.Downloader
+	if downloader == nil {
+		downloader = sources.NewDownloader(sources.DownloadOptions{})
+	}
+	var err error
+	if artifact.MaxDownloadBytes > 0 {
+		downloader, err = downloader.WithArtifactLimit(artifact.MaxDownloadBytes)
+		if err != nil {
+			return sources.DownloadResult{}, "", fmt.Errorf("configure %s download limit: %w", toolID, err)
+		}
+	}
+
+	workspace, err := os.MkdirTemp(i.TempRoot, "dx-tool-install-")
+	if err != nil {
+		return sources.DownloadResult{}, "", fmt.Errorf("create temporary tool installation workspace: %w", err)
+	}
+	if err := os.Chmod(workspace, 0o700); err != nil {
+		return sources.DownloadResult{}, "", cleanupWorkspace(workspace, fmt.Errorf("restrict temporary tool installation workspace: %w", err))
+	}
 
 	if options.OfflineArchivePath != "" && options.CustomSourceURL != "" {
-		return result, errors.New("choose either an offline archive or a custom online source, not both")
+		return sources.DownloadResult{}, "", cleanupWorkspace(workspace, errors.New("choose either an offline archive or a custom online source, not both"))
 	}
 	if options.OfflineArchivePath != "" {
-		download, err := downloader.CopyLocal(ctx, options.OfflineArchivePath, artifact.SHA256, workspace, nil, nil)
+		download, err := downloader.CopyLocalWithProgress(ctx, options.OfflineArchivePath, artifact.SHA256, workspace, nil, nil, options.Progress)
 		if err != nil {
-			return result, fmt.Errorf("verify offline %s %s: %w", toolID, artifact.Version, err)
+			return sources.DownloadResult{}, "", cleanupWorkspace(workspace, fmt.Errorf("verify offline %s %s: %w", toolID, artifact.Version, err))
 		}
-		return i.extractAndPublish(ctx, toolID, download, target, parent, artifact)
+		return download, workspace, nil
 	}
 	candidates := []sources.RemoteSource{{
 		Name:                 toolID + " " + artifact.Version + " official source",
@@ -144,7 +331,7 @@ func (i *ArchiveInstaller) InstallWithOptions(ctx context.Context, toolID, home 
 	if options.CustomSourceURL != "" {
 		custom := sources.RemoteSource{Name: toolID + " user-configured HTTPS source", Kind: sources.Custom, URL: options.CustomSourceURL, SHA256: artifact.SHA256}
 		if err := sources.ValidateRemoteSource(custom); err != nil {
-			return result, fmt.Errorf("validate custom source for %s: %w", toolID, err)
+			return sources.DownloadResult{}, "", cleanupWorkspace(workspace, fmt.Errorf("validate custom source for %s: %w", toolID, err))
 		}
 		candidates = []sources.RemoteSource{custom}
 		policy = sources.CustomOnly
@@ -163,11 +350,18 @@ func (i *ArchiveInstaller) InstallWithOptions(ctx context.Context, toolID, home 
 			policy = sources.OfficialFirst
 		}
 	}
-	download, err := downloader.Download(ctx, policy, candidates, workspace)
+	download, err := downloader.DownloadWithProgress(ctx, policy, candidates, workspace, options.Progress)
 	if err != nil {
-		return result, fmt.Errorf("download %s %s: %w", toolID, artifact.Version, err)
+		return sources.DownloadResult{}, "", cleanupWorkspace(workspace, fmt.Errorf("download %s %s: %w", toolID, artifact.Version, err))
 	}
-	return i.extractAndPublish(ctx, toolID, download, target, parent, artifact)
+	return download, workspace, nil
+}
+
+func cleanupWorkspace(workspace string, operationErr error) error {
+	if err := os.RemoveAll(workspace); err != nil {
+		return errors.Join(operationErr, fmt.Errorf("remove failed temporary workspace: %w", err))
+	}
+	return operationErr
 }
 
 func (i *ArchiveInstaller) extractAndPublish(ctx context.Context, toolID string, download sources.DownloadResult, target, parent string, artifact tool.Artifact) (result InstallResult, installErr error) {
@@ -200,7 +394,7 @@ func (i *ArchiveInstaller) extractAndPublish(ctx context.Context, toolID string,
 			}
 		}
 	}()
-	if err := Extract(download.Path, staging, artifact.ArchiveRoot, artifact.Format, Limits{MaxExpandedBytes: artifact.MaxExpandedBytes}); err != nil {
+	if err := ExtractWithContext(ctx, download.Path, staging, artifact.ArchiveRoot, artifact.Format, Limits{MaxExpandedBytes: artifact.MaxExpandedBytes}); err != nil {
 		return result, fmt.Errorf("extract %s %s: %w", toolID, artifact.Version, err)
 	}
 	if artifact.InstallSubdirectory != "" {
