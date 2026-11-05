@@ -20,6 +20,7 @@ import (
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/platform"
 	"developers-club-dx/internal/regional"
+	"developers-club-dx/internal/sources"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -37,7 +38,7 @@ func TestApprovalDoesNotStartSessionUntilFreshInventoryMessage(t *testing.T) {
 	}
 	model := NewModel(context.Background(), items, inventory, []string{"git"})
 	model.screen = PlanScreen
-	model.Update(keyMessage('p'))
+	updateAndRunCommand(model, keyMessage('p'))
 	if !model.planReady || model.plan.Blocked || len(model.plan.InstallItems()) != 1 {
 		t.Fatalf("expected a reviewable install plan, got %#v", model.plan)
 	}
@@ -84,7 +85,7 @@ func TestPlanAndApprovalDiscloseUnresolvedPackageTransaction(t *testing.T) {
 		Tools:    map[string]detection.Tool{"git": {ID: "git", Name: "Git", State: detection.Missing}},
 	}, []string{"git"})
 	model.screen = PlanScreen
-	model.Update(keyMessage('p'))
+	updateAndRunCommand(model, keyMessage('p'))
 	disclosure := model.plan.TransactionDisclosure
 	if disclosure == "" {
 		t.Fatal("install plan does not contain the package transaction disclosure")
@@ -208,7 +209,7 @@ func TestSourceScreenConfiguresRegistryOverrideAndPlansExactGoTool(t *testing.T)
 	model.pathInput = "go-modules=https://proxy.example/goproxy"
 	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	model.screen = PlanScreen
-	model.Update(keyMessage('p'))
+	updateAndRunCommand(model, keyMessage('p'))
 	if !model.planReady || model.plan.Blocked || len(model.plan.Items) != 2 {
 		t.Fatalf("registry source did not produce an executable plan: %#v", model.plan)
 	}
@@ -476,7 +477,10 @@ func screenGoldenModel(t *testing.T) *Model {
 	model.regionDetection = regional.Result{Region: regional.Global}
 	model.width = 80
 	model.height = 24
-	model.buildPlan()
+	if command := model.buildPlan(); command != nil {
+		message := command()
+		model.Update(message)
+	}
 	session, err := installation.NewSession(model.plan)
 	if err != nil {
 		t.Fatal(err)
@@ -640,6 +644,26 @@ func TestPlanSignatureIncludesArchiveSetupAndLimits(t *testing.T) {
 	}
 }
 
+func TestProgressScreenShowsKnownDownloadProgress(t *testing.T) {
+	plan := planning.Plan{Items: []planning.Item{{ToolID: "go", Name: "Go", Action: planning.Install}}}
+	session, err := installation.NewSession(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), nil, detection.Inventory{}, nil)
+	model.plan = plan
+	model.session = session
+	model.activeItem = planning.Item{ToolID: "go", Name: "Go", Artifact: &tool.Artifact{}}
+	model.downloadProgress = map[string]sources.DownloadProgress{
+		"go": {SourceName: "publisher mirror", BytesReceived: 1_000_000, TotalBytes: 2_000_000},
+	}
+
+	output := strings.Join(model.renderProgress(20), "\n")
+	if !strings.Contains(output, "Prepared source: publisher mirror") || !strings.Contains(output, "Downloaded: 1.0 MB of 2.0 MB (50%)") {
+		t.Fatalf("progress screen omitted known download progress:\n%s", output)
+	}
+}
+
 func TestDiagnosticReportRequiresExplicitExportAndDoesNotOverwrite(t *testing.T) {
 	model := NewModel(context.Background(), nil, detection.Inventory{
 		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
@@ -682,4 +706,11 @@ func TestDiagnosticReportRequiresExplicitExportAndDoesNotOverwrite(t *testing.T)
 
 func keyMessage(value rune) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Text: string(value), Code: value}
+}
+
+func updateAndRunCommand(model *Model, message tea.Msg) {
+	_, command := model.Update(message)
+	if command != nil {
+		model.Update(command())
+	}
 }
