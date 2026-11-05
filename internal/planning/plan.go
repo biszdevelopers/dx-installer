@@ -178,7 +178,7 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 				plan.addRegistry(current, id, manifest, entry, *registryInstaller, registrySource)
 				continue
 			}
-			installer, managerAvailable := manifest.InstallerFor(current.Platform.OS, managerOrder)
+			installer, managerAvailable := manifest.InstallerForPlatform(current.Platform.OS, current.Platform.Architecture, managerOrder)
 			if !managerAvailable {
 				if artifact, exists := manifest.ArtifactFor(current.Platform.OS, current.Platform.Architecture); exists {
 					plan.addArtifact(current, id, manifest, entry, artifact, options.AllowRegionalFallback, "", "")
