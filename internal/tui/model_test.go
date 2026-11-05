@@ -664,6 +664,20 @@ func TestProgressScreenShowsKnownDownloadProgress(t *testing.T) {
 	}
 }
 
+func TestQuitCancelsActiveArchiveInstall(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{}, nil)
+	cancelled := false
+	model.installCancel = func() { cancelled = true }
+
+	updated, command := model.Update(keyMessage('q'))
+	if !cancelled || model.installCancel != nil || command == nil {
+		t.Fatalf("quitting did not cancel and clear the active archive install: cancelled=%v installCancel=%v command=%v", cancelled, model.installCancel != nil, command != nil)
+	}
+	if updated != model {
+		t.Fatal("quit replaced the TUI model")
+	}
+}
+
 func TestDiagnosticReportRequiresExplicitExportAndDoesNotOverwrite(t *testing.T) {
 	model := NewModel(context.Background(), nil, detection.Inventory{
 		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
