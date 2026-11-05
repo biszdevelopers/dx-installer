@@ -58,7 +58,7 @@ func TestZephyrSDKDetectionRequiresDeclaredCompilerAndReadsInstalledVersions(t *
 			t.Fatal(err)
 		}
 	}
-	compilerDirectory := filepath.Join(currentPath, "arm-zephyr-eabi", "bin")
+	compilerDirectory := filepath.Join(currentPath, "gnu", "arm-zephyr-eabi", "bin")
 	if err := os.MkdirAll(compilerDirectory, 0o700); err != nil {
 		t.Fatal(err)
 	}
