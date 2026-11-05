@@ -154,6 +154,9 @@ func RunLineFallback(ctx context.Context, model *Model, input io.Reader, output 
 				if event.Progress.SourceName != "" {
 					label += " via " + event.Progress.SourceName
 				}
+				if event.Progress.Phase != "" {
+					label += " — " + event.Progress.Phase
+				}
 				fmt.Fprintf(output, "\r  %s: %s", label, display.DownloadProgress(event.Progress.BytesReceived, event.Progress.TotalBytes))
 			case results := <-resultChannel:
 				resultsReceived = true
