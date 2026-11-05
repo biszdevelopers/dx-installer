@@ -203,7 +203,7 @@ func (m *Model) renderCatalog(maxRows int) []string {
 			lines = append(lines, "Package record: "+display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 		}
 	}
-	if installer, ok := item.InstallerFor(m.inventory.Platform.OS, m.managerOrder()); ok {
+	if installer, ok := item.InstallerForPlatform(m.inventory.Platform.OS, m.inventory.Platform.Architecture, m.managerOrder()); ok {
 		lines = append(lines, fmt.Sprintf("Proposed source: %s / %s (%s)", installer.Manager, installer.PackageID, installer.Source))
 	} else {
 		if artifact, exists := item.ArtifactFor(m.inventory.Platform.OS, m.inventory.Platform.Architecture); exists {
