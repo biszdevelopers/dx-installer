@@ -1,0 +1,21 @@
+schema_version: 1
+id: mingw-w64
+name: MinGW-w64
+category: cpp.compiler
+description: GCC, G++, GDB, GNU Make, and binutils for native Windows development.
+tags: [cpp, gcc, windows, compiler, debugger]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [gcc, g++, gdb, make]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64]
+installers:
+  - platform: windows
+    manager: scoop
+    package_id: mingw
+    scope: user
+    source: Scoop Main bucket
