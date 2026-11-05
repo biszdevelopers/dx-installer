@@ -18,7 +18,7 @@ Use `--json` with `catalog` or `inventory` for structured output. Inventory repo
 go run ./cmd/bootstrap plan --tools git,github-cli
 ```
 
-Planning is read-only. A plan lists dependencies, manager, package identifier, configured manager source, scope, command, and blocking issues. DX does not yet query candidate package versions or simulate the package manager's full transaction; the plan discloses this uncertainty, and any manager confirmation should be reviewed before it is accepted. If inventory is uncertain or a tool is already installed, the tool is preserved. A plan with a blocker exits without executing anything.
+Planning is read-only. A plan lists dependencies, manager, package identifier, configured manager source, scope, command, and blocking issues. For APT, DNF, YUM, Pacman, Zypper, and APK, DX runs a cache-only preview without refreshing repository metadata and shows the candidate version and package operations when the manager exposes them. Other managers disclose when a safe local preview is unavailable. Cached previews can become stale, and unresolved previews may omit dependency or system changes; review that uncertainty and any manager confirmation before accepting the plan. If inventory is uncertain or a tool is already installed, the tool is preserved. A plan with a blocker exits without executing anything.
 
 ## Install interactively
 
@@ -32,6 +32,12 @@ For a deliberately noninteractive run, preselect tools and pass `--yes`:
 
 ```powershell
 go run ./cmd/bootstrap install --tools git,go --yes
+```
+
+Archive downloads default to three concurrent workers and a ten-minute timeout per source. Set `--download-concurrency` from 1 to 8 and `--download-timeout` from `1s` to `24h` to adjust them:
+
+```powershell
+go run ./cmd/bootstrap install --tools go,cmake --download-concurrency 2 --download-timeout 15m
 ```
 
 The reviewed plan is printed before execution. `--yes` is required, and a changed plan is not automatically approved; the line fallback stops when it cannot collect renewed approval.
