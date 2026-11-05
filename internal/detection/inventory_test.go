@@ -36,7 +36,7 @@ func TestInstalledPackageWithoutExecutableIsPreservedAsUnknown(t *testing.T) {
 	}
 }
 
-func TestZephyrSDKDetectionReadsSafeVersionFilesAcrossUserInstallVersions(t *testing.T) {
+func TestZephyrSDKDetectionRequiresDeclaredCompilerAndReadsInstalledVersions(t *testing.T) {
 	machine := platform.Detect()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -58,24 +58,51 @@ func TestZephyrSDKDetectionReadsSafeVersionFilesAcrossUserInstallVersions(t *tes
 			t.Fatal(err)
 		}
 	}
+	compilerDirectory := filepath.Join(currentPath, "arm-zephyr-eabi", "bin")
+	if err := os.MkdirAll(compilerDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	compilerPath := filepath.Join(compilerDirectory, "arm-zephyr-eabi-gcc")
+	if machine.OS == tool.Windows {
+		compilerPath += ".exe"
+	}
+	testExecutable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	compiler, err := os.ReadFile(testExecutable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(compilerPath, compiler, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("DX_DETECTION_VERSION_HELPER", "1")
 	manifest := tool.Manifest{
-		ID: "zephyr-sdk", Executables: []string{"arm-zephyr-eabi-gcc"}, VersionArgs: []string{"--version"},
+		ID: "zephyr-sdk", Executables: []string{"arm-zephyr-eabi-gcc"}, VersionArgs: []string{"-test.v", "-test.run=TestVersionProbeExecutable"},
 		Platforms: map[tool.OperatingSystem][]tool.Architecture{machine.OS: {machine.Architecture}},
 		Artifacts: []tool.Artifact{{
 			Platform: machine.OS, Architecture: machine.Architecture, Version: "1.0.1", VersionFile: "sdk_version",
 		}},
 	}
 	instances, _, state := scanTool(context.Background(), manifest, machine, nil, nil, nil, nil)
-	if state != Healthy || len(instances) != 2 {
+	if state != Partial || len(instances) != 2 {
 		t.Fatalf("Zephyr SDK state = %s, instances = %#v", state, instances)
 	}
-	versions := map[string]bool{}
+	versions := map[string]State{}
 	for _, instance := range instances {
-		versions[instance.Version] = true
+		versions[instance.Version] = instance.State
 	}
-	if !versions["1.0.1"] || !versions["0.16.8"] {
+	if versions["1.0.1"] != Healthy || versions["0.16.8"] != Unknown {
 		t.Fatalf("detected Zephyr SDK versions = %#v", versions)
 	}
+}
+
+func TestVersionProbeExecutable(t *testing.T) {
+	if os.Getenv("DX_DETECTION_VERSION_HELPER") != "1" {
+		return
+	}
+	_, _ = os.Stdout.WriteString("Zephyr compiler version 1.2.3\n")
 }
 
 func TestZephyrSDKDetectionMarksMissingVersionMetadataUnknown(t *testing.T) {
