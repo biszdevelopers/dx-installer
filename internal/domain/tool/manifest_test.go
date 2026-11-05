@@ -19,6 +19,27 @@ func TestManifestAcceptsTypedWindowsInstaller(t *testing.T) {
 	}
 }
 
+func TestInstallerSelectionRespectsArchitectureAvailability(t *testing.T) {
+	manifest := validManifest()
+	manifest.Platforms = map[OperatingSystem][]Architecture{MacOS: {AMD64, ARM64}}
+	manifest.Installers = []Installer{
+		{Platform: MacOS, Manager: Homebrew, PackageID: "sample", Scope: UserScope, Source: "homebrew-core", Architectures: []Architecture{ARM64}},
+		{Platform: MacOS, Manager: MacPorts, PackageID: "sample", Scope: SystemScope, Source: "macports", Architectures: []Architecture{AMD64}},
+	}
+	if err := manifest.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if installer, exists := manifest.InstallerForPlatform(MacOS, AMD64, []PackageManager{Homebrew}); exists {
+		t.Fatalf("Intel Mac selected an ARM-only Homebrew installer: %#v", installer)
+	}
+	if installer, exists := manifest.InstallerForPlatform(MacOS, AMD64, []PackageManager{MacPorts, Homebrew}); !exists || installer.Manager != MacPorts {
+		t.Fatalf("Intel Mac did not select MacPorts: %#v, %v", installer, exists)
+	}
+	if installer, exists := manifest.InstallerForPlatform(MacOS, ARM64, []PackageManager{MacPorts, Homebrew}); !exists || installer.Manager != Homebrew {
+		t.Fatalf("Apple Silicon did not select Homebrew: %#v, %v", installer, exists)
+	}
+}
+
 func TestManifestValidatesHealthPattern(t *testing.T) {
 	manifest := validManifest()
 	manifest.HealthPattern = `(?m)^Microsoft\.NETCore\.App\s+(10\.[0-9.]+)`
