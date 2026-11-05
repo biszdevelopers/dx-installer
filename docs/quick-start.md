@@ -36,7 +36,14 @@ go run ./cmd/bootstrap install --tools git,go --yes
 
 The reviewed plan is printed before execution. `--yes` is required, and a changed plan is not automatically approved; the line fallback stops when it cannot collect renewed approval.
 
-The Sources screen currently selects a preferred detected package manager. It does not set an official-only policy, custom source, mirror, or offline archive. See [source behavior](source-selection.md).
+The Sources screen can prefer a detected manager, select the automatic, official-only, official-first, mainland-China, or global policy, configure a catalog-pinned custom archive URL or local archive, set an npm/PyPI/Go/Cargo registry, or load a signed offline bundle. The same options are available to `plan` and `install` as `--source-policy`, repeatable `--custom-source tool-id=https://URL`, `--offline-archive tool-id=absolute-path`, repeatable `--registry ecosystem=https://URL`, and `--offline-bundle absolute-directory` flags. For example:
+
+```powershell
+go run ./cmd/bootstrap plan --tools go --source-policy official-only
+go run ./cmd/bootstrap install --tools go --offline-archive go=C:\artifacts\go1.27.3.windows-amd64.zip --yes
+```
+
+Direct archive and local sources remain bound to the SHA-256 digest in the embedded catalog. Options apply only to tools with the matching artifact or registry installer. See [source behavior](source-selection.md), [regional behavior](regional-support.md), and [offline installation](offline-installation.md).
 
 ## Tests and checks
 
