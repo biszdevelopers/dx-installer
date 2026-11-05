@@ -1,0 +1,36 @@
+schema_version: 1
+id: spotless-cli
+name: Spotless CLI
+category: java.formatting
+description: Standalone code formatter for Java, Kotlin, XML, and other supported file types.
+tags: [java, kotlin, formatting, code-quality]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [spotless]
+version_args: [--version]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: chocolatey
+    package_id: spotless-cli
+    scope: system
+    source: chocolatey-community
+    approximate_size: 57500000
+  - platform: macos
+    manager: homebrew
+    package_id: diffplug/tap/spotless-cli
+    scope: user
+    source: diffplug/homebrew-tap
+    approximate_size: 56000000
+  - platform: linux
+    manager: homebrew
+    package_id: diffplug/tap/spotless-cli
+    scope: user
+    source: diffplug/homebrew-tap
+    approximate_size: 56000000
