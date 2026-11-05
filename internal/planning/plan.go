@@ -103,7 +103,7 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 		}
 		selectedSet[id] = true
 	}
-	closure, err := dependencyOrder(items, selectedSet)
+	closure, err := dependencyOrder(items, selectedSet, current.Platform.OS)
 	if err != nil {
 		return plan, err
 	}
@@ -147,7 +147,7 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 				plan.Items = append(plan.Items, Item{
 					ToolID:        id,
 					Name:          manifest.Name,
-					Dependencies:  append([]string(nil), manifest.Dependencies...),
+					Dependencies:  manifest.DependenciesFor(current.Platform.OS),
 					Action:        Provided,
 					ExistingState: entry.State,
 					ProvidedBy:    manifest.ProvidedBy,
@@ -159,12 +159,12 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 		}
 		switch entry.State {
 		case detection.Healthy, detection.Outdated:
-			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State, ExistingPackages: append([]detection.PackageOwnership(nil), entry.Packages...)})
+			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: manifest.DependenciesFor(current.Platform.OS), Action: Preserve, ExistingState: entry.State, ExistingPackages: append([]detection.PackageOwnership(nil), entry.Packages...)})
 		case detection.Unknown:
-			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State, ExistingPackages: append([]detection.PackageOwnership(nil), entry.Packages...)})
+			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: manifest.DependenciesFor(current.Platform.OS), Action: Preserve, ExistingState: entry.State, ExistingPackages: append([]detection.PackageOwnership(nil), entry.Packages...)})
 			plan.add(Warning, id, "an existing installation could not be verified and will be preserved")
 		case detection.Broken, detection.Partial, detection.Conflicting:
-			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: append([]string(nil), manifest.Dependencies...), Action: Preserve, ExistingState: entry.State})
+			plan.Items = append(plan.Items, Item{ToolID: id, Name: manifest.Name, Dependencies: manifest.DependenciesFor(current.Platform.OS), Action: Preserve, ExistingState: entry.State})
 			plan.add(Blocking, id, fmt.Sprintf("an existing %s installation needs manual review; DX will not replace it", entry.State))
 		case detection.Missing:
 			customURL := strings.TrimSpace(options.CustomSources[id])
@@ -251,7 +251,7 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 			plan.Items = append(plan.Items, Item{
 				ToolID:            id,
 				Name:              manifest.Name,
-				Dependencies:      append([]string(nil), manifest.Dependencies...),
+				Dependencies:      manifest.DependenciesFor(current.Platform.OS),
 				Action:            Install,
 				ExistingState:     entry.State,
 				Manager:           installer.Manager,
@@ -423,7 +423,7 @@ func (p *Plan) addRegistry(current detection.Inventory, id string, manifest tool
 	p.Items = append(p.Items, Item{
 		ToolID:            id,
 		Name:              manifest.Name,
-		Dependencies:      append([]string(nil), manifest.Dependencies...),
+		Dependencies:      manifest.DependenciesFor(current.Platform.OS),
 		Action:            Install,
 		ExistingState:     entry.State,
 		PackageID:         installer.PackageID,
@@ -495,7 +495,7 @@ func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool
 	p.Items = append(p.Items, Item{
 		ToolID:             id,
 		Name:               manifest.Name,
-		Dependencies:       append([]string(nil), manifest.Dependencies...),
+		Dependencies:       manifest.DependenciesFor(current.Platform.OS),
 		Action:             Install,
 		ExistingState:      entry.State,
 		Source:             source,
@@ -529,7 +529,7 @@ func PreferredManagerOrder(managers []tool.PackageManager, preferred tool.Packag
 	return ordered
 }
 
-func dependencyOrder(items *catalog.Catalog, selected map[string]bool) ([]string, error) {
+func dependencyOrder(items *catalog.Catalog, selected map[string]bool, os tool.OperatingSystem) ([]string, error) {
 	state := make(map[string]uint8)
 	order := make([]string, 0)
 	var visit func(string, []string) error
@@ -545,7 +545,7 @@ func dependencyOrder(items *catalog.Catalog, selected map[string]bool) ([]string
 			return fmt.Errorf("tool %q references a missing dependency", id)
 		}
 		state[id] = 1
-		dependencies := append([]string(nil), manifest.Dependencies...)
+		dependencies := manifest.DependenciesFor(os)
 		sort.Strings(dependencies)
 		for _, dependency := range dependencies {
 			if err := visit(dependency, append(chain, id)); err != nil {
