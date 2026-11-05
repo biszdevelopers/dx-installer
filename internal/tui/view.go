@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -24,6 +25,7 @@ var (
 	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	goodStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 	strongStyle   = lipgloss.NewStyle().Bold(true)
+	asciiSymbols  = strings.NewReplacer("…", "...", "→", "->", "—", "--", "–", "-")
 )
 
 var screenNames = []string{"Overview", "Catalog", "Profiles", "Environment", "Plan", "Sources", "Progress", "Results"}
@@ -74,8 +76,49 @@ func wrapLayout(lines []string, width int) []string {
 	if len(lines) == 0 {
 		return nil
 	}
+	if asciiFallbackEnabled() {
+		for index := range lines {
+			lines[index] = asciiText(lines[index])
+		}
+	}
 	wrapped := lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
-	return strings.Split(wrapped, "\n")
+	result := strings.Split(wrapped, "\n")
+	for index := range result {
+		result[index] = ansi.Truncate(result[index], width, "")
+	}
+	return result
+}
+
+func asciiFallbackEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("DX_ASCII"))) {
+	case "1", "true", "yes":
+		return true
+	case "0", "false", "no":
+		return false
+	}
+	if strings.EqualFold(os.Getenv("TERM"), "dumb") || platformRequiresASCII() {
+		return true
+	}
+	for _, name := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
+		locale := strings.ToLower(os.Getenv(name))
+		if locale == "c" || locale == "posix" || strings.Contains(locale, "ascii") {
+			return true
+		}
+		if strings.Contains(locale, "utf-8") || strings.Contains(locale, "utf8") {
+			return false
+		}
+	}
+	return false
+}
+
+func asciiText(value string) string {
+	value = asciiSymbols.Replace(value)
+	return strings.Map(func(character rune) rune {
+		if character > 0x7f {
+			return '?'
+		}
+		return character
+	}, value)
 }
 
 func (m *Model) renderNavigation(width int) string {
@@ -172,8 +215,8 @@ func (m *Model) renderCatalog(maxRows int) []string {
 	item := tools[min(max(m.cursor, 0), len(tools)-1)]
 	lines = append(lines, "", strongStyle.Render(item.Name+" details"), item.Description, "Category: "+item.Category)
 	lines = append(lines, "Version channel: "+item.Version.Channel)
-	if len(item.Dependencies) > 0 {
-		lines = append(lines, "Dependencies: "+strings.Join(item.Dependencies, ", "))
+	if dependencies := item.DependenciesFor(m.inventory.Platform.OS); len(dependencies) > 0 {
+		lines = append(lines, "Dependencies: "+strings.Join(dependencies, ", "))
 	}
 	if len(item.Conflicts) > 0 {
 		lines = append(lines, "Conflicts: "+strings.Join(item.Conflicts, ", "))
