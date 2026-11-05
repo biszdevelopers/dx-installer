@@ -208,6 +208,12 @@ func (m *Model) renderCatalog(maxRows int) []string {
 	} else {
 		if artifact, exists := item.ArtifactFor(m.inventory.Platform.OS, m.inventory.Platform.Architecture); exists {
 			lines = append(lines, "Proposed method: verified official archive", "Artifact version: "+artifact.Version, "Official source: "+artifact.URL, "SHA-256: "+artifact.SHA256)
+			if artifact.SizeEstimateNote != "" {
+				lines = append(lines, "Download estimate: "+artifact.SizeEstimateNote)
+			}
+			if artifact.InstallationNote != "" {
+				lines = append(lines, "Setup: "+artifact.InstallationNote)
+			}
 		} else {
 			lines = append(lines, warningStyle.Render("No installer or verified archive is available here."))
 		}
@@ -312,11 +318,18 @@ func (m *Model) renderPlan(maxRows int) []string {
 			privilege = "system scope / privilege may be required"
 		}
 		if item.Artifact != nil {
+			sizeEstimate := approximateSize(item.ApproximateSize)
+			if item.SizeEstimateNote != "" {
+				sizeEstimate = item.SizeEstimateNote
+			}
 			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s", item.ToolID, item.Version, privilege),
 				"          source: "+item.Source,
 				"          SHA-256: "+item.Artifact.SHA256,
-				"          approximate download: "+approximateSize(item.ApproximateSize),
+				"          approximate download: "+sizeEstimate,
 				"          install path: "+item.InstallPath)
+			if item.InstallationNote != "" {
+				rows = append(rows, "          setup: "+item.InstallationNote)
+			}
 			if item.OfflineArchivePath != "" {
 				rows = append(rows, "          verified local archive: "+item.OfflineArchivePath)
 			} else if item.CustomSourceURL != "" {
