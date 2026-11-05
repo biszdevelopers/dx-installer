@@ -50,7 +50,7 @@ func TestArchiveInstallerPlacesToolInVersionedUserLocationAndCleansTemporaryFile
 	manifestArtifact := tool.Artifact{
 		Platform: platform.Detect().OS, Architecture: platform.Detect().Architecture,
 		Version: "1.27.3", URL: "https://downloads.example/go1.27.3", SHA256: hex.EncodeToString(digest[:]),
-		Format: archiveFormat, ArchiveRoot: "go",
+		MaxDownloadBytes: 2 << 30, Format: archiveFormat, ArchiveRoot: "go",
 	}
 
 	result, err := installer.Install(context.Background(), "go", home, manifestArtifact, false)
@@ -79,6 +79,27 @@ func TestArchiveInstallerPlacesToolInVersionedUserLocationAndCleansTemporaryFile
 		}
 	} else if filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(result.Path)))) != ".local" {
 		t.Fatalf("Unix tool was installed outside ~/.local/opt: %q", result.Path)
+	}
+}
+
+func TestZephyrSDKInstallPathUsesVendorDefaultLocation(t *testing.T) {
+	home := t.TempDir()
+	got, err := InstallationPath(platform.Detect().OS, "zephyr-sdk", "1.0.1", home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(home, ".local", "opt", "zephyr-sdk-1.0.1")
+	if runtime.GOOS == "windows" {
+		want = filepath.Join(home, "zephyr-sdk-1.0.1")
+	}
+	if got != want {
+		t.Fatalf("Zephyr SDK install path = %q, want %q", got, want)
+	}
+}
+
+func TestPostInstallRejectsUnknownAction(t *testing.T) {
+	if err := runPostInstallAction(context.Background(), t.TempDir(), "run-arbitrary-command"); err == nil {
+		t.Fatal("unknown post-install action was accepted")
 	}
 }
 
