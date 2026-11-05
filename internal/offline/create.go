@@ -88,12 +88,12 @@ func CreateBundle(output string, manifest Manifest, sourceFiles map[string]strin
 		}
 	}()
 	for _, payload := range manifest.Artifacts {
-		if err := copyVerified(sourceFiles[payload.File], filepath.Join(output, payload.File), payload.SHA256, payload.Executable); err != nil {
+		if err := copyVerified(sourceFiles[payload.File], filepath.Join(output, payload.File), payload.SHA256, payload.Executable, payloadLimit(payload)); err != nil {
 			return fmt.Errorf("add bundle artifact %q: %w", payload.ToolID, err)
 		}
 	}
 	if manifest.Bootstrap != nil {
-		if err := copyVerified(sourceFiles[manifest.Bootstrap.File], filepath.Join(output, manifest.Bootstrap.File), manifest.Bootstrap.SHA256, manifest.Bootstrap.Executable); err != nil {
+		if err := copyVerified(sourceFiles[manifest.Bootstrap.File], filepath.Join(output, manifest.Bootstrap.File), manifest.Bootstrap.SHA256, manifest.Bootstrap.Executable, defaultBundleArtifactSize); err != nil {
 			return fmt.Errorf("add bundle bootstrap: %w", err)
 		}
 	}
@@ -116,7 +116,10 @@ func CreateBundle(output string, manifest Manifest, sourceFiles map[string]strin
 	return nil
 }
 
-func copyVerified(source, destination, expectedSHA256 string, executable bool) error {
+func copyVerified(source, destination, expectedSHA256 string, executable bool, maxBytes int64) error {
+	if maxBytes < 1 || maxBytes > maxBundleArtifactSize || (executable && maxBytes > defaultBundleArtifactSize) {
+		return errors.New("bundle payload size limit is invalid")
+	}
 	if !filepath.IsAbs(source) {
 		return errors.New("bundle source file must be absolute")
 	}
@@ -141,12 +144,12 @@ func copyVerified(source, destination, expectedSHA256 string, executable bool) e
 		return err
 	}
 	hasher := sha256.New()
-	written, copyErr := io.Copy(io.MultiWriter(output, hasher), io.LimitReader(input, maxBundleArtifactSize+1))
+	written, copyErr := io.Copy(io.MultiWriter(output, hasher), io.LimitReader(input, maxBytes+1))
 	if copyErr != nil {
 		_ = output.Close()
 		return copyErr
 	}
-	if written > maxBundleArtifactSize {
+	if written > maxBytes {
 		_ = output.Close()
 		return errors.New("bundle source exceeds the payload size limit")
 	}
@@ -178,7 +181,7 @@ func HashSource(path string) (string, int64, error) {
 	if !linkInfo.Mode().IsRegular() || linkInfo.Mode()&os.ModeSymlink != 0 {
 		return "", 0, errors.New("bundle source must be a regular non-symlink file")
 	}
-	if linkInfo.Size() < 0 || linkInfo.Size() > maxBundleArtifactSize {
+	if linkInfo.Size() < 0 || linkInfo.Size() > defaultBundleArtifactSize {
 		return "", 0, errors.New("bundle source exceeds the payload size limit")
 	}
 	file, err := os.Open(path)
@@ -191,11 +194,11 @@ func HashSource(path string) (string, int64, error) {
 		return "", 0, errors.New("bundle source changed while it was being opened")
 	}
 	hasher := sha256.New()
-	written, err := io.Copy(hasher, io.LimitReader(file, maxBundleArtifactSize+1))
+	written, err := io.Copy(hasher, io.LimitReader(file, defaultBundleArtifactSize+1))
 	if err != nil {
 		return "", 0, err
 	}
-	if written > maxBundleArtifactSize {
+	if written > defaultBundleArtifactSize {
 		return "", 0, errors.New("bundle source exceeds the payload size limit")
 	}
 	return hex.EncodeToString(hasher.Sum(nil)), written, nil
