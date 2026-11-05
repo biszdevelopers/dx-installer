@@ -25,7 +25,7 @@ Inventory checks executables on `PATH`, a bounded set of standard locations, and
 
 ## Build a signed release
 
-The release tool cross-builds the default Windows, macOS, and Linux matrix (amd64 and arm64), verifies binary formats and architectures, generates versioned PowerShell and POSIX entry points containing artifact digests, signs `SHA256SUMS` with Ed25519, and verifies the staged output before publishing it locally.
+The release tool cross-builds Windows, macOS, and Linux on amd64 and arm64 plus FreeBSD amd64, verifies binary formats and architectures, generates versioned PowerShell and POSIX entry points containing artifact digests, signs `SHA256SUMS` with Ed25519, and verifies the staged output before publishing it locally.
 
 ```powershell
 go run ./cmd/release `
