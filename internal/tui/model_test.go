@@ -655,11 +655,11 @@ func TestProgressScreenShowsKnownDownloadProgress(t *testing.T) {
 	model.session = session
 	model.activeItem = planning.Item{ToolID: "go", Name: "Go", Artifact: &tool.Artifact{}}
 	model.downloadProgress = map[string]sources.DownloadProgress{
-		"go": {SourceName: "publisher mirror", BytesReceived: 1_000_000, TotalBytes: 2_000_000},
+		"go": {SourceName: "publisher mirror", BytesReceived: 1_000_000, TotalBytes: 2_000_000, Phase: "verifying SHA-256 and signature"},
 	}
 
 	output := strings.Join(model.renderProgress(20), "\n")
-	if !strings.Contains(output, "Prepared source: publisher mirror") || !strings.Contains(output, "Downloaded: 1.0 MB of 2.0 MB (50%)") {
+	if !strings.Contains(output, "Prepared source: publisher mirror") || !strings.Contains(output, "Downloaded: 1.0 MB of 2.0 MB (50%)") || !strings.Contains(output, "Verification: verifying SHA-256 and signature") {
 		t.Fatalf("progress screen omitted known download progress:\n%s", output)
 	}
 }
