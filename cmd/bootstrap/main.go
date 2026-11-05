@@ -12,9 +12,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"developers-club-dx/internal/adapters/packagemanager"
+	"developers-club-dx/internal/artifacts"
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/display"
@@ -193,6 +195,9 @@ func showPlan(ctx context.Context, items *catalog.Catalog, args []string) error 
 	if err != nil {
 		return err
 	}
+	previewContext, cancelPreview := context.WithTimeout(ctx, 20*time.Second)
+	plan = planning.PreviewPackageTransactions(previewContext, inventory, plan)
+	cancelPreview()
 	if *jsonOutput {
 		if err := writeJSON(os.Stdout, plan); err != nil {
 			return err
@@ -217,6 +222,8 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 	flags.Var(&registryFlags, "registry", "HTTPS registry override as ecosystem=https://URL (repeatable)")
 	offlineBundleFlag := flags.String("offline-bundle", "", "signed platform-specific offline bundle directory")
 	approveFlag := flags.Bool("yes", false, "approve and execute the preselected plan in line mode")
+	downloadConcurrency := flags.Int("download-concurrency", artifacts.DefaultConcurrentDownloads, "maximum concurrent archive downloads (1-8)")
+	downloadTimeout := flags.Duration("download-timeout", artifacts.DefaultDownloadTimeout, "per-source archive download timeout (1s-24h)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -228,6 +235,19 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 		if _, exists := items.Tool(id); !exists {
 			return fmt.Errorf("unknown tool %q", id)
 		}
+	}
+	if *downloadConcurrency < 1 || *downloadConcurrency > artifacts.MaxConcurrentDownloads {
+		return fmt.Errorf("download concurrency must be between 1 and %d", artifacts.MaxConcurrentDownloads)
+	}
+	if *downloadTimeout < time.Second || *downloadTimeout > artifacts.MaxDownloadTimeout {
+		return fmt.Errorf("download timeout must be between 1s and %s", artifacts.MaxDownloadTimeout)
+	}
+	archiveInstaller, err := artifacts.NewArchiveInstallerWithOptions(artifacts.ArchiveInstallerOptions{
+		MaxConcurrentDownloads: *downloadConcurrency,
+		DownloadTimeout:        *downloadTimeout,
+	})
+	if err != nil {
+		return err
 	}
 	if !*approveFlag && (!isTerminal(os.Stdin) || !isTerminal(os.Stdout)) {
 		return errors.New("interactive approval requires a terminal; catalog, inventory, and plan commands are available without one")
@@ -270,6 +290,7 @@ func launchInteractive(ctx context.Context, items *catalog.Catalog, args []strin
 		return err
 	}
 	model := tui.NewModel(ctx, items, inventory, selected)
+	model.SetArchiveInstaller(archiveInstaller)
 	model.SetPreferredManager(preferredManager)
 	if err := model.SetSourceOverrides(customSources, offlineArchives); err != nil {
 		return err
@@ -448,7 +469,7 @@ func printPlan(output *os.File, plan planning.Plan) {
 			privilege = "system scope; privilege may be required"
 		}
 		if item.Artifact != nil {
-			sizeEstimate := approxBytes(item.ApproximateSize)
+			sizeEstimate := display.ApproximateSize(item.ApproximateSize)
 			if item.SizeEstimateNote != "" {
 				sizeEstimate = item.SizeEstimateNote
 			}
@@ -472,6 +493,12 @@ func printPlan(output *os.File, plan planning.Plan) {
 		if item.RegistryInstaller != nil {
 			fmt.Fprintf(output, "  INSTALL %s %s\n    package: %s (%s registry)\n    source: %s\n    scope: user\n    install path: %s\n    command: %s\n",
 				item.Name, item.Version, item.PackageID, item.RegistryInstaller.Ecosystem, item.Source, item.InstallPath, item.Command.Display())
+			if item.CandidateVersion != "" {
+				fmt.Fprintf(output, "    candidate version: %s\n", item.CandidateVersion)
+			}
+			if item.TransactionNote != "" {
+				fmt.Fprintf(output, "    preview note: %s\n", item.TransactionNote)
+			}
 			for _, change := range item.PathChanges {
 				if change.Manual {
 					fmt.Fprintf(output, "    PATH: manual setup (%s)\n    command: %s\n", change.Target, change.ManualCommand)
@@ -483,6 +510,15 @@ func printPlan(output *os.File, plan planning.Plan) {
 		}
 		fmt.Fprintf(output, "  INSTALL %s\n    package: %s (%s)\n    source: %s\n    scope: %s\n    command: %s\n",
 			item.Name, item.PackageID, item.Manager, item.Source, privilege, item.Command.Display())
+		if item.CandidateVersion != "" {
+			fmt.Fprintf(output, "    candidate version: %s\n", item.CandidateVersion)
+		}
+		if item.TransactionPreview != "" {
+			fmt.Fprintf(output, "    transaction preview: %s\n", item.TransactionPreview)
+		}
+		if item.TransactionNote != "" {
+			fmt.Fprintf(output, "    preview note: %s\n", item.TransactionNote)
+		}
 	}
 	for _, issue := range plan.Issues {
 		fmt.Fprintf(output, "  %s %s: %s\n", strings.ToUpper(string(issue.Severity)), issue.ToolID, issue.Message)
@@ -490,13 +526,6 @@ func printPlan(output *os.File, plan planning.Plan) {
 	if len(plan.InstallItems()) > 0 {
 		fmt.Fprintf(output, "  NOTICE %s\n", plan.TransactionDisclosure)
 	}
-}
-
-func approxBytes(bytes int64) string {
-	if bytes <= 0 {
-		return "unknown"
-	}
-	return fmt.Sprintf("about %.0f MB", float64(bytes)/1_000_000)
 }
 
 func parseIDs(value string) []string {
@@ -550,6 +579,7 @@ Usage:
   dx-bootstrap plan --tools go --offline-bundle C:\archives\dx-bundle
   dx-bootstrap install --tools git,go --yes [--manager apt]
                                       Approve the displayed plan without a TTY
+  dx-bootstrap install --tools go --download-concurrency 2 --download-timeout 15m
   dx-bootstrap verify-release --directory PATH
                                       Verify release checksums with this build's pinned key
   dx-bootstrap install [--tools ids]   Open the interactive application
