@@ -1,0 +1,33 @@
+schema_version: 1
+id: esp-idf-installation-manager
+name: ESP-IDF Installation Manager
+category: embedded.installer
+description: Espressif CLI for installing and managing ESP-IDF versions and their toolchains.
+tags: [embedded, esp-idf, espressif, installer]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [eim]
+version_args: [--do-not-track, "true", --log-file, "@DEVNULL@", --version]
+dependencies: []
+conflicts: []
+platforms:
+  windows: [amd64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
+installers:
+  - platform: windows
+    manager: winget
+    package_id: Espressif.EIM-CLI
+    scope: system
+    source: winget
+  - platform: macos
+    manager: homebrew
+    package_id: espressif/eim/eim
+    scope: user
+    source: Espressif Homebrew tap
+  - platform: linux
+    manager: homebrew
+    package_id: espressif/eim/eim
+    scope: user
+    source: Espressif Homebrew tap
