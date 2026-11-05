@@ -3,6 +3,7 @@ package tui
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"developers-club-dx/internal/catalog"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/domain/tool"
+	"developers-club-dx/internal/installation"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/platform"
 	"developers-club-dx/internal/regional"
@@ -337,6 +339,157 @@ func TestEnvironmentScreenGolden(t *testing.T) {
 	if got != string(want) {
 		t.Fatalf("environment screen differs from golden snapshot\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
+}
+
+func TestScreensGolden(t *testing.T) {
+	t.Setenv("DX_ASCII", "0")
+	model := screenGoldenModel(t)
+	var rendered strings.Builder
+	for screen := OverviewScreen; screen <= ResultsScreen; screen++ {
+		model.screen = screen
+		fmt.Fprintf(&rendered, "=== %s ===\n%s\n", screenNames[screen], normalizedRender(model.render()))
+	}
+	path := filepath.Join("testdata", "screens.golden")
+	if os.Getenv("UPDATE_GOLDEN") == "1" {
+		if err := os.WriteFile(path, []byte(rendered.String()), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rendered.String() != string(want) {
+		t.Fatalf("TUI screen snapshots differ\n--- got ---\n%s\n--- want ---\n%s", rendered.String(), want)
+	}
+}
+
+func TestEveryScreenFitsSmallAndResizedTerminals(t *testing.T) {
+	t.Setenv("DX_ASCII", "0")
+	model := screenGoldenModel(t)
+	for _, size := range []struct{ width, height int }{{24, 12}, {40, 16}, {80, 24}} {
+		model.Update(tea.WindowSizeMsg{Width: size.width, Height: size.height})
+		for screen := OverviewScreen; screen <= ResultsScreen; screen++ {
+			model.screen = screen
+			lines := strings.Split(ansi.Strip(model.render()), "\n")
+			if len(lines) > size.height {
+				t.Errorf("%s rendered %d rows for %dx%d terminal", screenNames[screen], len(lines), size.width, size.height)
+			}
+			for index, line := range lines {
+				if ansi.StringWidth(line) > size.width {
+					t.Errorf("%s line %d is %d columns wide for %dx%d terminal: %q", screenNames[screen], index+1, ansi.StringWidth(line), size.width, size.height, line)
+				}
+			}
+		}
+	}
+}
+
+func TestCatalogDetailsShowCurrentPlatformDependencies(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
+		Tools:    map[string]detection.Tool{"zephyr-sdk": {ID: "zephyr-sdk", Name: "Zephyr SDK", State: detection.Missing}},
+	}, nil)
+	for index, item := range items.Tools() {
+		if item.ID == "zephyr-sdk" {
+			model.cursor = index
+			break
+		}
+	}
+	output := strings.Join(model.renderCatalog(80), "\n")
+	if !strings.Contains(output, "Dependencies: cmake, seven-zip") {
+		t.Fatalf("Zephyr details omitted its Windows-specific archive dependency:\n%s", output)
+	}
+}
+
+func TestUnicodeToolDetailsFitTerminalWidth(t *testing.T) {
+	t.Setenv("DX_ASCII", "0")
+	model := NewModel(context.Background(), nil, detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+		Tools: map[string]detection.Tool{
+			"tool": {ID: "工具", Name: "工具鏈 🚀", State: detection.Healthy, Instances: []detection.Instance{{Executable: "tool", Path: "/opt/工具/bin", Version: "版本 1.2", State: detection.Healthy}}},
+		},
+	}, nil)
+	model.screen = EnvironmentScreen
+	for _, width := range []int{24, 40, 80} {
+		model.width = width
+		model.height = 12
+		for index, line := range strings.Split(ansi.Strip(model.render()), "\n") {
+			if ansi.StringWidth(line) > width {
+				t.Errorf("Unicode screen line %d is %d columns wide for a %d-column terminal: %q", index+1, ansi.StringWidth(line), width, line)
+			}
+		}
+	}
+}
+
+func TestASCIIFallbackSanitizesRenderedAndLineOutput(t *testing.T) {
+	t.Setenv("DX_ASCII", "1")
+	if got, want := asciiText("… → — – 工具"), "... -> -- - ??"; got != want {
+		t.Fatalf("ASCII conversion = %q, want %q", got, want)
+	}
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+		Warnings: []string{"warning from 工具 🚀"},
+		Tools:    map[string]detection.Tool{"git": {ID: "git", Name: "Git", State: detection.Healthy}},
+	}, []string{"git"})
+	for _, rendered := range []string{model.render(), lineFallbackOutput(t, model)} {
+		for _, character := range rendered {
+			if character > 0x7f {
+				t.Fatalf("ASCII fallback emitted non-ASCII character %q in %q", character, rendered)
+			}
+		}
+	}
+}
+
+func lineFallbackOutput(t *testing.T, model *Model) string {
+	t.Helper()
+	var output bytes.Buffer
+	if err := RunLineFallback(context.Background(), model, strings.NewReader(""), &output); err != nil {
+		t.Fatal(err)
+	}
+	return output.String()
+}
+
+func screenGoldenModel(t *testing.T) *Model {
+	t.Helper()
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inventory := detection.Inventory{
+		Platform: platform.Info{OS: tool.Windows, Architecture: tool.AMD64},
+		Managers: []packagemanager.Detected{{Manager: tool.Winget, Path: `C:\Windows\winget.exe`}},
+		Tools: map[string]detection.Tool{
+			"git": {ID: "git", Name: "Git", State: detection.Healthy, Instances: []detection.Instance{{Executable: "git", Path: `C:\Program Files\Git\cmd\git.exe`, Version: "git version 2.48.1", State: detection.Healthy}}},
+			"go":  {ID: "go", Name: "Go", State: detection.Missing},
+		},
+	}
+	model := NewModel(context.Background(), items, inventory, []string{"go"})
+	model.regionDetection = regional.Result{Region: regional.Global}
+	model.width = 80
+	model.height = 24
+	model.buildPlan()
+	session, err := installation.NewSession(model.plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, ok := session.Next()
+	if !ok {
+		t.Fatal("golden fixture did not produce an install operation")
+	}
+	if err := session.Record(item, nil, detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Healthy, Instances: []detection.Instance{{Executable: "go", Path: `C:\Go\bin\go.exe`, Version: "go1.27.3", State: detection.Healthy}}}); err != nil {
+		t.Fatal(err)
+	}
+	model.session = session
+	return model
 }
 
 func TestRenderAdaptsToTerminalResize(t *testing.T) {
