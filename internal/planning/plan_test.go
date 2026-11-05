@@ -123,6 +123,39 @@ func TestPlanUsesVerifiedArchiveWhenNoPackageManagerIsAvailable(t *testing.T) {
 	}
 }
 
+func TestPlanDisclosesZephyrSDKSizeAndVendorSetupBeforeApproval(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	current := windowsInventory(nil,
+		detection.Tool{ID: "cmake", Name: "CMake", State: detection.Healthy},
+		detection.Tool{ID: "zephyr-sdk", Name: "Zephyr SDK", State: detection.Missing},
+	)
+	plan, err := Build(items, current, []string{"zephyr-sdk"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Blocked || len(plan.Items) != 2 {
+		t.Fatalf("Zephyr SDK plan is blocked or has unexpected items: %#v", plan)
+	}
+	var item Item
+	for _, planned := range plan.Items {
+		if planned.ToolID == "zephyr-sdk" {
+			item = planned
+			break
+		}
+	}
+	if item.ToolID != "zephyr-sdk" || item.Artifact == nil || item.SizeEstimateNote == "" || !strings.Contains(item.SizeEstimateNote, "1.87 GB") {
+		t.Fatalf("plan omitted the SDK download estimate: %#v", item)
+	}
+	if item.InstallationNote == "" || !strings.Contains(item.InstallationNote, "setup script") || item.InstallPath != filepath.Join(home, "zephyr-sdk-1.0.1") || len(item.PathChanges) != 0 {
+		t.Fatalf("plan omitted setup behavior or declared an unnecessary PATH change: %#v", item)
+	}
+}
+
 func TestPlanPrefersAnExistingPackageManagerOverTheStandaloneArchive(t *testing.T) {
 	items, err := catalog.LoadEmbedded()
 	if err != nil {
