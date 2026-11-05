@@ -8,7 +8,7 @@ version:
   channel: stable
   upgrade_policy: never_automatically
 executables: [cl.exe, link.exe]
-version_args: [-?]
+version_args: ["-?"]
 health_pattern: '(?:Compiler|Incremental Linker) Version ([0-9.]+)'
 dependencies: []
 conflicts: []
