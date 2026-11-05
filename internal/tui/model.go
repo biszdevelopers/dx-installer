@@ -82,6 +82,7 @@ type Model struct {
 	preparingDownloads     bool
 	preparingDownloadCount int
 	downloadCancel         context.CancelFunc
+	installCancel          context.CancelFunc
 }
 
 type preflightMsg struct {
@@ -377,6 +378,10 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c", "q":
 		if m.session != nil && !m.session.Complete() {
 			m.session.Cancel()
+		}
+		if m.installCancel != nil {
+			m.installCancel()
+			m.installCancel = nil
 		}
 		if m.downloadCancel != nil {
 			m.downloadCancel()
@@ -1324,7 +1329,8 @@ func (m *Model) startNext() tea.Cmd {
 		if installer == nil {
 			installer = artifacts.NewArchiveInstaller()
 		}
-		ctx := m.ctx
+		ctx, cancel := context.WithCancel(m.ctx)
+		m.installCancel = cancel
 		catalogItems := m.catalog
 		machine := m.inventory.Platform
 		installCommand := func() tea.Msg {
@@ -1352,6 +1358,9 @@ func (m *Model) startNext() tea.Cmd {
 			}
 			if verifyError != nil {
 				actual = detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Unknown}
+			}
+			if verifyError == nil && ctx.Err() != nil {
+				return artifactInstallMsg{item: item, result: result, installErr: ctx.Err(), actual: detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Unknown}}
 			}
 			var pathErr error
 			if verifyError == nil && actual.State == detection.Healthy {
@@ -1419,6 +1428,10 @@ func joinCleanupNotice(existing, next string) string {
 }
 
 func (m *Model) handleArtifactInstall(message artifactInstallMsg) (tea.Model, tea.Cmd) {
+	if m.installCancel != nil {
+		m.installCancel()
+		m.installCancel = nil
+	}
 	if m.session == nil {
 		return m, nil
 	}
