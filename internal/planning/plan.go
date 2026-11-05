@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"developers-club-dx/internal/adapters/packagemanager"
@@ -58,6 +59,9 @@ type Item struct {
 	RequiresPrivilege  bool
 	Artifact           *tool.Artifact
 	Version            string
+	CandidateVersion   string `json:"candidate_version,omitempty"`
+	TransactionPreview string `json:"transaction_preview,omitempty"`
+	TransactionNote    string `json:"transaction_note,omitempty"`
 	ApproximateSize    int64
 	SizeEstimateNote   string
 	InstallationNote   string
@@ -77,7 +81,7 @@ type Plan struct {
 	TransactionDisclosure string `json:"transaction_disclosure,omitempty"`
 }
 
-const TransactionDisclosure = "DX has not resolved a candidate package version or simulated the package-manager transaction. Dependencies or other affected packages may be added; review any manager confirmation before accepting."
+const TransactionDisclosure = "Package-manager metadata can change before installation. Review each preview and the manager's live transaction confirmation before accepting."
 
 func Build(items *catalog.Catalog, current detection.Inventory, selected []string) (Plan, error) {
 	return BuildWithOptions(items, current, selected, Options{})
@@ -614,4 +618,47 @@ func (p Plan) InstallItems() []Item {
 		}
 	}
 	return items
+}
+
+// PreviewPackageTransactions adds bounded, cache-only transaction previews to
+// package-manager plan items. Unsupported or unavailable previews remain
+// explicit per-item disclosures and never trigger repository refreshes.
+func PreviewPackageTransactions(ctx context.Context, current detection.Inventory, plan Plan) Plan {
+	indices := make([]int, 0, len(plan.Items))
+	for index := range plan.Items {
+		item := plan.Items[index]
+		if item.Action == Install && item.Manager != "" {
+			indices = append(indices, index)
+			continue
+		}
+		if item.Action == Install && item.RegistryInstaller != nil {
+			plan.Items[index].CandidateVersion = item.RegistryInstaller.Version
+			plan.Items[index].TransactionNote = "Registry dependencies and changes were not simulated. Review this uncertainty and any registry confirmation before accepting the operation."
+		}
+	}
+	if len(indices) == 0 {
+		return plan
+	}
+	workerCount := min(3, len(indices))
+	jobs := make(chan int)
+	var workers sync.WaitGroup
+	workers.Add(workerCount)
+	for range workerCount {
+		go func() {
+			defer workers.Done()
+			for index := range jobs {
+				item := plan.Items[index]
+				preview := packagemanager.InspectInstall(ctx, current.Managers, item.Manager, item.PackageID)
+				plan.Items[index].CandidateVersion = preview.CandidateVersion
+				plan.Items[index].TransactionPreview = preview.Transaction
+				plan.Items[index].TransactionNote = preview.Disclosure
+			}
+		}()
+	}
+	for _, index := range indices {
+		jobs <- index
+	}
+	close(jobs)
+	workers.Wait()
+	return plan
 }
