@@ -8,10 +8,10 @@ Platform detection maps Go targets to Windows, macOS, Linux, and BSD families. L
 | --- | --- | --- |
 | Windows | amd64, arm64 | WinGet, Scoop, Chocolatey; Android SDK and Espressif EIM special-purpose installers; catalog-pinned archives and registry installers where declared |
 | macOS | amd64, arm64 | Homebrew, MacPorts; Android SDK and Espressif EIM special-purpose installers; catalog-pinned archives and registry installers where declared |
-| Linux | amd64, arm64 | APT, DNF, Pacman, Zypper, APK, existing Homebrew; Android SDK and Espressif EIM special-purpose installers; catalog-pinned archives and registry installers where declared |
+| Linux | amd64, arm64 | APT, DNF, YUM, Pacman, Zypper, APK, existing Homebrew; Android SDK and Espressif EIM special-purpose installers; catalog-pinned archives and registry installers where declared |
 | FreeBSD | amd64 | FreeBSD `pkg`; catalog-pinned archives where declared |
 
-CI runs native Go tests and builds on the six Windows/macOS/Linux architecture pairs. The release generator also cross-builds and validates FreeBSD amd64. The package-manager workflow tests Ninja through five Linux managers in disposable containers and through `pkg` in a FreeBSD 15.1 VM, SQLite through Chocolatey on Windows amd64, and OpenOCD through Homebrew on macOS amd64 and arm64. Release publication waits for both workflows. WinGet, Scoop, MacPorts, Android SDK, Espressif EIM, and other manager/tool combinations are not live integration-tested.
+CI runs native Go tests and builds on the six Windows/macOS/Linux architecture pairs. The release generator also cross-builds and validates FreeBSD amd64. The package-manager workflow exercises Ninja through six Linux managers in disposable containers and through `pkg` in a FreeBSD 15.1 VM, SQLite through Chocolatey, 7-Zip through WinGet and Scoop on Windows amd64, and OpenOCD through Homebrew on macOS amd64 and arm64. Release publication waits for both workflows. MacPorts, Android SDK, Espressif EIM, and other manager/tool combinations are not live integration-tested.
 
 Direct artifact support is declared separately from package-manager support. Catalog manifests may provide ZIP, tar.gz, tar.xz, or 7z archives for exact OS/architecture pairs. The archive is hash-checked, size-bounded, safely extracted to a user-level path, and verified with its declared version command. Registry installs are available only for manifests that declare an exact-version npm, PyPI, Go module, or Cargo installer. Neither capability implies universal support across the catalog.
 
