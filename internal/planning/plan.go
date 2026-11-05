@@ -496,6 +496,10 @@ func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool
 		p.add(Blocking, id, "could not safely plan PATH updates: "+err.Error())
 		return
 	}
+	installationNote := artifact.InstallationNote
+	if id == "zephyr-sdk" {
+		installationNote = zephyrInstallationNote(installationNote, installPath, current.Platform.OS)
+	}
 	p.Items = append(p.Items, Item{
 		ToolID:             id,
 		Name:               manifest.Name,
@@ -507,13 +511,25 @@ func (p *Plan) addArtifact(current detection.Inventory, id string, manifest tool
 		Version:            artifact.Version,
 		ApproximateSize:    artifact.ApproximateSize,
 		SizeEstimateNote:   artifact.SizeEstimateNote,
-		InstallationNote:   artifact.InstallationNote,
+		InstallationNote:   installationNote,
 		InstallPath:        installPath,
 		PathChanges:        pathChanges,
 		RegionalFallback:   allowRegionalFallback && artifact.RegionalURL != "" && customURL == "" && offlinePath == "",
 		CustomSourceURL:    customURL,
 		OfflineArchivePath: offlinePath,
 	})
+}
+
+func zephyrInstallationNote(note, installPath string, operatingSystem tool.OperatingSystem) string {
+	var command string
+	if operatingSystem == tool.Windows {
+		quotedPath := strings.ReplaceAll(installPath, "'", "''")
+		command = "$env:ZEPHYR_SDK_INSTALL_DIR = '" + quotedPath + "'; $env:ZEPHYR_TOOLCHAIN_VARIANT = 'zephyr'"
+	} else {
+		quotedPath := "'" + strings.ReplaceAll(installPath, "'", "'\"'\"'") + "'"
+		command = "export ZEPHYR_SDK_INSTALL_DIR=" + quotedPath + "; export ZEPHYR_TOOLCHAIN_VARIANT='zephyr'"
+	}
+	return strings.TrimSpace(note) + " Manual build activation command: " + command
 }
 
 func PreferredManagerOrder(managers []tool.PackageManager, preferred tool.PackageManager) []tool.PackageManager {
