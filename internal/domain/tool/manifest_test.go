@@ -179,6 +179,36 @@ func TestManifestAcceptsVerifiedArchiveInstallersAndLooksUpExactPlatform(t *test
 	}
 }
 
+func TestManifestAcceptsZephyrSDKArchiveMetadataLargerThanOneGiB(t *testing.T) {
+	manifest := Manifest{
+		SchemaVersion: 1,
+		ID:            "zephyr-sdk",
+		Name:          "Zephyr SDK",
+		Category:      "embedded.tooling",
+		Description:   "Zephyr SDK GNU toolchains and host tools.",
+		Version:       VersionPolicy{Channel: "stable", UpgradePolicy: "never_automatically"},
+		Executables:   []string{"arm-zephyr-eabi-gcc"},
+		VersionArgs:   []string{"--version"},
+		Dependencies:  []string{"cmake"},
+		Platforms:     map[OperatingSystem][]Architecture{Linux: {AMD64}},
+		Artifacts: []Artifact{{
+			Platform: Linux, Architecture: AMD64, Version: "1.0.1",
+			URL:             "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_linux-x86_64_gnu.tar.xz",
+			SHA256:          "37a8c5b5569c2b482d39099c65fe3ddac4e43524996c731907e1e9f5818cbba7",
+			ApproximateSize: 1_990_000_000, MaxDownloadBytes: 2_500_000_000, MaxExpandedBytes: 16 << 30,
+			Format: TarXZ, ArchiveRoot: "zephyr-sdk-1.0.1", VersionFile: "sdk_version",
+			PostInstallAction: ZephyrSDKSetup, InstallationNote: "Runs the bundled setup script for all GNU toolchains and host tools.",
+		}},
+	}
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("large Zephyr SDK artifact was rejected: %v", err)
+	}
+	manifest.Artifacts[0].Format = SevenZip
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("7z SDK archive was rejected: %v", err)
+	}
+}
+
 func TestManifestRejectsUnsafeArchiveSources(t *testing.T) {
 	base := Artifact{
 		Platform: Windows, Architecture: AMD64, Version: "1.2.3",
@@ -194,11 +224,16 @@ func TestManifestRejectsUnsafeArchiveSources(t *testing.T) {
 		{"missing checksum", func(item *Artifact) { item.SHA256 = "" }},
 		{"malformed checksum", func(item *Artifact) { item.SHA256 = strings.Repeat("z", 64) }},
 		{"negative size", func(item *Artifact) { item.ApproximateSize = -1 }},
+		{"download limit below estimate", func(item *Artifact) { item.MaxDownloadBytes = 127 }},
+		{"download limit over maximum", func(item *Artifact) { item.MaxDownloadBytes = 9 << 30 }},
+		{"expanded limit over maximum", func(item *Artifact) { item.MaxExpandedBytes = 33 << 30 }},
 		{"unsafe archive root", func(item *Artifact) { item.ArchiveRoot = "../outside" }},
 		{"unsupported archive", func(item *Artifact) { item.Format = "exe" }},
 		{"invalid redirect host", func(item *Artifact) { item.AllowedRedirectHosts = []string{"*.example"} }},
 		{"regional URL is plaintext", func(item *Artifact) { item.RegionalURL = "http://mirror.example/sample.zip" }},
 		{"unsafe PATH entry", func(item *Artifact) { item.PathEntries = []string{"../../outside"} }},
+		{"unsafe version file", func(item *Artifact) { item.VersionFile = "../../outside" }},
+		{"unknown install action", func(item *Artifact) { item.PostInstallAction = "arbitrary-shell" }},
 		{"duplicate PATH entry", func(item *Artifact) { item.PathEntries = []string{"bin", "bin"} }},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
