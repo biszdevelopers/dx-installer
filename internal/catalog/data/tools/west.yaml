@@ -9,19 +9,28 @@ version:
   upgrade_policy: never_automatically
 executables: [west]
 version_args: [--version]
-dependencies: []
+dependencies: [uv]
 conflicts: []
 platforms:
+  windows: [amd64, arm64]
   macos: [amd64, arm64]
   linux: [amd64, arm64]
-installers:
+registry_installers:
+  - platform: windows
+    ecosystem: pypi
+    package_id: west
+    version: 1.5.0
+    scope: user
+    source: https://pypi.org/simple/
   - platform: macos
-    manager: homebrew
+    ecosystem: pypi
     package_id: west
+    version: 1.5.0
     scope: user
-    source: homebrew-core
+    source: https://pypi.org/simple/
   - platform: linux
-    manager: homebrew
+    ecosystem: pypi
     package_id: west
+    version: 1.5.0
     scope: user
-    source: homebrew-core
+    source: https://pypi.org/simple/
