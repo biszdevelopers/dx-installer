@@ -19,6 +19,8 @@ Generated entry scripts contain version-specific bootstrap binary hashes. They d
 
 Direct artifact URLs are embedded in strict manifests and every download must match its catalog-pinned SHA-256. Regional and user-supplied custom URLs are also required to provide those exact bytes. Redirect counts, allowed redirect hosts, timeouts, retries, download sizes, expanded archive sizes, archive paths, and link targets are bounded. Archives are extracted into temporary staging directories; temporary downloads and registry caches are removed after the operation. The selected tool remains at its intended installation path.
 
+The currently supported Go, Android command-line tools, and Zephyr SDK archives publish SHA-256 checksums but no detached publisher signatures for the archive payloads. DX verifies the catalog-pinned digest; it cannot independently verify a publisher signature that is not published for these files. Package-manager installations rely on each manager's configured repository trust and signature checks.
+
 Offline bundles use `bundle.json` plus an Ed25519 signature verified with the public key pinned in the client. Their target, tool IDs, versions, hashes, per-artifact size limits, and directory contents are checked against the embedded catalog. Unsigned or extra members, symlinks, path traversal, and incompatible targets are rejected.
 
 `SHA256SUMS.pub` is compared with the public key embedded into each release executable. The `verify-release` command verifies the Ed25519 signature and every listed SHA-256 digest. The deployment process separately checks the operator-configured public key before validating an upload.
@@ -33,6 +35,6 @@ The static host sends no-store headers, discards HTTP access logs, has no dynami
 
 ## Trust boundaries and limits
 
-Release binaries and signed offline-bundle metadata use Ed25519. Tool artifacts use SHA-256 pins in the embedded catalog; the client does not independently verify publisher signatures for every tool. Package-manager installs rely on the manager's configured repository and trust model, and DX does not independently verify repository ownership or configured source URLs. The catalog is compiled into each client release rather than fetched as a separately signed document.
+Release binaries and signed offline-bundle metadata use Ed25519. Tool archive payloads use SHA-256 pins in the embedded catalog because the supported publishers do not provide detached signatures for those files. Package-manager installs rely on the manager's configured repository and trust model, and DX does not independently verify repository ownership or configured source URLs. The catalog is compiled into each client release rather than fetched as a separately signed document.
 
 Regional auto-selection uses local locale and time-zone settings as preference signals, not network geolocation. It contacts only catalog-declared mirrors whose payload must match the same embedded digest as the official artifact. No telemetry or external location request is made.
