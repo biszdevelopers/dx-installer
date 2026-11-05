@@ -12,13 +12,16 @@ go run ./cmd/bootstrap catalog
 go run ./cmd/bootstrap inventory --json
 go run ./cmd/bootstrap plan --tools git,github-cli
 go run ./cmd/bootstrap plan --tools git,github-cli --manager winget
+go run ./cmd/bootstrap plan --tools go --source-policy official-first
 go run ./cmd/catalog-check
 go test ./...
 ```
 
 The interactive install flow requires a terminal. It refreshes inventory after approval and asks for approval again if the plan changed. `plan` is read-only. The application never bootstraps a package manager, never adds a package repository, and never runs a package-manager command without approval.
 
-The catalog currently contains 61 tool manifests and 16 profiles. Package-manager installations use only package managers already detected on the machine. Inventory verifies executables found on `PATH` and checks supported package databases; package records without a discoverable executable are preserved as unknown. Failed manager inventory queries also keep affected tools unknown rather than marking them missing. WinGet inventory uses a temporary export and may consult configured sources; DX does not accept source agreements. From the Results screen, press `d` to save an explicitly requested redacted JSON diagnostic report; reports are created as new files and never overwrite existing paths. Arbitrary disk locations, direct publisher downloads, custom source overrides, regional mirror selection, and offline bundle installation are not implemented yet. See [platform support](docs/platform-support.md) and [source behavior](docs/source-selection.md) for the exact boundaries.
+The embedded catalog contains 219 tool manifests and 18 profiles. Package-manager installations use only managers already detected on the machine. Some tools also have catalog-pinned direct archives, registry installers, regional mirrors, and signed offline-bundle support; availability depends on the selected tool and platform. Direct archives and local copies are checked against embedded SHA-256 pins, and signed bundles are verified against the public key pinned in the client. Plans show sources, integrity data, size disclosures, install paths, setup actions, and persistent PATH changes before approval.
+
+Inventory checks executables on `PATH`, a bounded set of standard locations, and supported local package databases. Package records without a discoverable executable are preserved as unknown; failed manager queries also leave affected tools unknown. WinGet inventory uses a temporary export and may consult configured sources; DX does not accept source agreements. From Results, press `d` to save an explicitly requested redacted JSON diagnostic report; reports are created as new files and never overwrite existing paths. See [platform support](docs/platform-support.md), [source behavior](docs/source-selection.md), [regional behavior](docs/regional-support.md), and [offline installation](docs/offline-installation.md) for the exact support boundaries.
 
 ## Build a signed release
 
