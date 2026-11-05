@@ -82,7 +82,7 @@ func run(args []string) error {
 			return fmt.Errorf("resolve artifact %q: %w", id, err)
 		}
 		filename := fmt.Sprintf("%s-%s-%s-%s.%s", id, machine.OS, machine.Architecture, artifact.Version, artifact.Format)
-		manifest.Artifacts = append(manifest.Artifacts, offline.Payload{ToolID: id, Version: artifact.Version, File: filename, SHA256: artifact.SHA256})
+		manifest.Artifacts = append(manifest.Artifacts, offline.Payload{ToolID: id, Version: artifact.Version, File: filename, SHA256: artifact.SHA256, MaxBytes: artifact.MaxDownloadBytes})
 		sourceFiles[filename] = absolutePath
 	}
 	if *bootstrapPath != "" {
