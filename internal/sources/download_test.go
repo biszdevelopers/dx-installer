@@ -35,6 +35,7 @@ func TestDownloadVerifiesHashAndEd25519Signature(t *testing.T) {
 	defer server.Close()
 	workspace := t.TempDir()
 	var latestProgress DownloadProgress
+	var progressEvents []DownloadProgress
 
 	result, err := NewDownloader(DownloadOptions{Transport: server.Client().Transport}).DownloadWithProgress(context.Background(), OfficialOnly, []RemoteSource{{
 		Name:      "publisher",
@@ -44,7 +45,10 @@ func TestDownloadVerifiesHashAndEd25519Signature(t *testing.T) {
 		Size:      int64(len(contents)),
 		PublicKey: publicKey,
 		Signature: signature,
-	}}, workspace, func(progress DownloadProgress) { latestProgress = progress })
+	}}, workspace, func(progress DownloadProgress) {
+		latestProgress = progress
+		progressEvents = append(progressEvents, progress)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,6 +57,13 @@ func TestDownloadVerifiesHashAndEd25519Signature(t *testing.T) {
 	}
 	if latestProgress.BytesReceived != int64(len(contents)) || latestProgress.TotalBytes != int64(len(contents)) || latestProgress.SourceName != "publisher" {
 		t.Fatalf("download progress = %#v", latestProgress)
+	}
+	phases := make(map[string]bool)
+	for _, progress := range progressEvents {
+		phases[progress.Phase] = true
+	}
+	if !phases["downloading"] || !phases["verifying SHA-256 and signature"] || !phases["archive verified"] {
+		t.Fatalf("download progress phases = %#v", phases)
 	}
 	got, err := os.ReadFile(result.Path)
 	if err != nil {
