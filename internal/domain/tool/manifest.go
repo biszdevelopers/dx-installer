@@ -61,6 +61,7 @@ type Installer struct {
 	Source          string          `yaml:"source"`
 	Architectures   []Architecture  `yaml:"architectures,omitempty"`
 	PathEntries     []string        `yaml:"path_entries,omitempty"`
+	Workloads       []string        `yaml:"workloads,omitempty"`
 	ApproximateSize int64           `yaml:"approximate_size,omitempty"`
 }
 
@@ -142,7 +143,8 @@ var (
 	executablePattern        = regexp.MustCompile(`^[A-Za-z0-9_.+-]+$`)
 	packageIDPattern         = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$`)
 	androidSDKPackagePattern = regexp.MustCompile(`^(?:platform-tools|emulator|build-tools;[0-9]+(?:\.[0-9]+){1,2})$`)
-	versionArgPattern        = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._=:+/-]*$`)
+	versionArgPattern        = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._=:+/?-]*$`)
+	visualStudioWorkload     = "Microsoft.VisualStudio.Workload.VCTools"
 	npmPackagePattern        = regexp.MustCompile(`^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/)?[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`)
 	pypiPackagePattern       = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,127})(?:\[[A-Za-z0-9][A-Za-z0-9._-]*(?:,[A-Za-z0-9][A-Za-z0-9._-]*)*\])?$`)
 	cargoPackagePattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
@@ -254,6 +256,14 @@ func (m Manifest) Validate() error {
 		}
 		if installer.Source == "" {
 			return fmt.Errorf("installer %q/%q must identify its package source", installer.Platform, installer.Manager)
+		}
+		if len(installer.Workloads) > 0 {
+			if installer.Manager != Winget || !strings.EqualFold(installer.PackageID, "Microsoft.VisualStudio.BuildTools") || len(installer.Workloads) != 1 || installer.Workloads[0] != visualStudioWorkload {
+				return fmt.Errorf("installer %q/%q declares an unsupported Visual Studio workload", installer.Platform, installer.Manager)
+			}
+		}
+		if installer.Manager == Winget && strings.EqualFold(installer.PackageID, "Microsoft.VisualStudio.BuildTools") && (len(installer.Workloads) != 1 || installer.Workloads[0] != visualStudioWorkload) {
+			return fmt.Errorf("Visual Studio Build Tools must declare the supported C++ workload")
 		}
 		if installer.ApproximateSize < 0 || installer.ApproximateSize > 1<<30 {
 			return fmt.Errorf("installer %q/%q approximate size must be between 0 and 1 GiB", installer.Platform, installer.Manager)
