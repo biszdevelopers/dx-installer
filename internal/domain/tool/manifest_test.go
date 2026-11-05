@@ -19,6 +19,30 @@ func TestManifestAcceptsTypedWindowsInstaller(t *testing.T) {
 	}
 }
 
+func TestManifestSelectsPlatformSpecificDependencies(t *testing.T) {
+	manifest := validManifest()
+	manifest.PlatformDependencies = map[OperatingSystem][]string{Windows: {"seven-zip"}}
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("valid platform dependency was rejected: %v", err)
+	}
+	if got := manifest.DependenciesFor(Windows); len(got) != 1 || got[0] != "seven-zip" {
+		t.Fatalf("Windows dependencies = %#v, want seven-zip", got)
+	}
+	if got := manifest.DependenciesFor(Linux); len(got) != 0 {
+		t.Fatalf("Linux dependencies = %#v, want none", got)
+	}
+	manifest.PlatformDependencies[MacOS] = []string{"seven-zip"}
+	if err := manifest.Validate(); err == nil {
+		t.Fatal("platform dependency for an undeclared OS was accepted")
+	}
+	manifest = validManifest()
+	manifest.Dependencies = []string{"seven-zip"}
+	manifest.PlatformDependencies = map[OperatingSystem][]string{Windows: {"seven-zip"}}
+	if err := manifest.Validate(); err == nil {
+		t.Fatal("dependency duplicated between common and platform-specific lists was accepted")
+	}
+}
+
 func TestInstallerSelectionRespectsArchitectureAvailability(t *testing.T) {
 	manifest := validManifest()
 	manifest.Platforms = map[OperatingSystem][]Architecture{MacOS: {AMD64, ARM64}}
