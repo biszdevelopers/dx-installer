@@ -284,6 +284,8 @@ func printPlan(output io.Writer, plan planning.Plan) {
 		fmt.Fprintf(output, "  INSTALL %s\n    source: %s (%s)\n    scope: %s\n", item.Name, item.Source, item.Manager, item.Scope)
 		if item.ApproximateSize > 0 {
 			fmt.Fprintf(output, "    approximate download: %s\n", approximateSize(item.ApproximateSize))
+		} else if item.SizeEstimateNote != "" {
+			fmt.Fprintf(output, "    approximate download: %s\n", item.SizeEstimateNote)
 		}
 		fmt.Fprintf(output, "    command: %s\n", item.Command.Display())
 	}
