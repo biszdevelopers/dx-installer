@@ -1,0 +1,39 @@
+schema_version: 1
+id: android-build-tools
+name: Android SDK Build Tools 36.0.0
+category: mobile.android
+description: Android SDK build-tools 36.0.0, including AAPT2 and signing utilities; license acceptance stays interactive.
+tags: [android, sdk, mobile, build, apk]
+version:
+  channel: "36.0.0"
+  upgrade_policy: never_automatically
+executables: [aapt2]
+version_args: [version]
+dependencies: [android-sdk-command-line-tools]
+conflicts: []
+platforms:
+  windows: [amd64]
+  macos: [amd64, arm64]
+  linux: [amd64]
+installers:
+  - platform: windows
+    manager: android-sdk
+    package_id: build-tools;36.0.0
+    scope: user
+    source: google-android-sdk (interactive license prompt)
+    path_entries: [build-tools/36.0.0]
+    approximate_size: 104857600
+  - platform: macos
+    manager: android-sdk
+    package_id: build-tools;36.0.0
+    scope: user
+    source: google-android-sdk (interactive license prompt)
+    path_entries: [build-tools/36.0.0]
+    approximate_size: 104857600
+  - platform: linux
+    manager: android-sdk
+    package_id: build-tools;36.0.0
+    scope: user
+    source: google-android-sdk (interactive license prompt)
+    path_entries: [build-tools/36.0.0]
+    approximate_size: 104857600
