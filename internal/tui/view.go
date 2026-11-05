@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
+	"developers-club-dx/internal/artifacts"
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/display"
 	"developers-club-dx/internal/domain/tool"
@@ -361,7 +362,7 @@ func (m *Model) renderPlan(maxRows int) []string {
 			privilege = "system scope / privilege may be required"
 		}
 		if item.Artifact != nil {
-			sizeEstimate := approximateSize(item.ApproximateSize)
+			sizeEstimate := display.ApproximateSize(item.ApproximateSize)
 			if item.SizeEstimateNote != "" {
 				sizeEstimate = item.SizeEstimateNote
 			}
@@ -407,12 +408,21 @@ func (m *Model) renderPlan(maxRows int) []string {
 			}
 		} else {
 			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s  %s", item.ToolID, item.Manager, item.PackageID, privilege), "          source: "+item.Source)
+			if item.CandidateVersion != "" {
+				rows = append(rows, "          candidate version: "+item.CandidateVersion)
+			}
 			if item.ApproximateSize > 0 {
-				rows = append(rows, "          approximate download: "+approximateSize(item.ApproximateSize))
+				rows = append(rows, "          approximate download: "+display.ApproximateSize(item.ApproximateSize))
 			} else if item.SizeEstimateNote != "" {
 				rows = append(rows, "          approximate download: "+item.SizeEstimateNote)
 			}
 			rows = append(rows, "          command: "+item.Command.Display())
+			if item.TransactionPreview != "" {
+				rows = append(rows, "          transaction preview: "+item.TransactionPreview)
+			}
+			if item.TransactionNote != "" {
+				rows = append(rows, warningStyle.Render("          preview note: "+item.TransactionNote))
+			}
 		}
 	}
 	for _, issue := range m.plan.Issues {
@@ -509,10 +519,32 @@ func (m *Model) renderProgress(maxRows int) []string {
 	}
 	results := m.session.Report()
 	lines = append(lines, fmt.Sprintf("Completed tasks: %d of %d", len(results), len(m.plan.Items)))
+	if m.preparingDownloads {
+		concurrency := artifacts.DefaultConcurrentDownloads
+		if m.archiveInstaller != nil {
+			concurrency = m.archiveInstaller.Concurrency()
+		}
+		lines = append(lines, fmt.Sprintf("Current operation: preparing %d independent archive download(s)", m.preparingDownloadCount), fmt.Sprintf("Concurrent download limit: %d", concurrency))
+		toolIDs := make([]string, 0, len(m.downloadProgress))
+		for toolID := range m.downloadProgress {
+			toolIDs = append(toolIDs, toolID)
+		}
+		sort.Strings(toolIDs)
+		for _, toolID := range toolIDs {
+			progress := m.downloadProgress[toolID]
+			lines = append(lines, fmt.Sprintf("%s: %s", toolID, display.DownloadProgress(progress.BytesReceived, progress.TotalBytes)))
+		}
+	}
 	if m.activeItem.ToolID != "" {
 		lines = append(lines, "Current operation: "+m.activeItem.Name)
 		if m.activeItem.Artifact != nil {
-			lines = append(lines, "Download source: "+m.activeItem.Source, "Verifying SHA-256 and extracting the archive.")
+			lines = append(lines, "Download source: "+m.activeItem.Source, "SHA-256 verification runs before extraction.")
+			if progress, exists := m.downloadProgress[m.activeItem.ToolID]; exists && progress.BytesReceived > 0 {
+				if progress.SourceName != "" {
+					lines = append(lines, "Prepared source: "+progress.SourceName)
+				}
+				lines = append(lines, "Downloaded: "+display.DownloadProgress(progress.BytesReceived, progress.TotalBytes))
+			}
 		} else {
 			lines = append(lines, "Source: "+m.activeItem.Source, "Command: "+m.activeItem.Command.Display())
 		}
@@ -606,6 +638,9 @@ func (m *Model) renderApproval() string {
 		}
 		if item.RegistryInstaller != nil {
 			lines = append(lines, fmt.Sprintf("%s  %s registry  %s %s  %s", item.ToolID, item.RegistryInstaller.Ecosystem, item.PackageID, item.Version, item.Source))
+			if item.TransactionNote != "" {
+				lines = append(lines, warningStyle.Render("  preview note: "+item.TransactionNote))
+			}
 			for _, change := range item.PathChanges {
 				if change.Manual {
 					lines = append(lines, "  PATH manual command: "+change.ManualCommand)
@@ -616,6 +651,15 @@ func (m *Model) renderApproval() string {
 			continue
 		}
 		lines = append(lines, fmt.Sprintf("%s  %s  %s  %s", item.ToolID, item.Manager, item.PackageID, item.Scope))
+		if item.CandidateVersion != "" {
+			lines = append(lines, "  candidate version: "+item.CandidateVersion)
+		}
+		if item.TransactionPreview != "" {
+			lines = append(lines, "  transaction preview: "+item.TransactionPreview)
+		}
+		if item.TransactionNote != "" {
+			lines = append(lines, warningStyle.Render("  preview note: "+item.TransactionNote))
+		}
 	}
 	lines = append(lines, warningStyle.Render("Press y to refresh inventory and continue. Any plan change requires approval again."), mutedStyle.Render("Press n or Esc to cancel without changes."))
 	return strings.Join(lines, "\n")
