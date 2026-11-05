@@ -34,6 +34,7 @@ type Payload struct {
 	Version    string `json:"version,omitempty"`
 	File       string `json:"file"`
 	SHA256     string `json:"sha256"`
+	MaxBytes   int64  `json:"max_bytes,omitempty"`
 	Executable bool   `json:"executable,omitempty"`
 }
 
@@ -45,7 +46,11 @@ type VerifiedBundle struct {
 
 var fileNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,200}$`)
 
-const maxBundleArtifactSize int64 = 1 << 30
+const (
+	defaultBundleArtifactSize int64 = 1 << 30
+	maxBundleArtifactSize     int64 = 8 << 30
+	maxBundleAggregateSize    int64 = 32 << 30
+)
 
 func LoadBundle(root string, items *catalog.Catalog, machine platform.Info, publicKey ed25519.PublicKey) (VerifiedBundle, error) {
 	verified := VerifiedBundle{Artifacts: make(map[string]string)}
@@ -106,16 +111,16 @@ func LoadBundle(root string, items *catalog.Catalog, machine platform.Info, publ
 			return VerifiedBundle{}, fmt.Errorf("bundle contains unknown tool %q", payload.ToolID)
 		}
 		artifact, exists := artifactManifest.ArtifactFor(machine.OS, machine.Architecture)
-		if !exists || artifact.Version != payload.Version || !strings.EqualFold(payload.SHA256, artifact.SHA256) {
+		if !exists || artifact.Version != payload.Version || !strings.EqualFold(payload.SHA256, artifact.SHA256) || payloadLimit(payload) != artifactDownloadLimit(artifact) {
 			return VerifiedBundle{}, fmt.Errorf("bundle artifact %q is not pinned by the embedded catalog for this platform", payload.ToolID)
 		}
 		path := filepath.Join(root, payload.File)
-		size, err := verifyPayload(path, payload.SHA256)
+		size, err := verifyPayload(path, payload.SHA256, artifactDownloadLimit(artifact))
 		if err != nil {
 			return VerifiedBundle{}, fmt.Errorf("verify bundle artifact %q: %w", payload.ToolID, err)
 		}
 		total += size
-		if total > 4*maxBundleArtifactSize {
+		if total > maxBundleAggregateSize {
 			return VerifiedBundle{}, errors.New("offline bundle exceeds the aggregate payload size limit")
 		}
 		if _, duplicate := verified.Artifacts[payload.ToolID]; duplicate {
@@ -138,7 +143,7 @@ func LoadBundle(root string, items *catalog.Catalog, machine platform.Info, publ
 			return VerifiedBundle{}, fmt.Errorf("bundle repeats payload filename %q", payload.File)
 		}
 		expectedFiles[payload.File] = true
-		if _, err := verifyPayload(filepath.Join(root, payload.File), payload.SHA256); err != nil {
+		if _, err := verifyPayload(filepath.Join(root, payload.File), payload.SHA256, defaultBundleArtifactSize); err != nil {
 			return VerifiedBundle{}, fmt.Errorf("verify bundled bootstrap executable: %w", err)
 		}
 		verified.Bootstrap = filepath.Join(root, payload.File)
@@ -191,10 +196,16 @@ func validatePayload(payload Payload) error {
 	if payload.ToolID != "" && payload.Executable {
 		return fmt.Errorf("tool archive payload %q cannot be marked executable", payload.File)
 	}
+	if payload.MaxBytes < 0 || payload.MaxBytes > maxBundleArtifactSize || (payload.Executable && payload.MaxBytes > defaultBundleArtifactSize) {
+		return fmt.Errorf("bundle payload %q has an invalid maximum size", payload.File)
+	}
 	return nil
 }
 
-func verifyPayload(path, expected string) (int64, error) {
+func verifyPayload(path, expected string, maxBytes int64) (int64, error) {
+	if maxBytes < 1 || maxBytes > maxBundleArtifactSize {
+		return 0, errors.New("bundle payload size limit is invalid")
+	}
 	linkInfo, err := os.Lstat(path)
 	if err != nil {
 		return 0, err
@@ -211,17 +222,31 @@ func verifyPayload(path, expected string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if !info.Mode().IsRegular() || !os.SameFile(linkInfo, info) || info.Size() < 0 || info.Size() > maxBundleArtifactSize {
+	if !info.Mode().IsRegular() || !os.SameFile(linkInfo, info) || info.Size() < 0 || info.Size() > maxBytes {
 		return 0, errors.New("bundle payload is not a regular file or exceeds the size limit")
 	}
 	hasher := sha256.New()
-	if _, err := io.Copy(hasher, io.LimitReader(file, maxBundleArtifactSize+1)); err != nil {
+	if _, err := io.Copy(hasher, io.LimitReader(file, maxBytes+1)); err != nil {
 		return 0, err
 	}
 	if !strings.EqualFold(hex.EncodeToString(hasher.Sum(nil)), expected) {
 		return 0, errors.New("SHA-256 digest does not match the signed metadata")
 	}
 	return info.Size(), nil
+}
+
+func payloadLimit(payload Payload) int64 {
+	if payload.MaxBytes < 1 {
+		return defaultBundleArtifactSize
+	}
+	return payload.MaxBytes
+}
+
+func artifactDownloadLimit(artifact tool.Artifact) int64 {
+	if artifact.MaxDownloadBytes < 1 {
+		return defaultBundleArtifactSize
+	}
+	return artifact.MaxDownloadBytes
 }
 
 func readRegular(path string, limit int64) ([]byte, error) {
