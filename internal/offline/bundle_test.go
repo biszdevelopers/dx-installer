@@ -53,6 +53,37 @@ func TestCreateAndLoadSignedPlatformBundle(t *testing.T) {
 	}
 }
 
+func TestSignedBundleSupportsCatalogPinnedLargeArchiveLimit(t *testing.T) {
+	contents := []byte("small fixture with a catalog-pinned large size limit")
+	digest := sha256.Sum256(contents)
+	checksum := hex.EncodeToString(digest[:])
+	const maxBytes = int64(2 << 30)
+	items := testBundleCatalogWithLimit(t, checksum, maxBytes)
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	source := filepath.Join(root, "sample.zip")
+	if err := os.WriteFile(source, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(root, "large-limit.bundle")
+	manifest := Manifest{
+		SchemaVersion: 1,
+		Platform:      tool.Windows,
+		Architecture:  tool.AMD64,
+		Artifacts:     []Payload{{ToolID: "sample", Version: "1.0.0", File: "sample.zip", SHA256: checksum, MaxBytes: maxBytes}},
+	}
+	machine := platform.Info{OS: tool.Windows, Architecture: tool.AMD64}
+	if err := CreateBundle(output, manifest, map[string]string{"sample.zip": source}, machine, privateKey); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadBundle(output, items, machine, publicKey); err != nil {
+		t.Fatalf("catalog-pinned large artifact limit was rejected: %v", err)
+	}
+}
+
 func TestSignedBundlePreservesAnExecutableBootstrapPayload(t *testing.T) {
 	contents := []byte("verified sample archive")
 	digest := sha256.Sum256(contents)
@@ -175,6 +206,10 @@ func TestBundleCreationRefusesExistingOutputAndUnverifiedSource(t *testing.T) {
 }
 
 func testBundleCatalog(t *testing.T, checksum string) *catalog.Catalog {
+	return testBundleCatalogWithLimit(t, checksum, 0)
+}
+
+func testBundleCatalogWithLimit(t *testing.T, checksum string, maxBytes int64) *catalog.Catalog {
 	t.Helper()
 	manifest := fmt.Sprintf(`schema_version: 1
 id: sample
@@ -194,9 +229,11 @@ artifacts:
     version: 1.0.0
     url: https://downloads.example/sample.zip
     sha256: %s
+    max_download_bytes: %d
     format: zip
     archive_root: sample
-`, checksum)
+
+`, checksum, maxBytes)
 	items, err := catalog.Load(fstest.MapFS{"data/tools/sample.yaml": {Data: []byte(manifest)}})
 	if err != nil {
 		t.Fatal(err)
