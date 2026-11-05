@@ -2,4 +2,4 @@ schema_version: 1
 id: embedded
 name: Embedded development
 description: Cross-compilers, firmware tooling, programmers, debug tools, and system emulation for embedded development.
-tools: [arduino-cli, arm-none-eabi-gcc, avrdude, gcc, clang, openocd, platformio-core, riscv-gnu-toolchain, west, qemu-system]
+tools: [arduino-cli, arm-none-eabi-gcc, avrdude, gcc, clang, esp-idf, openocd, platformio-core, riscv-gnu-toolchain, west, qemu-system]
