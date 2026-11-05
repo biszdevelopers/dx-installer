@@ -43,6 +43,11 @@ installers:
     scope: system
     source: configured-dnf-repositories
   - platform: linux
+    manager: yum
+    package_id: ninja-build
+    scope: system
+    source: configured-yum-repositories
+  - platform: linux
     manager: pacman
     package_id: ninja
     scope: system
