@@ -36,6 +36,72 @@ func TestInstalledPackageWithoutExecutableIsPreservedAsUnknown(t *testing.T) {
 	}
 }
 
+func TestZephyrSDKDetectionReadsSafeVersionFilesAcrossUserInstallVersions(t *testing.T) {
+	machine := platform.Detect()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("ZEPHYR_SDK_INSTALL_DIR", "")
+	var currentPath, previousPath string
+	if machine.OS == tool.Windows {
+		currentPath = filepath.Join(home, "zephyr-sdk-1.0.1")
+		previousPath = filepath.Join(home, "zephyr-sdk-0.16.8")
+	} else {
+		currentPath = filepath.Join(home, ".local", "opt", "zephyr-sdk-1.0.1")
+		previousPath = filepath.Join(home, "zephyr-sdk-0.16.8")
+	}
+	for path, version := range map[string]string{currentPath: "1.0.1\n", previousPath: "0.16.8\n"} {
+		if err := os.MkdirAll(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(path, "sdk_version"), []byte(version), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manifest := tool.Manifest{
+		ID: "zephyr-sdk", Executables: []string{"arm-zephyr-eabi-gcc"}, VersionArgs: []string{"--version"},
+		Platforms: map[tool.OperatingSystem][]tool.Architecture{machine.OS: {machine.Architecture}},
+		Artifacts: []tool.Artifact{{
+			Platform: machine.OS, Architecture: machine.Architecture, Version: "1.0.1", VersionFile: "sdk_version",
+		}},
+	}
+	instances, _, state := scanTool(context.Background(), manifest, machine, nil, nil, nil, nil)
+	if state != Healthy || len(instances) != 2 {
+		t.Fatalf("Zephyr SDK state = %s, instances = %#v", state, instances)
+	}
+	versions := map[string]bool{}
+	for _, instance := range instances {
+		versions[instance.Version] = true
+	}
+	if !versions["1.0.1"] || !versions["0.16.8"] {
+		t.Fatalf("detected Zephyr SDK versions = %#v", versions)
+	}
+}
+
+func TestZephyrSDKDetectionMarksMissingVersionMetadataUnknown(t *testing.T) {
+	machine := platform.Detect()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("ZEPHYR_SDK_INSTALL_DIR", "")
+	installPath := filepath.Join(home, "zephyr-sdk-1.0.1")
+	if machine.OS != tool.Windows {
+		installPath = filepath.Join(home, ".local", "opt", "zephyr-sdk-1.0.1")
+	}
+	if err := os.MkdirAll(installPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifest := tool.Manifest{
+		ID: "zephyr-sdk", Executables: []string{"arm-zephyr-eabi-gcc"}, VersionArgs: []string{"--version"},
+		Platforms: map[tool.OperatingSystem][]tool.Architecture{machine.OS: {machine.Architecture}},
+		Artifacts: []tool.Artifact{{Platform: machine.OS, Architecture: machine.Architecture, Version: "1.0.1", VersionFile: "sdk_version"}},
+	}
+	instances, _, state := scanTool(context.Background(), manifest, machine, nil, nil, nil, nil)
+	if state != Unknown || len(instances) != 1 || instances[0].Diagnostic != "SDK version file is missing" {
+		t.Fatalf("incomplete Zephyr SDK state = %s, instances = %#v", state, instances)
+	}
+}
+
 func TestWindowsBatchExecutableVersionCheckUsesSafeCommandArguments(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip("Windows batch executable behavior is tested on Windows")
