@@ -3,6 +3,7 @@ package detection
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -557,7 +558,11 @@ func installedPackagesFor(manifest tool.Manifest, operatingSystem tool.Operating
 func inspectVersion(parent context.Context, path, executable string, args []string, healthPattern string) Instance {
 	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
-	command, commandErr := versionCommand(ctx, path, args)
+	resolvedArgs, err := resolveVersionArguments(args)
+	if err != nil {
+		return Instance{Executable: executable, Path: path, State: Unknown, Diagnostic: sanitizeOutput(err.Error())}
+	}
+	command, commandErr := versionCommand(ctx, path, resolvedArgs)
 	if commandErr != nil {
 		return Instance{Executable: executable, Path: path, State: Unknown, Diagnostic: sanitizeOutput(commandErr.Error())}
 	}
@@ -601,6 +606,23 @@ func inspectVersion(parent context.Context, path, executable string, args []stri
 	}
 	instance.State = Healthy
 	return instance
+}
+
+func resolveVersionArguments(args []string) ([]string, error) {
+	resolved := append([]string(nil), args...)
+	for index, argument := range resolved {
+		switch argument {
+		case "@DEVNULL@":
+			resolved[index] = os.DevNull
+		case "@ESPRESSIF-TOOLS@":
+			home, err := os.UserHomeDir()
+			if err != nil || !filepath.IsAbs(home) {
+				return nil, errors.New("could not determine an absolute user home directory for ESP-IDF detection")
+			}
+			resolved[index] = filepath.Join(home, ".espressif", "tools")
+		}
+	}
+	return resolved, nil
 }
 
 func matchHealthPattern(output, pattern string) (string, bool, error) {
