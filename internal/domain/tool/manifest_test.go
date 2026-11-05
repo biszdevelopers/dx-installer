@@ -233,6 +233,7 @@ func TestManifestRejectsUnsafeArchiveSources(t *testing.T) {
 		{"regional URL is plaintext", func(item *Artifact) { item.RegionalURL = "http://mirror.example/sample.zip" }},
 		{"unsafe PATH entry", func(item *Artifact) { item.PathEntries = []string{"../../outside"} }},
 		{"unsafe version file", func(item *Artifact) { item.VersionFile = "../../outside" }},
+		{"version file uses alternate data stream syntax", func(item *Artifact) { item.VersionFile = "sdk_version:stream" }},
 		{"unknown install action", func(item *Artifact) { item.PostInstallAction = "arbitrary-shell" }},
 		{"duplicate PATH entry", func(item *Artifact) { item.PathEntries = []string{"bin", "bin"} }},
 	} {
