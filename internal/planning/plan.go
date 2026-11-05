@@ -2,6 +2,7 @@ package planning
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -111,6 +112,9 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 		closureSet[id] = true
 	}
 	managerOrder := current.ManagerOrder()
+	if closureSet["android-sdk-command-line-tools"] && !containsManager(managerOrder, tool.AndroidSDK) {
+		managerOrder = append(managerOrder, tool.AndroidSDK)
+	}
 	if options.PreferredManager != "" {
 		managerOrder = PreferredManagerOrder(managerOrder, options.PreferredManager)
 	}
@@ -200,16 +204,30 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 				plan.add(Blocking, id, err.Error())
 				continue
 			}
-			var pathChanges []pathconfig.Change
-			if len(installer.PathEntries) > 0 {
-				prefixContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				prefix, err := packagemanager.HomebrewFormulaPrefix(prefixContext, installer.PackageID)
-				cancel()
+			androidSDKRoot := ""
+			if installer.Manager == tool.AndroidSDK {
+				var sdkManagerPath string
+				androidSDKRoot, sdkManagerPath, err = androidSDKInstallationForPlan(items, current, closureSet)
 				if err != nil {
 					plan.add(Blocking, id, err.Error())
 					continue
 				}
-				pathEntries, err := packagemanager.ResolveInstallerPaths(installer, prefix)
+				command.Executable = sdkManagerPath
+				command.Environment = map[string]string{"ANDROID_HOME": androidSDKRoot}
+			}
+			var pathChanges []pathconfig.Change
+			if len(installer.PathEntries) > 0 {
+				packageRoot := androidSDKRoot
+				if installer.Manager == tool.Homebrew {
+					prefixContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+					packageRoot, err = packagemanager.HomebrewFormulaPrefix(prefixContext, installer.PackageID)
+					cancel()
+					if err != nil {
+						plan.add(Blocking, id, err.Error())
+						continue
+					}
+				}
+				pathEntries, err := packagemanager.ResolveInstallerPaths(installer, packageRoot)
 				if err != nil {
 					plan.add(Blocking, id, err.Error())
 					continue
@@ -274,6 +292,68 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 		}
 	}
 	return plan, nil
+}
+
+func containsManager(managers []tool.PackageManager, expected tool.PackageManager) bool {
+	for _, manager := range managers {
+		if manager == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func androidSDKInstallationForPlan(items *catalog.Catalog, current detection.Inventory, closure map[string]bool) (string, string, error) {
+	const commandLineToolsID = "android-sdk-command-line-tools"
+	if entry, exists := current.Tools[commandLineToolsID]; exists {
+		switch entry.State {
+		case detection.Healthy, detection.Outdated:
+			for _, instance := range entry.Instances {
+				if instance.State != detection.Healthy {
+					continue
+				}
+				binDirectory := filepath.Dir(instance.Path)
+				versionDirectory := filepath.Dir(binDirectory)
+				commandLineToolsDirectory := filepath.Dir(versionDirectory)
+				if filepath.Base(binDirectory) != "bin" || filepath.Base(commandLineToolsDirectory) != "cmdline-tools" {
+					continue
+				}
+				root := filepath.Dir(commandLineToolsDirectory)
+				if filepath.IsAbs(root) {
+					return filepath.Clean(root), filepath.Clean(instance.Path), nil
+				}
+			}
+			return "", "", errors.New("the existing Android SDK command-line tools do not use a recognized cmdline-tools/<version>/bin layout")
+		case detection.Missing:
+			// The catalog-pinned archive below provides the SDK root for this plan.
+		default:
+			return "", "", errors.New("the existing Android SDK command-line tools are uncertain and will not be used")
+		}
+	}
+	if !closure[commandLineToolsID] {
+		return "", "", errors.New("Android SDK components require the Android SDK command-line tools")
+	}
+	manifest, exists := items.Tool(commandLineToolsID)
+	if !exists {
+		return "", "", errors.New("Android SDK command-line tools are missing from the catalog")
+	}
+	artifact, exists := manifest.ArtifactFor(current.Platform.OS, current.Platform.Architecture)
+	if !exists {
+		return "", "", errors.New("Android SDK command-line tools have no verified archive for this platform and architecture")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || !filepath.IsAbs(home) {
+		return "", "", errors.New("could not determine an absolute user home directory for the Android SDK")
+	}
+	root, err := artifacts.InstallationPath(current.Platform.OS, commandLineToolsID, artifact.Version, home)
+	if err != nil {
+		return "", "", err
+	}
+	manager := filepath.Join(root, "cmdline-tools", "latest", "bin", "sdkmanager")
+	if current.Platform.OS == tool.Windows {
+		manager += ".bat"
+	}
+	return root, manager, nil
 }
 
 func requestedRegistry(manifest tool.Manifest, operatingSystem tool.OperatingSystem, sources map[tool.RegistryEcosystem]string) (*tool.RegistryInstaller, string, bool) {
