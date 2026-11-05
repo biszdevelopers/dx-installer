@@ -26,7 +26,7 @@ go run ./cmd/release `
   --signing-key C:\secure\dx-release-ed25519.pem
 ```
 
-The default matrix builds Windows, macOS, and Linux on amd64 and arm64. Explicit target selection is available with `--targets windows/amd64,macos/arm64,linux/amd64`; only publish targets with green native CI. The generator validates executable file formats and architectures, signs the release checksum list, and refuses to overwrite an existing version.
+The default release artifact matrix builds Windows, macOS, and Linux on amd64 and arm64 plus FreeBSD amd64. The native CI and release verification jobs run on the six Windows/macOS/Linux architecture pairs; FreeBSD amd64 is cross-built and separately exercised in the FreeBSD package-manager integration VM. Explicit target selection is available with `--targets windows/amd64,macos/arm64,linux/amd64`; only publish targets with matching successful verification. The generator validates executable file formats and architectures, signs the release checksum list, and refuses to overwrite an existing version.
 
 The output is `dist/releases/vX.Y.Z`. `SHA256SUMS.sig` is a base64 Ed25519 signature over the exact `SHA256SUMS` bytes; `SHA256SUMS.pub` contains the corresponding base64 public key. The client binary has that key pinned at link time. Run the generated binary's `verify-release --directory` command before deployment.
 
