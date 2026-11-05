@@ -59,6 +59,7 @@ type Item struct {
 	Artifact           *tool.Artifact
 	Version            string
 	ApproximateSize    int64
+	SizeEstimateNote   string
 	InstallPath        string
 	PathChanges        []pathconfig.Change
 	RegionalFallback   bool
@@ -114,6 +115,9 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 	managerOrder := current.ManagerOrder()
 	if closureSet["android-sdk-command-line-tools"] && !containsManager(managerOrder, tool.AndroidSDK) {
 		managerOrder = append(managerOrder, tool.AndroidSDK)
+	}
+	if closureSet["esp-idf-installation-manager"] && !containsManager(managerOrder, tool.EspressifEIM) {
+		managerOrder = append(managerOrder, tool.EspressifEIM)
 	}
 	if options.PreferredManager != "" {
 		managerOrder = PreferredManagerOrder(managerOrder, options.PreferredManager)
@@ -254,6 +258,7 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 				Source:            installer.Source,
 				Scope:             installer.Scope,
 				ApproximateSize:   installer.ApproximateSize,
+				SizeEstimateNote:  installer.SizeEstimateNote,
 				Command:           command,
 				RequiresPrivilege: command.RequiresPrivilege,
 				PathChanges:       pathChanges,
