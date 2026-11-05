@@ -633,6 +633,9 @@ func (m *Model) renderApproval() string {
 	for _, item := range m.plan.InstallItems() {
 		if item.Artifact != nil {
 			lines = append(lines, fmt.Sprintf("%s  version %s  SHA-256 %s  %s", item.ToolID, item.Version, item.Artifact.SHA256, item.InstallPath))
+			if item.InstallationNote != "" {
+				lines = append(lines, "  setup: "+item.InstallationNote)
+			}
 			for _, change := range item.PathChanges {
 				if change.Manual {
 					lines = append(lines, "  PATH manual command: "+change.ManualCommand)
