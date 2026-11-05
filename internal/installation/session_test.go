@@ -45,6 +45,30 @@ func TestSessionSkipsOnlyDependentsOfFailedInstall(t *testing.T) {
 	}
 }
 
+func TestSessionKeepsInstallationOperationsSerialized(t *testing.T) {
+	session, err := NewSession(planning.Plan{Items: []planning.Item{
+		{ToolID: "git", Name: "Git", Action: planning.Install},
+		{ToolID: "go", Name: "Go", Action: planning.Install},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, ok := session.Next()
+	if !ok || first.ToolID != "git" {
+		t.Fatalf("first operation = %#v, %v", first, ok)
+	}
+	if next, exists := session.Next(); exists {
+		t.Fatalf("operation %q started before the active operation completed", next.ToolID)
+	}
+	if err := session.Record(first, nil, detection.Tool{ID: "git", State: detection.Healthy}); err != nil {
+		t.Fatal(err)
+	}
+	second, ok := session.Next()
+	if !ok || second.ToolID != "go" {
+		t.Fatalf("second operation = %#v, %v", second, ok)
+	}
+}
+
 func TestSessionReportsVerifiedArchiveAndFailedPATHPersistenceAsPartial(t *testing.T) {
 	item := planning.Item{ToolID: "go", Name: "Go", Action: planning.Install, Source: "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz", Artifact: &tool.Artifact{Version: "1.27.3"}}
 	session, err := NewSession(planning.Plan{Items: []planning.Item{item}})
