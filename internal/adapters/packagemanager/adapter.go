@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"developers-club-dx/internal/domain/tool"
 )
@@ -248,8 +247,8 @@ func (c Command) Exec() (*exec.Cmd, error) {
 }
 
 func (c Command) ExecContext(ctx context.Context) (*exec.Cmd, error) {
-	if runtime.GOOS == "windows" && strings.EqualFold(filepath.Ext(c.Executable), ".bat") {
-		return c.execBatch(ctx)
+	if runtime.GOOS == "windows" && (strings.EqualFold(filepath.Ext(c.Executable), ".bat") || strings.EqualFold(filepath.Ext(c.Executable), ".cmd")) {
+		return execBatchCommand(ctx, c)
 	}
 	var command *exec.Cmd
 	if c.PrivilegeWrapper != "" {
@@ -260,33 +259,6 @@ func (c Command) ExecContext(ctx context.Context) (*exec.Cmd, error) {
 	} else {
 		command = exec.CommandContext(ctx, c.Executable, c.Arguments...)
 	}
-	if len(c.Environment) > 0 {
-		command.Env = mergedEnvironment(os.Environ(), c.Environment)
-	}
-	return command, nil
-}
-
-func (c Command) execBatch(ctx context.Context) (*exec.Cmd, error) {
-	if strings.ContainsAny(c.Executable, "%\r\n\x00\"") {
-		return nil, errors.New("batch executable path contains characters that cannot be passed safely to cmd.exe")
-	}
-	for _, argument := range c.Arguments {
-		if argument == "" || strings.ContainsAny(argument, " \t\r\n\x00\"&|<>^%!") {
-			return nil, errors.New("batch executable arguments contain characters that cannot be passed safely to cmd.exe")
-		}
-	}
-	commandProcessor, err := exec.LookPath("cmd.exe")
-	if err != nil {
-		return nil, errors.New("cmd.exe is unavailable for the verified batch executable")
-	}
-	commandLine := `"` + commandProcessor + `" /d /s /c ""` + c.Executable + `"`
-	for _, argument := range c.Arguments {
-		commandLine += " " + argument
-	}
-	commandLine += `"`
-	command := exec.CommandContext(ctx, commandProcessor)
-	command.Args = nil
-	command.SysProcAttr = &syscall.SysProcAttr{CmdLine: commandLine}
 	if len(c.Environment) > 0 {
 		command.Env = mergedEnvironment(os.Environ(), c.Environment)
 	}
