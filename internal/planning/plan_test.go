@@ -156,7 +156,8 @@ func TestPlanDisclosesZephyrSDKSizeAndVendorSetupBeforeApproval(t *testing.T) {
 	if item.ToolID != "zephyr-sdk" || item.Artifact == nil || item.SizeEstimateNote == "" || !strings.Contains(item.SizeEstimateNote, "1.87 GB") {
 		t.Fatalf("plan omitted the SDK download estimate: %#v", item)
 	}
-	if item.InstallationNote == "" || !strings.Contains(item.InstallationNote, "ZEPHYR_SDK_INSTALL_DIR") || item.InstallPath != filepath.Join(home, "zephyr-sdk-1.0.1") || len(item.PathChanges) != 1 || item.PathChanges[0].Directory != filepath.Join(item.InstallPath, "gnu", "arm-zephyr-eabi", "bin") {
+	activationCommand := "$env:ZEPHYR_SDK_INSTALL_DIR = '" + filepath.Join(home, "zephyr-sdk-1.0.1") + "'; $env:ZEPHYR_TOOLCHAIN_VARIANT = 'zephyr'"
+	if item.InstallationNote == "" || !strings.Contains(item.InstallationNote, activationCommand) || item.InstallPath != filepath.Join(home, "zephyr-sdk-1.0.1") || len(item.PathChanges) != 1 || item.PathChanges[0].Directory != filepath.Join(item.InstallPath, "gnu", "arm-zephyr-eabi", "bin") {
 		t.Fatalf("plan omitted SDK activation details or PATH change: %#v", item)
 	}
 	if len(item.Dependencies) != 2 || item.Dependencies[0] != "cmake" || item.Dependencies[1] != "seven-zip" {
