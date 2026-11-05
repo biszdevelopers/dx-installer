@@ -129,14 +129,25 @@ func BuildCommand(installer tool.Installer, currentOS tool.OperatingSystem) (Com
 	packageID := installer.PackageID
 	switch installer.Manager {
 	case tool.Winget:
-		command.Arguments = []string{"install", "--id", packageID, "--exact"}
+		if len(installer.Workloads) > 0 && (!strings.EqualFold(packageID, "Microsoft.VisualStudio.BuildTools") || len(installer.Workloads) != 1 || installer.Workloads[0] != "Microsoft.VisualStudio.Workload.VCTools") {
+			return Command{}, fmt.Errorf("unsupported WinGet workload selection for package %q", packageID)
+		}
+		if strings.EqualFold(packageID, "Microsoft.VisualStudio.BuildTools") && (len(installer.Workloads) != 1 || installer.Workloads[0] != "Microsoft.VisualStudio.Workload.VCTools") {
+			return Command{}, errors.New("Visual Studio Build Tools requires the declared C++ workload")
+		}
+		command.Arguments = []string{"install", "--id", packageID, "--exact", "--no-upgrade"}
 		if installer.Source != "" {
 			command.Arguments = append(command.Arguments, "--source", installer.Source)
 		}
 		if installer.Scope == tool.UserScope {
 			command.Arguments = append(command.Arguments, "--scope", "user")
 		} else {
+			command.Arguments = append(command.Arguments, "--scope", "machine")
 			command.RequiresPrivilege = true
+		}
+		if len(installer.Workloads) == 1 {
+			override := "--passive --wait --norestart --nocache --add " + installer.Workloads[0] + " --includeRecommended"
+			command.Arguments = append(command.Arguments, "--override", override)
 		}
 	case tool.Scoop:
 		if installer.Scope != tool.UserScope {
