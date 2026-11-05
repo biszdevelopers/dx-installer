@@ -533,6 +533,9 @@ func (m *Model) renderProgress(maxRows int) []string {
 		for _, toolID := range toolIDs {
 			progress := m.downloadProgress[toolID]
 			lines = append(lines, fmt.Sprintf("%s: %s", toolID, display.DownloadProgress(progress.BytesReceived, progress.TotalBytes)))
+			if progress.Phase != "" {
+				lines = append(lines, fmt.Sprintf("%s verification: %s", toolID, progress.Phase))
+			}
 		}
 	}
 	if m.activeItem.ToolID != "" {
@@ -544,6 +547,9 @@ func (m *Model) renderProgress(maxRows int) []string {
 					lines = append(lines, "Prepared source: "+progress.SourceName)
 				}
 				lines = append(lines, "Downloaded: "+display.DownloadProgress(progress.BytesReceived, progress.TotalBytes))
+				if progress.Phase != "" {
+					lines = append(lines, "Verification: "+progress.Phase)
+				}
 			}
 		} else {
 			lines = append(lines, "Source: "+m.activeItem.Source, "Command: "+m.activeItem.Command.Display())
