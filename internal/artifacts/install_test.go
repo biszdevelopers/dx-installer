@@ -8,12 +8,17 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"developers-club-dx/internal/domain/tool"
 	"developers-club-dx/internal/platform"
@@ -79,6 +84,108 @@ func TestArchiveInstallerPlacesToolInVersionedUserLocationAndCleansTemporaryFile
 		}
 	} else if filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(result.Path)))) != ".local" {
 		t.Fatalf("Unix tool was installed outside ~/.local/opt: %q", result.Path)
+	}
+}
+
+func TestPrepareManyRunsIndependentDownloadsWithBoundedConcurrency(t *testing.T) {
+	contents := []byte("verified archive bytes")
+	digest := sha256.Sum256(contents)
+	var active atomic.Int32
+	var maximum atomic.Int32
+	var firstBatch atomic.Int32
+	var releaseOnce sync.Once
+	releaseFirstBatch := make(chan struct{})
+	server := httptest.NewTLSServer(http.HandlerFunc(func(output http.ResponseWriter, _ *http.Request) {
+		current := active.Add(1)
+		for observed := maximum.Load(); current > observed && !maximum.CompareAndSwap(observed, current); observed = maximum.Load() {
+		}
+		if firstBatch.Add(1) == DefaultConcurrentDownloads {
+			releaseOnce.Do(func() { close(releaseFirstBatch) })
+		}
+		select {
+		case <-releaseFirstBatch:
+		case <-time.After(3 * time.Second):
+		}
+		_, _ = output.Write(contents)
+		active.Add(-1)
+	}))
+	defer server.Close()
+	machine := platform.Detect()
+	artifact := tool.Artifact{
+		Platform: machine.OS, Architecture: machine.Architecture, Version: "1.0.0",
+		URL: server.URL, SHA256: hex.EncodeToString(digest[:]), Format: tool.Zip,
+	}
+	requests := make([]PrepareRequest, 5)
+	for index, id := range []string{"go", "cmake", "ninja", "clang", "make"} {
+		requests[index] = PrepareRequest{ToolID: id, Home: t.TempDir(), Artifact: artifact}
+	}
+	installer := &ArchiveInstaller{
+		Downloader: sources.NewDownloader(sources.DownloadOptions{Transport: server.Client().Transport}),
+		TempRoot:   t.TempDir(),
+	}
+	results := installer.PrepareMany(context.Background(), requests, nil)
+	if len(results) != len(requests) {
+		t.Fatalf("prepared %d archives, want %d", len(results), len(requests))
+	}
+	if maximum.Load() != DefaultConcurrentDownloads {
+		t.Fatalf("maximum concurrent downloads = %d, want default %d", maximum.Load(), DefaultConcurrentDownloads)
+	}
+	for _, result := range results {
+		if result.Err != nil || result.Prepared == nil || result.Progress.BytesReceived != int64(len(contents)) {
+			t.Errorf("prepared result = %#v", result)
+		}
+		if result.Prepared != nil {
+			if err := result.Prepared.Cleanup(); err != nil {
+				t.Errorf("cleanup %s archive: %v", result.ToolID, err)
+			}
+		}
+	}
+}
+
+func TestArchiveInstallerOptionsBoundConcurrencyAndTimeout(t *testing.T) {
+	timeout := 2 * time.Minute
+	installer, err := NewArchiveInstallerWithOptions(ArchiveInstallerOptions{
+		MaxConcurrentDownloads: 5,
+		DownloadTimeout:        timeout,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if installer.Concurrency() != 5 || installer.DownloadTimeout != timeout {
+		t.Fatalf("installer options were not applied: concurrency=%d timeout=%s", installer.Concurrency(), installer.DownloadTimeout)
+	}
+	for _, concurrency := range []int{-1, MaxConcurrentDownloads + 1} {
+		if _, err := NewArchiveInstallerWithOptions(ArchiveInstallerOptions{MaxConcurrentDownloads: concurrency}); err == nil {
+			t.Errorf("accepted concurrency %d outside the supported range", concurrency)
+		}
+	}
+	if _, err := NewArchiveInstallerWithOptions(ArchiveInstallerOptions{DownloadTimeout: MaxDownloadTimeout + time.Second}); err == nil {
+		t.Error("accepted an excessive download timeout")
+	}
+}
+
+func TestExtractWithCanceledContextDoesNotWriteArchiveEntries(t *testing.T) {
+	archiveBytes, _, format := sampleGoArchive(t)
+	root := t.TempDir()
+	archivePath := filepath.Join(root, "tool.archive")
+	if err := os.WriteFile(archivePath, archiveBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(root, "extract")
+	if err := os.Mkdir(destination, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := ExtractWithContext(ctx, archivePath, destination, "go", format, Limits{}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled extraction error = %v", err)
+	}
+	entries, err := os.ReadDir(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("canceled extraction wrote entries: %#v", entries)
 	}
 }
 
