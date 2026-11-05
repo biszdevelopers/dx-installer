@@ -1028,7 +1028,7 @@ func (m *Model) handlePreflight(message preflightMsg) (tea.Model, tea.Cmd) {
 func planSignature(plan planning.Plan) string {
 	parts := make([]string, 0, len(plan.Items)+len(plan.Issues))
 	for _, item := range plan.Items {
-		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display(), item.Version, item.InstallPath, fmt.Sprint(item.ApproximateSize), fmt.Sprint(item.RegionalFallback), item.CustomSourceURL, item.OfflineArchivePath}, "|"))
+		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display(), item.Version, item.InstallPath, fmt.Sprint(item.ApproximateSize), item.SizeEstimateNote, fmt.Sprint(item.RegionalFallback), item.CustomSourceURL, item.OfflineArchivePath}, "|"))
 		if item.Artifact != nil {
 			parts = append(parts, strings.Join([]string{item.Artifact.URL, item.Artifact.RegionalURL, item.Artifact.SHA256, string(item.Artifact.Format), item.Artifact.ArchiveRoot}, "|"))
 		}
