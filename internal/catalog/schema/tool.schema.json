@@ -131,10 +131,16 @@
         "url": { "type": "string", "format": "uri", "pattern": "^https://" },
         "regional_url": { "type": "string", "format": "uri", "pattern": "^https://" },
         "sha256": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
-        "approximate_size": { "type": "integer", "minimum": 0, "maximum": 1073741824 },
-        "format": { "enum": ["tar.gz", "zip"] },
+        "approximate_size": { "type": "integer", "minimum": 0, "maximum": 8589934592 },
+        "size_estimate_note": { "type": "string", "maxLength": 256, "pattern": "^[^\\r\\n\\u0000]+$" },
+        "max_download_bytes": { "type": "integer", "minimum": 0, "maximum": 8589934592 },
+        "max_expanded_bytes": { "type": "integer", "minimum": 0, "maximum": 34359738368 },
+        "format": { "enum": ["tar.gz", "tar.xz", "zip", "7z"] },
         "archive_root": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*(/[A-Za-z0-9][A-Za-z0-9._+-]*)*$" },
         "install_subdirectory": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*(/[A-Za-z0-9][A-Za-z0-9._+-]*)*$" },
+        "version_file": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*(/[A-Za-z0-9][A-Za-z0-9._+-]*)*$" },
+        "post_install_action": { "enum": ["zephyr-sdk-setup"] },
+        "installation_note": { "type": "string", "maxLength": 256, "pattern": "^[^\\r\\n\\u0000]+$" },
         "path_entries": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*(/[A-Za-z0-9][A-Za-z0-9._+-]*)*$" } },
         "allowed_redirect_hosts": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$" } }
       }
