@@ -360,7 +360,7 @@ func inspectArtifactVersionFile(ctx context.Context, manifest tool.Manifest, mac
 		if manifest.ID == "zephyr-sdk" {
 			toolchain := strings.TrimSuffix(executable, filepath.Ext(executable))
 			if separator := strings.LastIndexByte(toolchain, '-'); separator > 0 {
-				directories = append(directories, filepath.Join(installPath, toolchain[:separator], "bin"))
+				directories = append(directories, filepath.Join(installPath, "gnu", toolchain[:separator], "bin"))
 			}
 		}
 		paths := findExecutablesInDirectories(executable, directories)
@@ -466,7 +466,7 @@ func knownExecutableDirectories() []string {
 		for _, environment := range []string{"ProgramFiles", "ProgramFiles(x86)"} {
 			root := os.Getenv(environment)
 			if root != "" {
-				directories = append(directories, filepath.Join(root, "Git", "cmd"), filepath.Join(root, "Git", "bin"), filepath.Join(root, "nodejs"), filepath.Join(root, "dotnet"))
+				directories = append(directories, filepath.Join(root, "Git", "cmd"), filepath.Join(root, "Git", "bin"), filepath.Join(root, "nodejs"), filepath.Join(root, "dotnet"), filepath.Join(root, "7-Zip"))
 			}
 		}
 		localAppData := os.Getenv("LOCALAPPDATA")
