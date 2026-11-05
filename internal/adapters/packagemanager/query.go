@@ -194,6 +194,7 @@ type inventoryParser func([]byte, bool) ([]packageRecord, error)
 var inventoryCommands = map[tool.PackageManager]inventoryCommandSpec{
 	tool.APT:        {executable: "dpkg-query", arguments: []string{"-W", "-f=${db:Status-Abbrev}\\t${binary:Package}\\t${Version}\\n"}},
 	tool.DNF:        {executable: "rpm", arguments: []string{"-qa", "--qf=%{NAME}\\t%{VERSION}-%{RELEASE}\\n"}},
+	tool.YUM:        {executable: "rpm", arguments: []string{"-qa", "--qf=%{NAME}\\t%{VERSION}-%{RELEASE}\\n"}},
 	tool.Zypper:     {executable: "rpm", arguments: []string{"-qa", "--qf=%{NAME}\\t%{VERSION}-%{RELEASE}\\n"}},
 	tool.Pacman:     {executable: "pacman", arguments: []string{"-Q"}},
 	tool.APK:        {executable: "apk", arguments: []string{"info", "-v"}},
@@ -204,6 +205,7 @@ var inventoryCommands = map[tool.PackageManager]inventoryCommandSpec{
 var inventoryParsers = map[tool.PackageManager]inventoryParser{
 	tool.APT:        parseAPTInventory,
 	tool.DNF:        parseTwoFieldInventory,
+	tool.YUM:        parseTwoFieldInventory,
 	tool.Zypper:     parseTwoFieldInventory,
 	tool.Pacman:     parseTwoFieldInventory,
 	tool.APK:        parseAPKInventory,
