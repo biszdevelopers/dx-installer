@@ -1,0 +1,70 @@
+schema_version: 1
+id: zephyr-sdk
+name: Zephyr SDK
+category: embedded.tooling
+description: Zephyr GNU cross-toolchains and host tools for firmware development; large download and disk footprint.
+tags: [embedded, zephyr, toolchain, cross-compiler]
+version:
+  channel: stable
+  upgrade_policy: never_automatically
+executables: [arm-zephyr-eabi-gcc]
+version_args: [--version]
+dependencies: [cmake]
+conflicts: []
+platforms:
+  windows: [amd64]
+  macos: [arm64]
+  linux: [amd64, arm64]
+artifacts:
+  - platform: linux
+    architecture: amd64
+    version: 1.0.1
+    url: https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_linux-x86_64_gnu.tar.xz
+    sha256: 37a8c5b5569c2b482d39099c65fe3ddac4e43524996c731907e1e9f5818cbba7
+    size_estimate_note: About 1.99 GB compressed; extraction requires several additional GB.
+    max_download_bytes: 2500000000
+    max_expanded_bytes: 17179869184
+    format: tar.xz
+    archive_root: zephyr-sdk-1.0.1
+    version_file: sdk_version
+    post_install_action: zephyr-sdk-setup
+    installation_note: Runs the bundled setup script for all GNU toolchains and host tools; makes no PATH or CMake registry changes.
+  - platform: linux
+    architecture: arm64
+    version: 1.0.1
+    url: https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_linux-aarch64_gnu.tar.xz
+    sha256: 6e38018f70af5e90c18cc04c2f8ac5a91c99f5559b25692d1b0de328c3edb88a
+    size_estimate_note: About 1.82 GB compressed; extraction requires several additional GB.
+    max_download_bytes: 2500000000
+    max_expanded_bytes: 17179869184
+    format: tar.xz
+    archive_root: zephyr-sdk-1.0.1
+    version_file: sdk_version
+    post_install_action: zephyr-sdk-setup
+    installation_note: Runs the bundled setup script for all GNU toolchains and host tools; makes no PATH or CMake registry changes.
+  - platform: macos
+    architecture: arm64
+    version: 1.0.1
+    url: https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_macos-aarch64_gnu.tar.xz
+    sha256: 3dc6346a5888ebbcee19801bf6271627f04819778fe0ef3c7f3c7528e8f4ef2a
+    size_estimate_note: About 1.69 GB compressed; extraction requires several additional GB.
+    max_download_bytes: 2500000000
+    max_expanded_bytes: 17179869184
+    format: tar.xz
+    archive_root: zephyr-sdk-1.0.1
+    version_file: sdk_version
+    post_install_action: zephyr-sdk-setup
+    installation_note: Runs the bundled setup script for all GNU toolchains and host tools; makes no PATH or CMake registry changes.
+  - platform: windows
+    architecture: amd64
+    version: 1.0.1
+    url: https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_windows-x86_64_gnu.7z
+    sha256: 811cb97797ddf6198eea66b030168d12512f605c7e332ea24d2cbe47b769c472
+    size_estimate_note: About 1.87 GB compressed; extraction requires several additional GB.
+    max_download_bytes: 2500000000
+    max_expanded_bytes: 17179869184
+    format: 7z
+    archive_root: zephyr-sdk-1.0.1
+    version_file: sdk_version
+    post_install_action: zephyr-sdk-setup
+    installation_note: Runs the bundled setup script for all GNU toolchains and host tools; makes no PATH or CMake registry changes.
