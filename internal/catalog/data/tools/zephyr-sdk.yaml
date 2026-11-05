@@ -10,6 +10,8 @@ version:
 executables: [arm-zephyr-eabi-gcc]
 version_args: [--version]
 dependencies: [cmake]
+platform_dependencies:
+  windows: [seven-zip]
 conflicts: []
 platforms:
   windows: [amd64]
@@ -28,7 +30,7 @@ artifacts:
     archive_root: zephyr-sdk-1.0.1
     version_file: sdk_version
     post_install_action: zephyr-sdk-setup
-    installation_note: Runs the bundled setup script for all GNU toolchains and host tools; makes no PATH or CMake registry changes.
+    installation_note: Runs the bundled setup for arm-zephyr-eabi and, where supported, host tools; makes no PATH or CMake registry changes.
   - platform: linux
     architecture: arm64
     version: 1.0.1
@@ -41,7 +43,7 @@ artifacts:
     archive_root: zephyr-sdk-1.0.1
     version_file: sdk_version
     post_install_action: zephyr-sdk-setup
-    installation_note: Runs the bundled setup script for all GNU toolchains and host tools; makes no PATH or CMake registry changes.
+    installation_note: Runs the bundled setup for arm-zephyr-eabi and, where supported, host tools; makes no PATH or CMake registry changes.
   - platform: macos
     architecture: arm64
     version: 1.0.1
@@ -54,7 +56,7 @@ artifacts:
     archive_root: zephyr-sdk-1.0.1
     version_file: sdk_version
     post_install_action: zephyr-sdk-setup
-    installation_note: Runs the bundled setup script for all GNU toolchains and host tools; makes no PATH or CMake registry changes.
+    installation_note: Runs the bundled setup for arm-zephyr-eabi and, where supported, host tools; makes no PATH or CMake registry changes.
   - platform: windows
     architecture: amd64
     version: 1.0.1
@@ -67,4 +69,4 @@ artifacts:
     archive_root: zephyr-sdk-1.0.1
     version_file: sdk_version
     post_install_action: zephyr-sdk-setup
-    installation_note: Runs the bundled setup script for all GNU toolchains and host tools; makes no PATH or CMake registry changes.
+    installation_note: Runs the bundled setup for arm-zephyr-eabi and, where supported, host tools; makes no PATH or CMake registry changes.
