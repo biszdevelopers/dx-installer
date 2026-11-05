@@ -127,23 +127,24 @@ type VersionPolicy struct {
 }
 
 type Manifest struct {
-	SchemaVersion      int                                `yaml:"schema_version"`
-	ID                 string                             `yaml:"id"`
-	Name               string                             `yaml:"name"`
-	Category           string                             `yaml:"category"`
-	Description        string                             `yaml:"description"`
-	Tags               []string                           `yaml:"tags"`
-	Version            VersionPolicy                      `yaml:"version"`
-	Executables        []string                           `yaml:"executables"`
-	VersionArgs        []string                           `yaml:"version_args"`
-	HealthPattern      string                             `yaml:"health_pattern,omitempty"`
-	Dependencies       []string                           `yaml:"dependencies"`
-	ProvidedBy         string                             `yaml:"provided_by,omitempty"`
-	Conflicts          []string                           `yaml:"conflicts"`
-	Platforms          map[OperatingSystem][]Architecture `yaml:"platforms"`
-	Installers         []Installer                        `yaml:"installers"`
-	RegistryInstallers []RegistryInstaller                `yaml:"registry_installers,omitempty"`
-	Artifacts          []Artifact                         `yaml:"artifacts,omitempty"`
+	SchemaVersion        int                                `yaml:"schema_version"`
+	ID                   string                             `yaml:"id"`
+	Name                 string                             `yaml:"name"`
+	Category             string                             `yaml:"category"`
+	Description          string                             `yaml:"description"`
+	Tags                 []string                           `yaml:"tags"`
+	Version              VersionPolicy                      `yaml:"version"`
+	Executables          []string                           `yaml:"executables"`
+	VersionArgs          []string                           `yaml:"version_args"`
+	HealthPattern        string                             `yaml:"health_pattern,omitempty"`
+	Dependencies         []string                           `yaml:"dependencies"`
+	PlatformDependencies map[OperatingSystem][]string       `yaml:"platform_dependencies,omitempty"`
+	ProvidedBy           string                             `yaml:"provided_by,omitempty"`
+	Conflicts            []string                           `yaml:"conflicts"`
+	Platforms            map[OperatingSystem][]Architecture `yaml:"platforms"`
+	Installers           []Installer                        `yaml:"installers"`
+	RegistryInstallers   []RegistryInstaller                `yaml:"registry_installers,omitempty"`
+	Artifacts            []Artifact                         `yaml:"artifacts,omitempty"`
 }
 
 type Profile struct {
@@ -174,6 +175,19 @@ func (m Manifest) Supports(os OperatingSystem, architecture Architecture) bool {
 		}
 	}
 	return false
+}
+
+func (m Manifest) DependenciesFor(os OperatingSystem) []string {
+	dependencies := append([]string(nil), m.Dependencies...)
+	return append(dependencies, m.PlatformDependencies[os]...)
+}
+
+func (m Manifest) AllDependencies() []string {
+	dependencies := append([]string(nil), m.Dependencies...)
+	for _, os := range []OperatingSystem{Windows, MacOS, Linux, BSD} {
+		dependencies = append(dependencies, m.PlatformDependencies[os]...)
+	}
+	return dependencies
 }
 
 func (m Manifest) InstallerFor(os OperatingSystem, managers []PackageManager) (Installer, bool) {
@@ -247,6 +261,25 @@ func (m Manifest) Validate() error {
 	}
 	if m.ProvidedBy != "" && (!identifierPattern.MatchString(m.ProvidedBy) || m.ProvidedBy == m.ID) {
 		return fmt.Errorf("provided_by must name a different catalog tool")
+	}
+	seenDependencies := make(map[string]bool)
+	for _, dependency := range m.Dependencies {
+		if !identifierPattern.MatchString(dependency) || dependency == m.ID || seenDependencies[dependency] {
+			return fmt.Errorf("dependency %q is invalid, self-referential, or duplicated", dependency)
+		}
+		seenDependencies[dependency] = true
+	}
+	for os, dependencies := range m.PlatformDependencies {
+		if !validPlatform(os) || !hasPlatform(m.Platforms, os) || len(dependencies) == 0 {
+			return fmt.Errorf("platform dependencies for %q require a declared platform and at least one dependency", os)
+		}
+		seenPlatformDependencies := make(map[string]bool)
+		for _, dependency := range dependencies {
+			if !identifierPattern.MatchString(dependency) || dependency == m.ID || seenDependencies[dependency] || seenPlatformDependencies[dependency] {
+				return fmt.Errorf("dependency %q for %q is invalid, self-referential, or duplicated", dependency, os)
+			}
+			seenPlatformDependencies[dependency] = true
+		}
 	}
 	for os, architectures := range m.Platforms {
 		if !validPlatform(os) || len(architectures) == 0 {
