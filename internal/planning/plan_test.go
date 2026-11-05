@@ -1,6 +1,7 @@
 package planning
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -155,8 +156,8 @@ func TestPlanDisclosesZephyrSDKSizeAndVendorSetupBeforeApproval(t *testing.T) {
 	if item.ToolID != "zephyr-sdk" || item.Artifact == nil || item.SizeEstimateNote == "" || !strings.Contains(item.SizeEstimateNote, "1.87 GB") {
 		t.Fatalf("plan omitted the SDK download estimate: %#v", item)
 	}
-	if item.InstallationNote == "" || !strings.Contains(item.InstallationNote, "arm-zephyr-eabi") || item.InstallPath != filepath.Join(home, "zephyr-sdk-1.0.1") || len(item.PathChanges) != 0 {
-		t.Fatalf("plan omitted setup behavior or declared an unnecessary PATH change: %#v", item)
+	if item.InstallationNote == "" || !strings.Contains(item.InstallationNote, "ZEPHYR_SDK_INSTALL_DIR") || item.InstallPath != filepath.Join(home, "zephyr-sdk-1.0.1") || len(item.PathChanges) != 1 || item.PathChanges[0].Directory != filepath.Join(item.InstallPath, "gnu", "arm-zephyr-eabi", "bin") {
+		t.Fatalf("plan omitted SDK activation details or PATH change: %#v", item)
 	}
 	if len(item.Dependencies) != 2 || item.Dependencies[0] != "cmake" || item.Dependencies[1] != "seven-zip" {
 		t.Fatalf("Windows plan omitted the conditional archive dependency: %#v", item.Dependencies)
@@ -281,6 +282,26 @@ func TestPlanDisclosesUnresolvedPackageTransactionInJSON(t *testing.T) {
 	}
 	if !strings.Contains(string(encoded), `"transaction_disclosure"`) || !strings.Contains(string(encoded), TransactionDisclosure) {
 		t.Fatalf("JSON plan omitted transaction uncertainty: %s", encoded)
+	}
+}
+
+func TestPlanPreviewDisclosesWhenManagerCannotSafelyResolveMetadata(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := windowsInventory([]packagemanager.Detected{{Manager: tool.Winget, Path: `C:\Windows\winget.exe`}}, detection.Tool{ID: "git", Name: "Git", State: detection.Missing})
+	plan, err := Build(items, current, []string{"git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan = PreviewPackageTransactions(context.Background(), current, plan)
+	if len(plan.Items) != 1 {
+		t.Fatalf("planned items = %#v, want one package manager install", plan.Items)
+	}
+	item := plan.Items[0]
+	if item.CandidateVersion != "" || item.TransactionPreview != "" || !strings.Contains(item.TransactionNote, "preview unavailable") || !strings.Contains(item.TransactionNote, "will not refresh repositories") {
+		t.Fatalf("unsupported manager preview did not disclose uncertainty: %#v", item)
 	}
 }
 
