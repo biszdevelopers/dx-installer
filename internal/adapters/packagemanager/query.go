@@ -63,7 +63,7 @@ func (b *boundedOutput) Write(value []byte) (int, error) {
 func QueryInstalled(parent context.Context, managers []Detected) PackageInventory {
 	queryable := make([]Detected, 0, len(managers))
 	for _, manager := range managers {
-		if manager.Manager != tool.AndroidSDK {
+		if manager.Manager != tool.AndroidSDK && manager.Manager != tool.EspressifEIM {
 			queryable = append(queryable, manager)
 		}
 	}
