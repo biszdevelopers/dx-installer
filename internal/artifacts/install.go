@@ -41,14 +41,13 @@ type InstallOptions struct {
 }
 
 var toolIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
-var versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$`)
 
 func NewArchiveInstaller() *ArchiveInstaller {
 	return &ArchiveInstaller{Downloader: sources.NewDownloader(sources.DownloadOptions{})}
 }
 
 func InstallationPath(machine tool.OperatingSystem, toolID, version, home string) (string, error) {
-	if !toolIDPattern.MatchString(toolID) || !versionPattern.MatchString(version) || !filepath.IsAbs(home) {
+	if !toolIDPattern.MatchString(toolID) || !tool.IsValidArtifactVersion(version) || !filepath.IsAbs(home) {
 		return "", errors.New("tool ID, version, and absolute home directory are required")
 	}
 	if toolID == "zephyr-sdk" {
@@ -79,7 +78,7 @@ func (i *ArchiveInstaller) InstallWithOptions(ctx context.Context, toolID, home 
 	if artifact.Platform != machine.OS || artifact.Architecture != machine.Architecture {
 		return result, errors.New("archive platform and architecture do not match the current machine")
 	}
-	if !versionPattern.MatchString(artifact.Version) {
+	if !tool.IsValidArtifactVersion(artifact.Version) {
 		return result, errors.New("archive version is invalid")
 	}
 	if artifact.Format != tool.TarGzip && artifact.Format != tool.TarXZ && artifact.Format != tool.Zip && artifact.Format != tool.SevenZip {
