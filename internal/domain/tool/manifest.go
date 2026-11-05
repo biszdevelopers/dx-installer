@@ -345,7 +345,7 @@ func (m Manifest) Validate() error {
 		if !validRegistryPackageID(installer.Ecosystem, installer.PackageID) {
 			return fmt.Errorf("registry installer package identifier %q is invalid", installer.PackageID)
 		}
-		if !artifactVersionPattern.MatchString(installer.Version) {
+		if !IsValidArtifactVersion(installer.Version) {
 			return fmt.Errorf("registry installer for %q must declare a safe exact version", installer.PackageID)
 		}
 		if err := validateHTTPSURL(installer.Source); err != nil {
@@ -367,7 +367,7 @@ func (m Manifest) Validate() error {
 			return fmt.Errorf("duplicate artifact for %s", key)
 		}
 		seenArtifacts[key] = true
-		if artifact.Version == "" || !artifactVersionPattern.MatchString(artifact.Version) {
+		if !IsValidArtifactVersion(artifact.Version) {
 			return fmt.Errorf("artifact %s must declare a safe exact version", key)
 		}
 		if err := validateHTTPSURL(artifact.URL); err != nil {
@@ -489,6 +489,12 @@ func RegistryRuntimeTool(ecosystem RegistryEcosystem) string {
 }
 
 var artifactVersionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$`)
+
+// IsValidArtifactVersion reports whether a version is safe for use in an
+// artifact path and display without accepting whitespace or path separators.
+func IsValidArtifactVersion(value string) bool {
+	return artifactVersionPattern.MatchString(value)
+}
 
 func validateHTTPSURL(value string) error {
 	parsed, err := url.Parse(value)
