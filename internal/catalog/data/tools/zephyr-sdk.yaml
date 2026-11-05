@@ -30,7 +30,8 @@ artifacts:
     archive_root: zephyr-sdk-1.0.1
     version_file: sdk_version
     post_install_action: zephyr-sdk-setup
-    installation_note: Runs the bundled setup for arm-zephyr-eabi and, where supported, host tools; makes no PATH or CMake registry changes.
+    installation_note: Adds the ARM Zephyr compiler to PATH. For Zephyr builds, set ZEPHYR_SDK_INSTALL_DIR to this directory and ZEPHYR_TOOLCHAIN_VARIANT=zephyr.
+    path_entries: [gnu/arm-zephyr-eabi/bin]
   - platform: linux
     architecture: arm64
     version: 1.0.1
@@ -43,7 +44,8 @@ artifacts:
     archive_root: zephyr-sdk-1.0.1
     version_file: sdk_version
     post_install_action: zephyr-sdk-setup
-    installation_note: Runs the bundled setup for arm-zephyr-eabi and, where supported, host tools; makes no PATH or CMake registry changes.
+    installation_note: Adds the ARM Zephyr compiler to PATH. For Zephyr builds, set ZEPHYR_SDK_INSTALL_DIR to this directory and ZEPHYR_TOOLCHAIN_VARIANT=zephyr.
+    path_entries: [gnu/arm-zephyr-eabi/bin]
   - platform: macos
     architecture: arm64
     version: 1.0.1
@@ -56,7 +58,8 @@ artifacts:
     archive_root: zephyr-sdk-1.0.1
     version_file: sdk_version
     post_install_action: zephyr-sdk-setup
-    installation_note: Runs the bundled setup for arm-zephyr-eabi and, where supported, host tools; makes no PATH or CMake registry changes.
+    installation_note: Adds the ARM Zephyr compiler to PATH. For Zephyr builds, set ZEPHYR_SDK_INSTALL_DIR to this directory and ZEPHYR_TOOLCHAIN_VARIANT=zephyr.
+    path_entries: [gnu/arm-zephyr-eabi/bin]
   - platform: windows
     architecture: amd64
     version: 1.0.1
@@ -69,4 +72,5 @@ artifacts:
     archive_root: zephyr-sdk-1.0.1
     version_file: sdk_version
     post_install_action: zephyr-sdk-setup
-    installation_note: Runs the bundled setup for arm-zephyr-eabi and, where supported, host tools; makes no PATH or CMake registry changes.
+    installation_note: Adds the ARM Zephyr compiler to PATH. For Zephyr builds, set ZEPHYR_SDK_INSTALL_DIR to this directory and ZEPHYR_TOOLCHAIN_VARIANT=zephyr.
+    path_entries: [gnu/arm-zephyr-eabi/bin]
