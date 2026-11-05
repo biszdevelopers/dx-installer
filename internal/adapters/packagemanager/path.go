@@ -23,21 +23,21 @@ func HomebrewFormulaPrefix(ctx context.Context, packageID string) (string, error
 	return filepath.Clean(prefix), nil
 }
 
-func ResolveInstallerPaths(installer tool.Installer, formulaPrefix string) ([]string, error) {
+func ResolveInstallerPaths(installer tool.Installer, packageRoot string) ([]string, error) {
 	if len(installer.PathEntries) == 0 {
 		return nil, nil
 	}
-	if installer.Manager != tool.Homebrew {
-		return nil, fmt.Errorf("installer %q/%q cannot resolve formula-relative PATH entries", installer.Platform, installer.Manager)
+	if installer.Manager != tool.Homebrew && installer.Manager != tool.AndroidSDK {
+		return nil, fmt.Errorf("installer %q/%q cannot resolve package-relative PATH entries", installer.Platform, installer.Manager)
 	}
-	if !filepath.IsAbs(formulaPrefix) || strings.ContainsAny(formulaPrefix, "\r\n\x00") {
-		return nil, fmt.Errorf("Homebrew formula prefix must be an absolute path")
+	if !filepath.IsAbs(packageRoot) || strings.ContainsAny(packageRoot, "\r\n\x00") {
+		return nil, fmt.Errorf("package root must be an absolute path")
 	}
-	prefix := filepath.Clean(formulaPrefix)
+	prefix := filepath.Clean(packageRoot)
 	paths := make([]string, 0, len(installer.PathEntries))
 	for _, entry := range installer.PathEntries {
 		if entry == "" || filepath.IsAbs(entry) || strings.ContainsAny(entry, "\\\r\n\x00") || filepath.Clean(filepath.FromSlash(entry)) != filepath.FromSlash(entry) || entry == "." || entry == ".." || strings.HasPrefix(entry, "../") {
-			return nil, fmt.Errorf("installer has an unsafe formula-relative PATH entry %q", entry)
+			return nil, fmt.Errorf("installer has an unsafe package-relative PATH entry %q", entry)
 		}
 		resolved := filepath.Join(prefix, filepath.FromSlash(entry))
 		relative, err := filepath.Rel(prefix, resolved)
