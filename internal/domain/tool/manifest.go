@@ -70,23 +70,37 @@ type Installer struct {
 type ArchiveFormat string
 
 const (
-	TarGzip ArchiveFormat = "tar.gz"
-	Zip     ArchiveFormat = "zip"
+	TarGzip  ArchiveFormat = "tar.gz"
+	TarXZ    ArchiveFormat = "tar.xz"
+	Zip      ArchiveFormat = "zip"
+	SevenZip ArchiveFormat = "7z"
+)
+
+type PostInstallAction string
+
+const (
+	ZephyrSDKSetup PostInstallAction = "zephyr-sdk-setup"
 )
 
 type Artifact struct {
-	Platform             OperatingSystem `yaml:"platform"`
-	Architecture         Architecture    `yaml:"architecture"`
-	Version              string          `yaml:"version"`
-	URL                  string          `yaml:"url"`
-	RegionalURL          string          `yaml:"regional_url,omitempty"`
-	SHA256               string          `yaml:"sha256"`
-	ApproximateSize      int64           `yaml:"approximate_size,omitempty"`
-	Format               ArchiveFormat   `yaml:"format"`
-	ArchiveRoot          string          `yaml:"archive_root"`
-	InstallSubdirectory  string          `yaml:"install_subdirectory,omitempty"`
-	PathEntries          []string        `yaml:"path_entries,omitempty"`
-	AllowedRedirectHosts []string        `yaml:"allowed_redirect_hosts,omitempty"`
+	Platform             OperatingSystem   `yaml:"platform"`
+	Architecture         Architecture      `yaml:"architecture"`
+	Version              string            `yaml:"version"`
+	URL                  string            `yaml:"url"`
+	RegionalURL          string            `yaml:"regional_url,omitempty"`
+	SHA256               string            `yaml:"sha256"`
+	ApproximateSize      int64             `yaml:"approximate_size,omitempty"`
+	SizeEstimateNote     string            `yaml:"size_estimate_note,omitempty"`
+	MaxDownloadBytes     int64             `yaml:"max_download_bytes,omitempty"`
+	MaxExpandedBytes     int64             `yaml:"max_expanded_bytes,omitempty"`
+	Format               ArchiveFormat     `yaml:"format"`
+	ArchiveRoot          string            `yaml:"archive_root"`
+	InstallSubdirectory  string            `yaml:"install_subdirectory,omitempty"`
+	VersionFile          string            `yaml:"version_file,omitempty"`
+	PostInstallAction    PostInstallAction `yaml:"post_install_action,omitempty"`
+	InstallationNote     string            `yaml:"installation_note,omitempty"`
+	PathEntries          []string          `yaml:"path_entries,omitempty"`
+	AllowedRedirectHosts []string          `yaml:"allowed_redirect_hosts,omitempty"`
 }
 
 type RegistryEcosystem string
@@ -370,10 +384,19 @@ func (m Manifest) Validate() error {
 		if _, err := hex.DecodeString(artifact.SHA256); err != nil {
 			return fmt.Errorf("artifact %s has an invalid SHA-256 digest", key)
 		}
-		if artifact.ApproximateSize < 0 || artifact.ApproximateSize > 1<<30 {
-			return fmt.Errorf("artifact %s approximate size must be between 0 and 1 GiB", key)
+		if artifact.ApproximateSize < 0 || artifact.ApproximateSize > 8<<30 {
+			return fmt.Errorf("artifact %s approximate size must be between 0 and 8 GiB", key)
 		}
-		if artifact.Format != TarGzip && artifact.Format != Zip {
+		if artifact.SizeEstimateNote != "" && (artifact.ApproximateSize > 0 || len(artifact.SizeEstimateNote) > 256 || strings.TrimSpace(artifact.SizeEstimateNote) != artifact.SizeEstimateNote || strings.ContainsAny(artifact.SizeEstimateNote, "\r\n\x00")) {
+			return fmt.Errorf("artifact %s size estimate note must be a single line of at most 256 characters and cannot accompany an exact size", key)
+		}
+		if artifact.MaxDownloadBytes < 0 || artifact.MaxDownloadBytes > 8<<30 || (artifact.MaxDownloadBytes > 0 && artifact.ApproximateSize > artifact.MaxDownloadBytes) {
+			return fmt.Errorf("artifact %s maximum download size must be at least its estimate and no more than 8 GiB", key)
+		}
+		if artifact.MaxExpandedBytes < 0 || artifact.MaxExpandedBytes > 32<<30 {
+			return fmt.Errorf("artifact %s maximum expanded size must be between 0 and 32 GiB", key)
+		}
+		if artifact.Format != TarGzip && artifact.Format != TarXZ && artifact.Format != Zip && artifact.Format != SevenZip {
 			return fmt.Errorf("artifact %s has unsupported archive format %q", key, artifact.Format)
 		}
 		if artifact.ArchiveRoot == "" || path.Clean(artifact.ArchiveRoot) != artifact.ArchiveRoot || strings.HasPrefix(artifact.ArchiveRoot, "/") || strings.Contains(artifact.ArchiveRoot, "\\") || artifact.ArchiveRoot == "." || artifact.ArchiveRoot == ".." || strings.HasPrefix(artifact.ArchiveRoot, "../") {
@@ -381,6 +404,15 @@ func (m Manifest) Validate() error {
 		}
 		if artifact.InstallSubdirectory != "" && !validRelativePathEntry(artifact.InstallSubdirectory) {
 			return fmt.Errorf("artifact %s has an unsafe install subdirectory %q", key, artifact.InstallSubdirectory)
+		}
+		if artifact.VersionFile != "" && !validRelativePathEntry(artifact.VersionFile) {
+			return fmt.Errorf("artifact %s has an unsafe version file %q", key, artifact.VersionFile)
+		}
+		if artifact.PostInstallAction != "" && (artifact.PostInstallAction != ZephyrSDKSetup || m.ID != "zephyr-sdk" || artifact.VersionFile == "") {
+			return fmt.Errorf("artifact %s declares an unsupported or incomplete post-install action %q", key, artifact.PostInstallAction)
+		}
+		if artifact.InstallationNote != "" && (len(artifact.InstallationNote) > 256 || strings.TrimSpace(artifact.InstallationNote) != artifact.InstallationNote || strings.ContainsAny(artifact.InstallationNote, "\r\n\x00")) {
+			return fmt.Errorf("artifact %s installation note must be a single line of at most 256 characters", key)
 		}
 		seenPathEntries := make(map[string]bool, len(artifact.PathEntries))
 		for _, entry := range artifact.PathEntries {
