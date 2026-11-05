@@ -57,7 +57,7 @@
       "properties": {
         "platform": { "enum": ["windows", "macos", "linux", "bsd"] },
         "manager": { "enum": ["winget", "scoop", "chocolatey", "homebrew", "macports", "apt", "dnf", "pacman", "zypper", "apk", "freebsd-pkg", "android-sdk"] },
-        "package_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+@/-]{0,127}$" },
+        "package_id": { "type": "string", "minLength": 1 },
         "kind": { "enum": ["package", "cask"] },
         "scope": { "enum": ["user", "system"] },
         "source": { "type": "string", "minLength": 1 },
