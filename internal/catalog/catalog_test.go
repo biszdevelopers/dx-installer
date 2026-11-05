@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"strings"
 	"testing"
 
 	"testing/fstest"
@@ -38,6 +39,21 @@ func TestEmbeddedCatalogPassesGraphAndProfileValidation(t *testing.T) {
 	}
 	if len(complete.Tools) != len(items.Tools()) {
 		t.Errorf("complete profile contains %d tools; catalog contains %d", len(complete.Tools), len(items.Tools()))
+	}
+}
+
+func TestCatalogRejectsPlatformDependencyUnsupportedByTarget(t *testing.T) {
+	parent := manifestYAML("sample", "") + "platform_dependencies:\n  windows: [seven-zip]\n"
+	dependency := strings.Replace(manifestYAML("seven-zip", ""), "windows: [amd64]", "linux: [amd64]", 1)
+	dependency = strings.Replace(dependency, "platform: windows", "platform: linux", 1)
+	dependency = strings.Replace(dependency, "manager: winget", "manager: apt", 1)
+	dependency = strings.Replace(dependency, "scope: user", "scope: system", 1)
+	source := fstest.MapFS{
+		"data/tools/sample.yaml":    {Data: []byte(parent)},
+		"data/tools/seven-zip.yaml": {Data: []byte(dependency)},
+	}
+	if _, err := Load(source); err == nil {
+		t.Fatal("platform dependency unsupported by its dependent tool was accepted")
 	}
 }
 
