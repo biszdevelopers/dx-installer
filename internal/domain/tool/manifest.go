@@ -31,18 +31,19 @@ const (
 type PackageManager string
 
 const (
-	Winget     PackageManager = "winget"
-	Scoop      PackageManager = "scoop"
-	Chocolatey PackageManager = "chocolatey"
-	Homebrew   PackageManager = "homebrew"
-	MacPorts   PackageManager = "macports"
-	APT        PackageManager = "apt"
-	DNF        PackageManager = "dnf"
-	Pacman     PackageManager = "pacman"
-	Zypper     PackageManager = "zypper"
-	APK        PackageManager = "apk"
-	FreeBSDPkg PackageManager = "freebsd-pkg"
-	AndroidSDK PackageManager = "android-sdk"
+	Winget       PackageManager = "winget"
+	Scoop        PackageManager = "scoop"
+	Chocolatey   PackageManager = "chocolatey"
+	Homebrew     PackageManager = "homebrew"
+	MacPorts     PackageManager = "macports"
+	APT          PackageManager = "apt"
+	DNF          PackageManager = "dnf"
+	Pacman       PackageManager = "pacman"
+	Zypper       PackageManager = "zypper"
+	APK          PackageManager = "apk"
+	FreeBSDPkg   PackageManager = "freebsd-pkg"
+	AndroidSDK   PackageManager = "android-sdk"
+	EspressifEIM PackageManager = "espressif-eim"
 )
 
 type Scope string
@@ -53,16 +54,17 @@ const (
 )
 
 type Installer struct {
-	Platform        OperatingSystem `yaml:"platform"`
-	Manager         PackageManager  `yaml:"manager"`
-	PackageID       string          `yaml:"package_id"`
-	Kind            string          `yaml:"kind"`
-	Scope           Scope           `yaml:"scope"`
-	Source          string          `yaml:"source"`
-	Architectures   []Architecture  `yaml:"architectures,omitempty"`
-	PathEntries     []string        `yaml:"path_entries,omitempty"`
-	Workloads       []string        `yaml:"workloads,omitempty"`
-	ApproximateSize int64           `yaml:"approximate_size,omitempty"`
+	Platform         OperatingSystem `yaml:"platform"`
+	Manager          PackageManager  `yaml:"manager"`
+	PackageID        string          `yaml:"package_id"`
+	Kind             string          `yaml:"kind"`
+	Scope            Scope           `yaml:"scope"`
+	Source           string          `yaml:"source"`
+	Architectures    []Architecture  `yaml:"architectures,omitempty"`
+	PathEntries      []string        `yaml:"path_entries,omitempty"`
+	Workloads        []string        `yaml:"workloads,omitempty"`
+	ApproximateSize  int64           `yaml:"approximate_size,omitempty"`
+	SizeEstimateNote string          `yaml:"size_estimate_note,omitempty"`
 }
 
 type ArchiveFormat string
@@ -145,6 +147,7 @@ var (
 	androidSDKPackagePattern = regexp.MustCompile(`^(?:platform-tools|emulator|build-tools;[0-9]+(?:\.[0-9]+){1,2})$`)
 	versionArgPattern        = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._=:+/?-]*$`)
 	visualStudioWorkload     = "Microsoft.VisualStudio.Workload.VCTools"
+	espressifEIMVersion      = regexp.MustCompile(`^v[0-9]+\.[0-9]+(?:\.[0-9]+)?$`)
 	npmPackagePattern        = regexp.MustCompile(`^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/)?[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`)
 	pypiPackagePattern       = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,127})(?:\[[A-Za-z0-9][A-Za-z0-9._-]*(?:,[A-Za-z0-9][A-Za-z0-9._-]*)*\])?$`)
 	cargoPackagePattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
@@ -216,7 +219,7 @@ func (m Manifest) Validate() error {
 		}
 	}
 	for _, arg := range m.VersionArgs {
-		if !versionArgPattern.MatchString(arg) || dangerousVersionArgument(arg) {
+		if !validVersionArgument(arg) || dangerousVersionArgument(arg) {
 			return fmt.Errorf("version argument %q is empty or can execute code", arg)
 		}
 	}
@@ -267,6 +270,12 @@ func (m Manifest) Validate() error {
 		}
 		if installer.ApproximateSize < 0 || installer.ApproximateSize > 1<<30 {
 			return fmt.Errorf("installer %q/%q approximate size must be between 0 and 1 GiB", installer.Platform, installer.Manager)
+		}
+		if len(installer.SizeEstimateNote) > 256 || (installer.SizeEstimateNote != "" && (strings.TrimSpace(installer.SizeEstimateNote) != installer.SizeEstimateNote || strings.ContainsAny(installer.SizeEstimateNote, "\r\n\x00"))) {
+			return fmt.Errorf("installer %q/%q size estimate note must be a single line of at most 256 characters", installer.Platform, installer.Manager)
+		}
+		if installer.ApproximateSize > 0 && installer.SizeEstimateNote != "" {
+			return fmt.Errorf("installer %q/%q cannot provide both a numeric size and a size estimate note", installer.Platform, installer.Manager)
 		}
 		seenInstallerArchitectures := make(map[Architecture]bool, len(installer.Architectures))
 		for _, architecture := range installer.Architectures {
@@ -470,6 +479,13 @@ func dangerousVersionArgument(arg string) bool {
 	}
 }
 
+func validVersionArgument(arg string) bool {
+	if arg == "@DEVNULL@" || arg == "@ESPRESSIF-TOOLS@" {
+		return true
+	}
+	return versionArgPattern.MatchString(arg)
+}
+
 func validPlatform(os OperatingSystem) bool {
 	switch os {
 	case Windows, MacOS, Linux, BSD:
@@ -490,7 +506,7 @@ func validArchitecture(architecture Architecture) bool {
 
 func validManager(manager PackageManager) bool {
 	switch manager {
-	case Winget, Scoop, Chocolatey, Homebrew, MacPorts, APT, DNF, Pacman, Zypper, APK, FreeBSDPkg, AndroidSDK:
+	case Winget, Scoop, Chocolatey, Homebrew, MacPorts, APT, DNF, Pacman, Zypper, APK, FreeBSDPkg, AndroidSDK, EspressifEIM:
 		return true
 	default:
 		return false
@@ -511,6 +527,8 @@ func managerSupportsPlatform(manager PackageManager, os OperatingSystem) bool {
 		return os == BSD
 	case AndroidSDK:
 		return os == Windows || os == MacOS || os == Linux
+	case EspressifEIM:
+		return os == Windows || os == MacOS || os == Linux
 	default:
 		return false
 	}
@@ -520,7 +538,7 @@ func managerSupportsScope(manager PackageManager, scope Scope) bool {
 	switch manager {
 	case Winget:
 		return scope == UserScope || scope == SystemScope
-	case Scoop, Homebrew, AndroidSDK:
+	case Scoop, Homebrew, AndroidSDK, EspressifEIM:
 		return scope == UserScope
 	case Chocolatey, MacPorts, APT, DNF, Pacman, Zypper, APK, FreeBSDPkg:
 		return scope == SystemScope
@@ -530,14 +548,22 @@ func managerSupportsScope(manager PackageManager, scope Scope) bool {
 }
 
 func validInstallerPackageID(manager PackageManager, packageID string) bool {
-	if manager == AndroidSDK {
+	switch manager {
+	case AndroidSDK:
 		return ValidAndroidSDKPackageID(packageID)
+	case EspressifEIM:
+		return espressifEIMVersion.MatchString(packageID)
+	default:
+		return packageIDPattern.MatchString(packageID)
 	}
-	return packageIDPattern.MatchString(packageID)
 }
 
 func ValidAndroidSDKPackageID(packageID string) bool {
 	return androidSDKPackagePattern.MatchString(packageID)
+}
+
+func ValidEspressifEIMVersion(packageID string) bool {
+	return espressifEIMVersion.MatchString(packageID)
 }
 
 func hasPlatform(platforms map[OperatingSystem][]Architecture, os OperatingSystem) bool {
