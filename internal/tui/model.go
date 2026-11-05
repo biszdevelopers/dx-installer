@@ -41,39 +41,47 @@ const (
 )
 
 type Model struct {
-	ctx                  context.Context
-	catalog              *catalog.Catalog
-	inventory            detection.Inventory
-	screen               Screen
-	selected             map[string]bool
-	selectedProfiles     map[string]bool
-	preferredManager     tool.PackageManager
-	sourceMode           string
-	regionDetection      regional.Result
-	archiveInstaller     *artifacts.ArchiveInstaller
-	customSources        map[string]string
-	registrySources      sources.RegistryURLs
-	offlineArchives      map[string]string
-	offlineBundlePath    string
-	plan                 planning.Plan
-	planReady            bool
-	approval             bool
-	preflighting         bool
-	searching            bool
-	environmentSearching bool
-	pathMode             string
-	pathInput            string
-	help                 bool
-	filter               string
-	environmentFilter    string
-	categoryFilter       string
-	stateFilter          string
-	status               string
-	width                int
-	height               int
-	cursor               int
-	session              *installation.Session
-	activeItem           planning.Item
+	ctx                    context.Context
+	catalog                *catalog.Catalog
+	inventory              detection.Inventory
+	screen                 Screen
+	selected               map[string]bool
+	selectedProfiles       map[string]bool
+	preferredManager       tool.PackageManager
+	sourceMode             string
+	regionDetection        regional.Result
+	archiveInstaller       *artifacts.ArchiveInstaller
+	customSources          map[string]string
+	registrySources        sources.RegistryURLs
+	offlineArchives        map[string]string
+	offlineBundlePath      string
+	plan                   planning.Plan
+	planReady              bool
+	planning               bool
+	planningCancel         context.CancelFunc
+	approval               bool
+	preflighting           bool
+	searching              bool
+	environmentSearching   bool
+	pathMode               string
+	pathInput              string
+	help                   bool
+	filter                 string
+	environmentFilter      string
+	categoryFilter         string
+	stateFilter            string
+	status                 string
+	width                  int
+	height                 int
+	cursor                 int
+	session                *installation.Session
+	activeItem             planning.Item
+	preparedArchives       map[string]artifacts.PrepareResult
+	downloadProgress       map[string]sources.DownloadProgress
+	downloadProgressCh     chan artifacts.PrepareProgress
+	preparingDownloads     bool
+	preparingDownloadCount int
+	downloadCancel         context.CancelFunc
 }
 
 type preflightMsg struct {
@@ -82,9 +90,27 @@ type preflightMsg struct {
 	approval  bool
 }
 
+type planPreviewMsg struct {
+	plan              planning.Plan
+	previousSignature string
+	approval          bool
+}
+
 type processFinishedMsg struct {
 	toolID string
 	err    error
+}
+
+type downloadProgressMsg struct {
+	toolID   string
+	progress sources.DownloadProgress
+}
+
+type downloadProgressDoneMsg struct{}
+
+type archivesPreparedMsg struct {
+	results   []artifacts.PrepareResult
+	cancelled bool
 }
 
 type verificationMsg struct {
@@ -111,6 +137,31 @@ func searchDirectories(changes []pathconfig.Change) []string {
 		directories = append(directories, change.Directory)
 	}
 	return directories
+}
+
+func archivePrepareRequests(plan planning.Plan, home string) []artifacts.PrepareRequest {
+	requests := make([]artifacts.PrepareRequest, 0)
+	for _, item := range plan.Items {
+		if item.Action != planning.Install || item.Artifact == nil {
+			continue
+		}
+		policy := sources.OfficialOnly
+		if item.RegionalFallback {
+			policy = sources.OfficialFirst
+		}
+		requests = append(requests, artifacts.PrepareRequest{
+			ToolID:   item.ToolID,
+			Home:     home,
+			Artifact: *item.Artifact,
+			Options: artifacts.InstallOptions{
+				Policy:                policy,
+				AllowRegionalFallback: item.RegionalFallback,
+				CustomSourceURL:       item.CustomSourceURL,
+				OfflineArchivePath:    item.OfflineArchivePath,
+			},
+		})
+	}
+	return requests
 }
 
 func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inventory, selected []string) *Model {
@@ -242,12 +293,30 @@ func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case preflightMsg:
 		return m.handlePreflight(msg)
+	case planPreviewMsg:
+		return m.handlePlanPreview(msg)
 	case processFinishedMsg:
 		if m.activeItem.ToolID != msg.toolID {
 			return m, nil
 		}
 		m.status = "Checking the installed tool and its version."
 		return m, m.verifyCommand(msg.err)
+	case downloadProgressMsg:
+		if !m.preparingDownloads || m.downloadProgressCh == nil {
+			return m, nil
+		}
+		if m.downloadProgress == nil {
+			m.downloadProgress = make(map[string]sources.DownloadProgress)
+		}
+		m.downloadProgress[msg.toolID] = msg.progress
+		return m, waitForDownloadProgress(m.downloadProgressCh)
+	case downloadProgressDoneMsg:
+		if m.preparingDownloads {
+			m.downloadProgressCh = nil
+		}
+		return m, nil
+	case archivesPreparedMsg:
+		return m.handleArchivesPrepared(msg)
 	case verificationMsg:
 		return m.handleVerification(msg)
 	case artifactInstallMsg:
@@ -261,6 +330,18 @@ func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	key := message.String()
+	if m.planning {
+		if key != "q" && key != "ctrl+c" {
+			return m, nil
+		}
+		if m.planningCancel != nil {
+			m.planningCancel()
+			m.planningCancel = nil
+		}
+		m.planning = false
+		m.status = "Plan preview cancelled. No commands were run."
+		return m, tea.Quit
+	}
 	if m.pathMode != "" {
 		m.handlePathKey(message, key)
 		return m, nil
@@ -296,6 +377,12 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c", "q":
 		if m.session != nil && !m.session.Complete() {
 			m.session.Cancel()
+		}
+		if m.downloadCancel != nil {
+			m.downloadCancel()
+		}
+		if cleanupErr := m.cleanupPreparedArchives(); cleanupErr != nil {
+			m.status = "Temporary archive cleanup needs attention: " + cleanupErr.Error()
 		}
 		return m, tea.Quit
 	case "?":
@@ -385,7 +472,7 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "p":
 		if m.screen == PlanScreen {
-			m.buildPlan()
+			return m, m.buildPlan()
 		}
 	case "i":
 		if m.screen == PlanScreen && m.planReady && !m.plan.Blocked {
@@ -554,22 +641,80 @@ func (m *Model) applyProfiles() {
 	m.cursor = 0
 }
 
-func (m *Model) buildPlan() {
+func (m *Model) buildPlan() tea.Cmd {
 	selected := m.selectedIDs()
 	plan, err := m.buildSelectedPlan(selected)
 	if err != nil {
 		m.plan = planning.Plan{}
 		m.planReady = false
 		m.status = err.Error()
-		return
+		return nil
 	}
 	m.plan = plan
-	m.planReady = true
-	if plan.Blocked {
-		m.status = "Resolve the blocking items below before any installation can run."
-	} else {
-		m.status = fmt.Sprintf("Plan ready: %d installation step(s), %d preserved tool(s). Review every source and command.", len(plan.InstallItems()), len(plan.Items)-len(plan.InstallItems()))
+	if plan.Blocked || len(plan.InstallItems()) == 0 {
+		m.planReady = true
+		if plan.Blocked {
+			m.status = "Resolve the blocking items below before any installation can run."
+		} else {
+			m.status = "Every selected tool is already present. No installation is needed."
+		}
+		return nil
 	}
+	m.planReady = false
+	m.status = "Inspecting cached package metadata for safe transaction previews."
+	return m.reviewPlan(plan, false, "")
+}
+
+func (m *Model) reviewPlan(plan planning.Plan, approval bool, previousSignature string) tea.Cmd {
+	ctx, cancel := context.WithTimeout(m.ctx, 20*time.Second)
+	m.planning = true
+	m.planningCancel = cancel
+	inventory := m.inventory
+	return func() tea.Msg {
+		defer cancel()
+		return planPreviewMsg{
+			plan:              planning.PreviewPackageTransactions(ctx, inventory, plan),
+			previousSignature: previousSignature,
+			approval:          approval,
+		}
+	}
+}
+
+func (m *Model) handlePlanPreview(message planPreviewMsg) (tea.Model, tea.Cmd) {
+	m.planning = false
+	if m.planningCancel != nil {
+		m.planningCancel()
+		m.planningCancel = nil
+	}
+	m.plan = message.plan
+	m.planReady = true
+	if !message.approval {
+		if message.plan.Blocked {
+			m.status = "Resolve the blocking items below before any installation can run."
+		} else {
+			m.status = fmt.Sprintf("Plan ready: %d installation step(s), %d preserved tool(s). Review every source, candidate version, transaction preview and command.", len(message.plan.InstallItems()), len(message.plan.Items)-len(message.plan.InstallItems()))
+		}
+		return m, nil
+	}
+	if message.plan.Blocked || planSignature(message.plan) != message.previousSignature {
+		m.screen = PlanScreen
+		if message.plan.Blocked {
+			m.status = "The refreshed plan has blocking issues. Review them below; no command was run."
+		} else {
+			m.status = "The machine or package metadata changed since review. Inspect the refreshed plan and approve it again."
+		}
+		return m, nil
+	}
+	session, err := installation.NewSession(message.plan)
+	if err != nil {
+		m.screen = PlanScreen
+		m.status = "Could not start the installation session: " + err.Error()
+		return m, nil
+	}
+	m.session = session
+	m.screen = ProgressScreen
+	m.status = "Preparing the approved archive downloads."
+	return m, m.prepareArchives()
 }
 
 func (m *Model) buildSelectedPlan(selected []string) (planning.Plan, error) {
@@ -988,7 +1133,7 @@ func (m *Model) handlePreflight(message preflightMsg) (tea.Model, tea.Cmd) {
 	if !message.approval {
 		m.inventory = message.inventory
 		if len(m.selected) > 0 {
-			m.buildPlan()
+			return m, m.buildPlan()
 		} else {
 			m.status = "Inventory refreshed."
 		}
@@ -1002,33 +1147,104 @@ func (m *Model) handlePreflight(message preflightMsg) (tea.Model, tea.Cmd) {
 		m.status = "Could not rebuild the plan; no command was run: " + err.Error()
 		return m, nil
 	}
-	m.plan = updated
-	m.planReady = true
-	if updated.Blocked || planSignature(updated) != previousSignature {
-		m.screen = PlanScreen
-		if updated.Blocked {
-			m.status = "The refreshed plan has blocking issues. Review them below; no command was run."
-		} else {
-			m.status = "The machine changed since review. Inspect the refreshed plan and approve it again."
+	m.planReady = false
+	m.status = "Rechecking cached package metadata before execution."
+	return m, m.reviewPlan(updated, true, previousSignature)
+}
+
+func (m *Model) prepareArchives() tea.Cmd {
+	home, homeErr := os.UserHomeDir()
+	requests := archivePrepareRequests(m.plan, home)
+	if len(requests) == 0 {
+		return m.startNext()
+	}
+	installer := m.archiveInstaller
+	if installer == nil {
+		installer = artifacts.NewArchiveInstaller()
+	}
+	progressChannel := make(chan artifacts.PrepareProgress, 32)
+	m.downloadProgressCh = progressChannel
+	m.downloadProgress = make(map[string]sources.DownloadProgress, len(requests))
+	m.preparingDownloads = true
+	m.preparingDownloadCount = len(requests)
+	m.status = fmt.Sprintf("Preparing %d independent archives with up to %d concurrent downloads.", len(requests), installer.Concurrency())
+	ctx, cancel := context.WithCancel(m.ctx)
+	m.downloadCancel = cancel
+	return tea.Batch(waitForDownloadProgress(progressChannel), func() tea.Msg {
+		defer close(progressChannel)
+		if homeErr != nil {
+			results := make([]artifacts.PrepareResult, len(requests))
+			for index, request := range requests {
+				results[index] = artifacts.PrepareResult{ToolID: request.ToolID, Err: fmt.Errorf("resolve the user home directory: %w", homeErr)}
+			}
+			return archivesPreparedMsg{results: results}
 		}
+		results := installer.PrepareMany(ctx, requests, func(event artifacts.PrepareProgress) {
+			select {
+			case progressChannel <- event:
+			default:
+				select {
+				case <-progressChannel:
+				default:
+				}
+				select {
+				case progressChannel <- event:
+				default:
+				}
+			}
+		})
+		if ctx.Err() != nil {
+			for index := range results {
+				if results[index].Prepared != nil {
+					results[index].Err = errors.Join(results[index].Err, results[index].Prepared.Cleanup())
+					results[index].Prepared = nil
+				}
+				results[index].Err = errors.Join(results[index].Err, ctx.Err())
+			}
+			return archivesPreparedMsg{results: results, cancelled: true}
+		}
+		return archivesPreparedMsg{results: results}
+	})
+}
+
+func (m *Model) handleArchivesPrepared(message archivesPreparedMsg) (tea.Model, tea.Cmd) {
+	if m.downloadCancel != nil {
+		m.downloadCancel()
+		m.downloadCancel = nil
+	}
+	m.preparingDownloads = false
+	m.downloadProgressCh = nil
+	if message.cancelled {
+		m.preparedArchives = nil
+		if m.session != nil {
+			m.session.Cancel()
+		}
+		m.status = "Archive downloads were cancelled."
 		return m, nil
 	}
-	session, err := installation.NewSession(updated)
-	if err != nil {
-		m.screen = PlanScreen
-		m.status = "Could not start the installation session: " + err.Error()
-		return m, nil
+	m.preparedArchives = make(map[string]artifacts.PrepareResult, len(message.results))
+	failed := 0
+	for _, result := range message.results {
+		m.preparedArchives[result.ToolID] = result
+		if result.Progress.BytesReceived > 0 {
+			m.downloadProgress[result.ToolID] = result.Progress
+		}
+		if result.Err != nil {
+			failed++
+		}
 	}
-	m.session = session
-	m.screen = ProgressScreen
-	m.status = "Starting the approved installation plan."
+	if failed > 0 {
+		m.status = fmt.Sprintf("Prepared %d of %d archives; failed downloads will be reported while unrelated tools continue.", len(message.results)-failed, len(message.results))
+	} else {
+		m.status = fmt.Sprintf("Prepared %d archives; installation operations will run in dependency order.", len(message.results))
+	}
 	return m, m.startNext()
 }
 
 func planSignature(plan planning.Plan) string {
 	parts := make([]string, 0, len(plan.Items)+len(plan.Issues))
 	for _, item := range plan.Items {
-		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display(), item.Version, item.InstallPath, fmt.Sprint(item.ApproximateSize), item.SizeEstimateNote, item.InstallationNote, fmt.Sprint(item.RegionalFallback), item.CustomSourceURL, item.OfflineArchivePath}, "|"))
+		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display(), item.Version, item.CandidateVersion, item.TransactionPreview, item.TransactionNote, item.InstallPath, fmt.Sprint(item.ApproximateSize), item.SizeEstimateNote, item.InstallationNote, fmt.Sprint(item.RegionalFallback), item.CustomSourceURL, item.OfflineArchivePath}, "|"))
 		if item.Artifact != nil {
 			parts = append(parts, fmt.Sprintf("%#v", *item.Artifact))
 		}
@@ -1049,11 +1265,16 @@ func planSignature(plan planning.Plan) string {
 }
 
 func (m *Model) startNext() tea.Cmd {
-	if m.session == nil {
+	if m.session == nil || m.preparingDownloads {
 		return nil
 	}
 	item, exists := m.session.Next()
 	if !exists {
+		if cleanupErr := m.cleanupPreparedArchives(); cleanupErr != nil {
+			m.status = "All planned operations have completed; temporary archive cleanup needs attention: " + cleanupErr.Error()
+			m.screen = ResultsScreen
+			return nil
+		}
 		m.screen = ResultsScreen
 		m.status = "All planned operations have completed. Review verification results and diagnostics."
 		return nil
@@ -1076,7 +1297,29 @@ func (m *Model) startNext() tea.Cmd {
 	}
 	m.activeItem = item
 	if item.Artifact != nil {
-		m.status = "Downloading and installing the approved verified archive for " + item.Name + "."
+		prepared, exists := m.preparedArchives[item.ToolID]
+		delete(m.preparedArchives, item.ToolID)
+		if !exists {
+			installErr := errors.New("approved archive was not prepared")
+			_ = m.session.Record(item, installErr, detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing})
+			m.status = "Could not prepare the approved archive for " + item.Name + "."
+			m.activeItem = planning.Item{}
+			return m.startNext()
+		}
+		if prepared.Err != nil {
+			_ = m.session.Record(item, prepared.Err, detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing})
+			m.status = "Could not download " + item.Name + ": " + prepared.Err.Error()
+			m.activeItem = planning.Item{}
+			return m.startNext()
+		}
+		if prepared.Prepared == nil {
+			installErr := errors.New("archive preparation returned no verified payload")
+			_ = m.session.Record(item, installErr, detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing})
+			m.status = "Could not prepare the approved archive for " + item.Name + "."
+			m.activeItem = planning.Item{}
+			return m.startNext()
+		}
+		m.status = "Installing the prepared verified archive for " + item.Name + "."
 		installer := m.archiveInstaller
 		if installer == nil {
 			installer = artifacts.NewArchiveInstaller()
@@ -1084,21 +1327,19 @@ func (m *Model) startNext() tea.Cmd {
 		ctx := m.ctx
 		catalogItems := m.catalog
 		machine := m.inventory.Platform
-		return func() tea.Msg {
+		installCommand := func() tea.Msg {
 			home, err := os.UserHomeDir()
 			if err != nil {
+				_ = prepared.Prepared.Cleanup()
 				return artifactInstallMsg{item: item, installErr: err, actual: detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing}}
 			}
-			policy := sources.OfficialOnly
-			if item.RegionalFallback {
-				policy = sources.OfficialFirst
+			result, installErr := installer.InstallPrepared(ctx, item.ToolID, home, *item.Artifact, prepared.Prepared)
+			if cleanupErr := prepared.Prepared.Cleanup(); cleanupErr != nil {
+				result.CleanupNotice = joinCleanupNotice(result.CleanupNotice, "temporary archive cleanup failed: "+cleanupErr.Error())
+				if installErr != nil {
+					installErr = errors.Join(installErr, cleanupErr)
+				}
 			}
-			result, installErr := installer.InstallWithOptions(ctx, item.ToolID, home, *item.Artifact, artifacts.InstallOptions{
-				Policy:                policy,
-				AllowRegionalFallback: item.RegionalFallback,
-				CustomSourceURL:       item.CustomSourceURL,
-				OfflineArchivePath:    item.OfflineArchivePath,
-			})
 			if installErr != nil {
 				return artifactInstallMsg{item: item, result: result, installErr: installErr, actual: detection.Tool{ID: item.ToolID, Name: item.Name, State: detection.Missing}}
 			}
@@ -1118,6 +1359,7 @@ func (m *Model) startNext() tea.Cmd {
 			}
 			return artifactInstallMsg{item: item, result: result, pathErr: pathErr, inventory: inventory, actual: actual, verifyError: verifyError}
 		}
+		return installCommand
 	}
 	m.status = "Running the approved package-manager operation for " + item.Name + "."
 	commandSpec := item.Command
@@ -1156,6 +1398,26 @@ func (m *Model) startNext() tea.Cmd {
 	})
 }
 
+func (m *Model) cleanupPreparedArchives() error {
+	var cleanupErrors []error
+	for toolID, result := range m.preparedArchives {
+		if result.Prepared != nil {
+			if err := result.Prepared.Cleanup(); err != nil {
+				cleanupErrors = append(cleanupErrors, fmt.Errorf("%s: %w", toolID, err))
+			}
+		}
+		delete(m.preparedArchives, toolID)
+	}
+	return errors.Join(cleanupErrors...)
+}
+
+func joinCleanupNotice(existing, next string) string {
+	if existing == "" {
+		return next
+	}
+	return existing + "; " + next
+}
+
 func (m *Model) handleArtifactInstall(message artifactInstallMsg) (tea.Model, tea.Cmd) {
 	if m.session == nil {
 		return m, nil
@@ -1188,6 +1450,16 @@ func (m *Model) handleArtifactInstall(message artifactInstallMsg) (tea.Model, te
 	}
 	m.activeItem = planning.Item{}
 	return m, m.startNext()
+}
+
+func waitForDownloadProgress(progress <-chan artifacts.PrepareProgress) tea.Cmd {
+	return func() tea.Msg {
+		value, open := <-progress
+		if !open {
+			return downloadProgressDoneMsg{}
+		}
+		return downloadProgressMsg{toolID: value.ToolID, progress: value.Progress}
+	}
 }
 
 func (m *Model) verifyCommand(processErr error) tea.Cmd {
