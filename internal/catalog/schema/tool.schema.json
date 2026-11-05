@@ -66,7 +66,7 @@
       "required": ["platform", "manager", "package_id", "scope", "source"],
       "properties": {
         "platform": { "enum": ["windows", "macos", "linux", "bsd"] },
-        "manager": { "enum": ["winget", "scoop", "chocolatey", "homebrew", "macports", "apt", "dnf", "pacman", "zypper", "apk", "freebsd-pkg", "android-sdk", "espressif-eim"] },
+        "manager": { "enum": ["winget", "scoop", "chocolatey", "homebrew", "macports", "apt", "dnf", "yum", "pacman", "zypper", "apk", "freebsd-pkg", "android-sdk", "espressif-eim"] },
         "package_id": { "type": "string", "minLength": 1 },
         "kind": { "enum": ["package", "cask"] },
         "scope": { "enum": ["user", "system"] },
