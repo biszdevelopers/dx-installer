@@ -253,6 +253,7 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 				PackageID:         installer.PackageID,
 				Source:            installer.Source,
 				Scope:             installer.Scope,
+				ApproximateSize:   installer.ApproximateSize,
 				Command:           command,
 				RequiresPrivilege: command.RequiresPrivilege,
 				PathChanges:       pathChanges,
