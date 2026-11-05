@@ -18,8 +18,8 @@ Selected tools    1
 No machine health score is calculated. Existing installations are preserved
 unless a reviewed plan says otherwise.
 --------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
-command.
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
+candidate version, transaction preview and command.
 Tab navigate  |  j/k move  |  r refresh  |  ? help  |  q exit
 
 === Catalog ===
@@ -44,8 +44,8 @@ Search: all   Category: all   State: all
   [ ] avrdude            AVRDUDE
   [ ] aws-cli            AWS CLI
 --------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
-command.
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
+candidate version, transaction preview and command.
 Space select  |  f search  |  [ ] category  |  s state filter  |  p plan
 
 === Profiles ===
@@ -70,8 +70,8 @@ servers beyond the core profiles.
 start services or authenticate.
   [ ] .NET development         6 tools
 --------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
-command.
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
+candidate version, transaction preview and command.
 Space combine profiles  |  Enter apply  |  e export  |  o import
 
 === Environment ===
@@ -89,8 +89,8 @@ Path: C:\Program Files\Git\cmd\git.exe
 Version: git version 2.48.1
 Architecture:
 --------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
-command.
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
+candidate version, transaction preview and command.
 f search inventory  |  a clear search  |  r refresh  |  j/k inspect records
 
 === Plan ===
@@ -107,12 +107,16 @@ required
           source: winget
           command: winget "install" "--id" "GoLang.Go" "--exact" "--no-upgrade"
 "--source" "winget" "--scope" "machine"
-DX has not resolved a candidate package version or simulated the package-manager
-transaction. Dependencies or other affected packages may be added; review any
-manager confirmation before accepting.
+          preview note: Package-manager preview unavailable: this package
+manager does not provide a safe cache-only transaction preview. DX will not
+refresh repositories automatically; dependencies or other system changes may be
+unresolved. Review this uncertainty and any manager confirmation before
+accepting the operation.
+Package-manager metadata can change before installation. Review each preview and
+the manager's live transaction confirmation before accepting.
 --------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
-command.
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
+candidate version, transaction preview and command.
 p rebuild  |  i review approval  |  r refresh inventory
 
 === Sources ===
@@ -136,8 +140,8 @@ A preferred detected package manager is selected when it has a compatible
 catalog entry.
 
 --------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
-command.
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
+candidate version, transaction preview and command.
 a/c/g region  |  o official-only  |  m official-first  |  u custom URL  |  l
 local archive  |  b signed bundle  |  Space/Enter manager  |  x clear sources
 
@@ -151,8 +155,8 @@ Installation progress
 Completed tasks: 1 of 1
 Go                     installed_and_verified
 --------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
-command.
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
+candidate version, transaction preview and command.
 Tab navigate  |  j/k move  |  r refresh  |  ? help  |  q exit
 
 === Results ===
@@ -167,7 +171,7 @@ Verification: go1.27.3
 Source: winget
 Temporary bootstrap artifacts are removed when the application exits.
 --------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source and
-command.
+Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
+candidate version, transaction preview and command.
 j/k inspect results  |  d save redacted report  |  4 environment  |  q exit
 
