@@ -73,6 +73,7 @@ type Downloader struct {
 const (
 	defaultMaxAttempts = 3
 	defaultMaxBytes    = 1 << 30
+	maxArtifactBytes   = 8 << 30
 	defaultTimeout     = 10 * time.Minute
 	maxRedirects       = 5
 	maxRetryDelay      = 30 * time.Second
@@ -107,6 +108,26 @@ func NewDownloader(options DownloadOptions) *Downloader {
 		}
 	}
 	return &Downloader{options: options}
+}
+
+// WithArtifactLimit returns a copy whose download limit is raised only when
+// the caller still has the default limit. Explicitly smaller limits stay in
+// force, so tests and embedding applications can impose tighter bounds.
+func (d *Downloader) WithArtifactLimit(maxBytes int64) (*Downloader, error) {
+	if d == nil {
+		return nil, errors.New("downloader is required")
+	}
+	if maxBytes < 1 || maxBytes > maxArtifactBytes {
+		return nil, fmt.Errorf("artifact download limit must be between 1 byte and %d bytes", maxArtifactBytes)
+	}
+	copy := *d
+	if maxBytes > copy.options.MaxBytes {
+		if copy.options.MaxBytes != defaultMaxBytes {
+			return nil, fmt.Errorf("artifact requires a %d byte download limit but the configured downloader is capped at %d bytes", maxBytes, copy.options.MaxBytes)
+		}
+		copy.options.MaxBytes = maxBytes
+	}
+	return &copy, nil
 }
 
 func (d *Downloader) Download(ctx context.Context, policy Policy, candidates []RemoteSource, workspace string) (DownloadResult, error) {
