@@ -6,7 +6,10 @@ import (
 	"compress/gzip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+
+	"github.com/ulikunitz/xz"
 
 	"developers-club-dx/internal/domain/tool"
 )
@@ -59,6 +62,23 @@ func TestExtractTarGzipArchiveUnderDeclaredRoot(t *testing.T) {
 	}
 }
 
+func TestExtractTarXZArchiveUnderDeclaredRoot(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "zephyr-sdk.tar.xz")
+	writeTarXZ(t, archivePath, []tarMember{
+		{name: "sdk", kind: tar.TypeDir, mode: 0o755},
+		{name: "sdk/arm-zephyr-eabi/bin", kind: tar.TypeDir, mode: 0o755},
+		{name: "sdk/arm-zephyr-eabi/bin/compiler", kind: tar.TypeReg, mode: 0o755, content: []byte("binary")},
+	})
+	destination := t.TempDir()
+	if err := Extract(archivePath, destination, "sdk", tool.TarXZ, Limits{}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(destination, "arm-zephyr-eabi", "bin", "compiler"))
+	if err != nil || string(got) != "binary" {
+		t.Fatalf("extracted tar.xz compiler = %q, %v", got, err)
+	}
+}
+
 func TestExtractRejectsUnsafeZipMembers(t *testing.T) {
 	for _, member := range []zipMember{
 		{name: "go/../../outside", mode: 0o644, content: []byte("bad")},
@@ -81,7 +101,7 @@ func TestExtractRejectsUnsafeTarMembersAndTypes(t *testing.T) {
 	for _, member := range []tarMember{
 		{name: "go/../../outside", kind: tar.TypeReg, mode: 0o644, content: []byte("bad")},
 		{name: "outside/file", kind: tar.TypeReg, mode: 0o644, content: []byte("bad")},
-		{name: "go/link", kind: tar.TypeSymlink, mode: 0o777, link: "bin/go"},
+		{name: "go/link", kind: tar.TypeSymlink, mode: 0o777, link: "../../outside"},
 		{name: "go/hardlink", kind: tar.TypeLink, mode: 0o644, link: "go/bin/go"},
 	} {
 		t.Run(member.name, func(t *testing.T) {
@@ -92,6 +112,33 @@ func TestExtractRejectsUnsafeTarMembersAndTypes(t *testing.T) {
 				t.Fatal("unsafe tar archive member was accepted")
 			}
 		})
+	}
+}
+
+func TestExtractAllowsSafeLinksAndRejectsWritingThroughThem(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symbolic links may require elevated Windows privileges")
+	}
+	safeArchive := filepath.Join(t.TempDir(), "safe.tar.gz")
+	writeTarGzip(t, safeArchive, []tarMember{
+		{name: "sdk/bin/tool", kind: tar.TypeReg, mode: 0o755, content: []byte("binary")},
+		{name: "sdk/bin/alias", kind: tar.TypeSymlink, mode: 0o777, link: "tool"},
+	})
+	safeDestination := t.TempDir()
+	if err := Extract(safeArchive, safeDestination, "sdk", tool.TarGzip, Limits{}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(filepath.Join(safeDestination, "bin", "alias")); err != nil || string(got) != "binary" {
+		t.Fatalf("safe archive link resolved to %q, %v", got, err)
+	}
+
+	unsafeArchive := filepath.Join(t.TempDir(), "through-link.tar.gz")
+	writeTarGzip(t, unsafeArchive, []tarMember{
+		{name: "sdk/link", kind: tar.TypeSymlink, mode: 0o777, link: "bin"},
+		{name: "sdk/link/escaped", kind: tar.TypeReg, mode: 0o644, content: []byte("bad")},
+	})
+	if err := Extract(unsafeArchive, t.TempDir(), "sdk", tool.TarGzip, Limits{}); err == nil {
+		t.Fatal("archive wrote through an earlier symbolic link")
 	}
 }
 
@@ -170,6 +217,37 @@ func writeTarGzip(t *testing.T, path string, members []tarMember) {
 		t.Fatal(err)
 	}
 	compressed := gzip.NewWriter(file)
+	writer := tar.NewWriter(compressed)
+	for _, member := range members {
+		header := &tar.Header{Name: member.name, Typeflag: member.kind, Mode: member.mode, Linkname: member.link, Size: int64(len(member.content))}
+		if err := writer.WriteHeader(header); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.Write(member.content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := compressed.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeTarXZ(t *testing.T, path string, members []tarMember) {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compressed, err := xz.NewWriter(file)
+	if err != nil {
+		t.Fatal(err)
+	}
 	writer := tar.NewWriter(compressed)
 	for _, member := range members {
 		header := &tar.Header{Name: member.name, Typeflag: member.kind, Mode: member.mode, Linkname: member.link, Size: int64(len(member.content))}
