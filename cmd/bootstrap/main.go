@@ -448,8 +448,15 @@ func printPlan(output *os.File, plan planning.Plan) {
 			privilege = "system scope; privilege may be required"
 		}
 		if item.Artifact != nil {
+			sizeEstimate := approxBytes(item.ApproximateSize)
+			if item.SizeEstimateNote != "" {
+				sizeEstimate = item.SizeEstimateNote
+			}
 			fmt.Fprintf(output, "  INSTALL %s %s\n    source: %s\n    SHA-256: %s\n    approximate download: %s\n    install path: %s\n",
-				item.Name, item.Version, item.Source, item.Artifact.SHA256, approxBytes(item.ApproximateSize), item.InstallPath)
+				item.Name, item.Version, item.Source, item.Artifact.SHA256, sizeEstimate, item.InstallPath)
+			if item.InstallationNote != "" {
+				fmt.Fprintf(output, "    setup: %s\n", item.InstallationNote)
+			}
 			for _, change := range item.PathChanges {
 				if change.Manual {
 					fmt.Fprintf(output, "    PATH: manual setup (%s)\n    command: %s\n", change.Target, change.ManualCommand)
