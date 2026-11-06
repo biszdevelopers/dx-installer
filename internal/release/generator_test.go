@@ -215,6 +215,25 @@ func TestLoadPrivateKeyAcceptsRawSeedAndRejectsInvalidKey(t *testing.T) {
 	}
 }
 
+func TestLoadPrivateKeyPreservesWhitespaceBytesInRawSeed(t *testing.T) {
+	seed := make([]byte, ed25519.SeedSize)
+	seed[0] = '\t'
+	seed[len(seed)-1] = ' '
+	path := filepath.Join(t.TempDir(), "release.key")
+	if err := os.WriteFile(path, seed, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	key, err := LoadPrivateKey(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := ed25519.NewKeyFromSeed(seed)
+	if string(key) != string(want) {
+		t.Fatal("raw signing key bytes were changed while loading")
+	}
+}
+
 func runtimeTarget() (Target, bool) {
 	platform := ""
 	switch runtime.GOOS {
