@@ -57,6 +57,21 @@ func TestCatalogRejectsPlatformDependencyUnsupportedByTarget(t *testing.T) {
 	}
 }
 
+func TestCatalogRejectsCommonDependencyUnsupportedByTarget(t *testing.T) {
+	parent := manifestYAML("sample", "seven-zip")
+	dependency := strings.Replace(manifestYAML("seven-zip", ""), "windows: [amd64]", "linux: [amd64]", 1)
+	dependency = strings.Replace(dependency, "platform: windows", "platform: linux", 1)
+	dependency = strings.Replace(dependency, "manager: winget", "manager: apt", 1)
+	dependency = strings.Replace(dependency, "scope: user", "scope: system", 1)
+	source := fstest.MapFS{
+		"data/tools/sample.yaml":    {Data: []byte(parent)},
+		"data/tools/seven-zip.yaml": {Data: []byte(dependency)},
+	}
+	if _, err := Load(source); err == nil {
+		t.Fatal("common dependency unsupported by its dependent tool was accepted")
+	}
+}
+
 func TestCatalogRejectsUnknownFieldsAndDependencyCycles(t *testing.T) {
 	unknown := catalogFS(`
 schema_version: 1

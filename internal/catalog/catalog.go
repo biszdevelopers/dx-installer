@@ -145,13 +145,16 @@ func (c *Catalog) validateGraph() error {
 		for _, dependency := range manifest.AllDependencies() {
 			dependencies[dependency] = true
 		}
-		for os, platformDependencies := range manifest.PlatformDependencies {
-			for _, dependencyID := range platformDependencies {
-				dependency := c.tools[dependencyID]
-				for _, architecture := range manifest.Platforms[os] {
+		for os, architectures := range manifest.Platforms {
+			for _, architecture := range architectures {
+				for _, dependencyID := range manifest.DependenciesFor(os) {
+					dependency := c.tools[dependencyID]
 					if !dependency.Supports(os, architecture) {
 						return fmt.Errorf("tool %q requires dependency %q on unsupported %s/%s", id, dependencyID, os, architecture)
 					}
+				}
+				if manifest.ProvidedBy != "" && !c.tools[manifest.ProvidedBy].Supports(os, architecture) {
+					return fmt.Errorf("tool %q is provided by %q which does not support %s/%s", id, manifest.ProvidedBy, os, architecture)
 				}
 			}
 		}

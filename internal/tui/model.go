@@ -9,8 +9,12 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode/utf8"
 
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/table"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	registryadapter "developers-club-dx/internal/adapters/registry"
 	"developers-club-dx/internal/artifacts"
@@ -83,6 +87,31 @@ type Model struct {
 	preparingDownloadCount int
 	downloadCancel         context.CancelFunc
 	installCancel          context.CancelFunc
+	advancedExpanded       bool
+	hitTargets             []hitTarget
+	pageScroll             int
+	inspectorScroll        int
+	focusedTarget          string
+	hoveredTarget          string
+	commandPalette         bool
+	commandQuery           string
+	darkTheme              bool
+	backgroundKnown        bool
+	input                  textinput.Model
+	contentViewport        viewport.Model
+	detailViewport         viewport.Model
+	commandList            list.Model
+	dataTable              table.Model
+	helpComponent          help.Model
+	mainViewportRect       uiRect
+	detailViewportRect     uiRect
+}
+
+type hitTarget struct {
+	x, y, width, height int
+	action              string
+	index               int
+	id                  string
 }
 
 type preflightMsg struct {
@@ -170,7 +199,7 @@ func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inv
 	for _, id := range selected {
 		selection[id] = true
 	}
-	return &Model{
+	model := &Model{
 		ctx:              ctx,
 		catalog:          items,
 		inventory:        initial,
@@ -183,10 +212,13 @@ func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inv
 		customSources:    make(map[string]string),
 		offlineArchives:  make(map[string]string),
 		stateFilter:      "all",
-		status:           "Review the machine overview, then select tools from the catalog.",
+		status:           "Choose tools for this machine. Nothing installs until you approve a plan.",
 		width:            80,
 		height:           24,
+		darkTheme:        true,
 	}
+	model.initializeComponents()
+	return model
 }
 
 func (m *Model) SetPreferredManager(manager tool.PackageManager) {
@@ -284,13 +316,18 @@ func (m *Model) managerOrder() []tool.PackageManager {
 	return planning.PreferredManagerOrder(m.inventory.ManagerOrder(), m.preferredManager)
 }
 
-func (m *Model) Init() tea.Cmd { return nil }
+func (m *Model) Init() tea.Cmd { return tea.RequestBackgroundColor }
 
 func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := message.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.hitTargets = nil
+		return m, nil
+	case tea.BackgroundColorMsg:
+		m.darkTheme = msg.IsDark()
+		m.backgroundKnown = true
 		return m, nil
 	case preflightMsg:
 		return m.handlePreflight(msg)
@@ -324,6 +361,14 @@ func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleArtifactInstall(msg)
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+	case tea.MouseClickMsg:
+		return m, m.handleMouseClick(tea.Mouse(msg))
+	case tea.MouseWheelMsg:
+		m.handleMouseWheel(tea.Mouse(msg))
+		return m, nil
+	case tea.MouseMotionMsg:
+		m.handleMouseMotion(tea.Mouse(msg))
+		return m, nil
 	default:
 		return m, nil
 	}
@@ -343,136 +388,159 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.status = "Plan preview cancelled. No commands were run."
 		return m, tea.Quit
 	}
-	if m.pathMode != "" {
-		m.handlePathKey(message, key)
-		return m, nil
-	}
-	if m.searching {
-		m.handleSearchKey(message, key)
-		return m, nil
-	}
-	if m.environmentSearching {
-		m.handleEnvironmentSearchKey(message, key)
-		return m, nil
-	}
 	if m.help {
+		switch key {
+		case "pgup", "up", "k":
+			m.pageScroll = max(0, m.pageScroll-max(1, m.height/2))
+			return m, nil
+		case "pgdown", "down", "j":
+			m.pageScroll += max(1, m.height/2)
+			return m, nil
+		case "q", "ctrl+c":
+			return m, m.quit()
+		}
 		if key == "?" || key == "esc" || key == "enter" {
 			m.help = false
+			m.pageScroll = 0
 		}
 		return m, nil
 	}
+	if m.commandPalette {
+		return m, m.handleCommandPaletteKey(message, key)
+	}
+	if m.pathMode != "" {
+		return m, m.handlePathKey(message, key)
+	}
+	if m.searching {
+		return m, m.handleSearchKey(message, key)
+	}
+	if m.environmentSearching {
+		return m, m.handleEnvironmentSearchKey(message, key)
+	}
 	if m.approval {
 		switch key {
-		case "y":
-			m.approval = false
-			m.preflighting = true
-			m.status = "Rechecking selected tools before execution."
-			return m, m.preflight()
+		case "pgup", "up", "k":
+			m.pageScroll = max(0, m.pageScroll-max(1, m.height/2))
+		case "pgdown", "down", "j":
+			m.pageScroll += max(1, m.height/2)
+		case "y", "enter":
+			return m, m.approvePlan()
 		case "n", "esc":
-			m.approval = false
-			m.status = "Plan approval cancelled. No commands were run."
+			m.cancelApproval()
 		}
 		return m, nil
 	}
 	switch key {
 	case "ctrl+c", "q":
-		if m.session != nil && !m.session.Complete() {
-			m.session.Cancel()
-		}
-		if m.installCancel != nil {
-			m.installCancel()
-			m.installCancel = nil
-		}
-		if m.downloadCancel != nil {
-			m.downloadCancel()
-		}
-		if cleanupErr := m.cleanupPreparedArchives(); cleanupErr != nil {
-			m.status = "Temporary archive cleanup needs attention: " + cleanupErr.Error()
-		}
-		return m, tea.Quit
+		return m, m.quit()
+	case "ctrl+p":
+		m.openCommandPalette()
 	case "?":
 		m.help = true
 		return m, nil
 	case "1":
-		m.screen = OverviewScreen
-		m.cursor = 0
+		m.navigate(OverviewScreen)
 	case "2":
-		m.screen = CatalogScreen
-		m.cursor = 0
+		m.navigate(CatalogScreen)
 	case "3":
-		m.screen = ProfilesScreen
-		m.cursor = 0
+		m.navigate(ProfilesScreen)
 	case "4":
-		m.screen = EnvironmentScreen
-		m.cursor = 0
+		m.navigate(EnvironmentScreen)
 	case "5":
-		m.screen = PlanScreen
-		m.cursor = 0
+		m.navigate(PlanScreen)
 	case "6":
-		m.screen = SourcesScreen
-		m.cursor = 0
+		m.navigate(SourcesScreen)
 	case "7":
-		m.screen = ProgressScreen
-		m.cursor = 0
+		m.navigate(ProgressScreen)
 	case "8":
-		m.screen = ResultsScreen
-		m.cursor = 0
+		m.navigate(ResultsScreen)
 	case "tab", "right":
-		m.screen = (m.screen + 1) % 8
-		m.cursor = 0
+		m.cycleFocus(1)
 	case "shift+tab", "left":
-		if m.screen == OverviewScreen {
-			m.screen = ResultsScreen
-		} else {
-			m.screen--
-		}
-		m.cursor = 0
+		m.cycleFocus(-1)
 	case "up", "k":
 		if m.cursor > 0 {
 			m.cursor--
 		}
+		m.ensureCursorVisible(-1)
 	case "down", "j":
 		m.cursor++
+		m.clampCursor()
+		m.ensureCursorVisible(1)
+	case "pgup":
+		m.pageScroll = max(0, m.pageScroll-max(1, m.height/2))
+	case "pgdown":
+		m.pageScroll += max(1, m.height/2)
+	case "home":
+		m.pageScroll = 0
+	case "end":
+		m.pageScroll = 1 << 30
 	case "f":
+		m.pageScroll = 0
 		if m.screen == CatalogScreen {
-			m.searching = true
+			return m, m.activateTarget(hitTarget{action: "search", index: 0})
 		} else if m.screen == EnvironmentScreen {
-			m.environmentSearching = true
+			return m, m.activateTarget(hitTarget{action: "search", index: 0})
 		}
 	case "[":
 		if m.screen == CatalogScreen {
 			m.cycleCategory(-1)
 			m.cursor = 0
+			m.pageScroll = 0
 		}
 	case "]":
 		if m.screen == CatalogScreen {
 			m.cycleCategory(1)
 			m.cursor = 0
+			m.pageScroll = 0
 		}
 	case "s":
 		if m.screen == CatalogScreen {
 			m.cycleStateFilter()
 			m.cursor = 0
+			m.pageScroll = 0
 		}
 	case "a":
 		if m.screen == CatalogScreen {
 			m.categoryFilter = ""
 			m.filter = ""
+			m.input.SetValue("")
 			m.stateFilter = "all"
 			m.cursor = 0
+			m.pageScroll = 0
 		} else if m.screen == EnvironmentScreen {
 			m.environmentFilter = ""
+			m.input.SetValue("")
 			m.cursor = 0
+			m.pageScroll = 0
 		} else if m.screen == SourcesScreen {
 			m.sourceMode = "automatic"
 			m.invalidatePlan("Automatic region-based source policy selected.")
 		}
 	case "space":
-		m.toggleCurrent()
+		if target, ok := m.focusedControlTarget(); ok {
+			if target.action == "inspect-tool" {
+				m.cursor = target.index
+				m.toggleCurrent()
+			} else {
+				return m, m.activateTarget(target)
+			}
+		} else {
+			m.toggleCurrent()
+		}
+		m.pageScroll = 0
 	case "enter":
-		if m.screen == ProfilesScreen {
+		if target, ok := m.focusedControlTarget(); ok {
+			return m, m.activateTarget(target)
+		}
+		switch m.screen {
+		case OverviewScreen:
+			m.navigate(CatalogScreen)
+		case CatalogScreen:
+			m.cursor = min(m.maxCursor(), max(0, m.cursor))
+		case ProfilesScreen:
 			m.applyProfiles()
-		} else if m.screen == SourcesScreen {
+		case SourcesScreen:
 			m.chooseCurrentManager()
 		}
 	case "p":
@@ -481,11 +549,7 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "i":
 		if m.screen == PlanScreen && m.planReady && !m.plan.Blocked {
-			if len(m.plan.InstallItems()) == 0 {
-				m.status = "Every selected tool is already present. No installation is needed."
-				return m, nil
-			}
-			m.approval = true
+			m.beginApproval()
 		}
 	case "0":
 		if m.screen == SourcesScreen {
@@ -568,42 +632,439 @@ func (m *Model) handleKey(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) handleSearchKey(message tea.KeyPressMsg, key string) {
+func (m *Model) approvePlan() tea.Cmd {
+	m.approval = false
+	m.preflighting = true
+	m.status = "Checking your selections again before installation."
+	return m.preflight()
+}
+
+func (m *Model) beginApproval() {
+	if len(m.plan.InstallItems()) == 0 {
+		m.status = "Nothing needs installing. The selected tools are already present."
+		return
+	}
+	m.approval = true
+	m.pageScroll = 0
+}
+
+func (m *Model) cancelApproval() {
+	m.approval = false
+	m.status = "Installation cancelled. No commands were run."
+}
+
+func (m *Model) navigate(screen Screen) {
+	m.screen = screen
+	m.cursor = 0
+	m.pageScroll = 0
+	if screen == EnvironmentScreen || screen == SourcesScreen {
+		m.advancedExpanded = true
+	}
+}
+
+func (m *Model) maxCursor() int {
+	count := 0
+	switch m.screen {
+	case CatalogScreen:
+		count = len(m.filteredTools())
+	case ProfilesScreen:
+		if m.catalog != nil {
+			count = len(m.catalog.Profiles())
+		}
+	case EnvironmentScreen:
+		count = len(m.filteredEnvironmentIDs())
+	case PlanScreen:
+		count = len(m.plan.Items) + len(m.plan.Issues)
+	case ProgressScreen:
+		if m.session != nil {
+			count = len(m.session.Report())
+		}
+	case SourcesScreen:
+		count = len(m.inventory.Managers)
+	case ResultsScreen:
+		if m.session != nil {
+			count = len(m.session.Report())
+		}
+	}
+	return max(0, count-1)
+}
+
+func (m *Model) ensureCursorVisible(direction int) {
+	if direction == 0 {
+		return
+	}
+	action := ""
+	switch m.screen {
+	case CatalogScreen:
+		action = "inspect-tool"
+	case ProfilesScreen:
+		action = "profile-toggle"
+	case EnvironmentScreen:
+		action = "inspect-row"
+	case PlanScreen:
+		action = "inspect-plan"
+	case ProgressScreen, ResultsScreen:
+		action = "inspect-result"
+	default:
+		return
+	}
+	m.clampCursor()
+	for attempts := 0; attempts < max(1, m.height); attempts++ {
+		m.renderWorkspace()
+		for _, target := range m.hitTargets {
+			if target.action == action && target.index == m.cursor {
+				return
+			}
+		}
+		if direction > 0 {
+			m.pageScroll++
+		} else if m.pageScroll > 0 {
+			m.pageScroll--
+		} else {
+			return
+		}
+	}
+}
+
+func (m *Model) handleMouseClick(event tea.Mouse) tea.Cmd {
+	if event.Button != tea.MouseLeft {
+		return nil
+	}
+	var selected *hitTarget
+	for _, target := range m.hitTargets {
+		if event.X < target.x || event.X >= target.x+target.width || event.Y < target.y || event.Y >= target.y+max(1, target.height) {
+			continue
+		}
+		if selected == nil || target.width*target.height <= selected.width*selected.height {
+			copy := target
+			selected = &copy
+		}
+	}
+	if selected == nil {
+		return nil
+	}
+	m.focusedTarget = selected.id
+	if selected.action == "quit" {
+		return m.quit()
+	}
+	if m.planning {
+		return nil
+	}
+	return m.activateTarget(*selected)
+}
+
+func (m *Model) handleMouseWheel(event tea.Mouse) {
+	if m.planning {
+		return
+	}
+	step := 3
+	if event.Button == tea.MouseWheelUp {
+		step = -1
+	} else if event.Button != tea.MouseWheelDown {
+		return
+	}
+	if m.detailViewportRect.contains(event.X, event.Y) {
+		if step < 0 {
+			m.detailViewport.ScrollUp(-step)
+		} else {
+			m.detailViewport.ScrollDown(step)
+		}
+		m.inspectorScroll = m.detailViewport.YOffset()
+		return
+	}
+	if m.mainViewportRect.contains(event.X, event.Y) {
+		if step < 0 {
+			m.contentViewport.ScrollUp(-step)
+		} else {
+			m.contentViewport.ScrollDown(step)
+		}
+		m.pageScroll = m.contentViewport.YOffset()
+	}
+}
+
+func (m *Model) handleMouseMotion(event tea.Mouse) {
+	for _, target := range m.hitTargets {
+		if event.X >= target.x && event.X < target.x+target.width && event.Y >= target.y && event.Y < target.y+max(1, target.height) {
+			m.hoveredTarget = target.id
+			return
+		}
+	}
+	m.hoveredTarget = ""
+}
+
+func (m *Model) activateTarget(target hitTarget) tea.Cmd {
+	m.pageScroll = 0
+	switch target.action {
+	case "nav-home":
+		m.navigate(OverviewScreen)
+	case "nav-tools":
+		m.navigate(CatalogScreen)
+	case "nav-profiles":
+		m.navigate(ProfilesScreen)
+	case "nav-environment":
+		m.navigate(EnvironmentScreen)
+	case "nav-plan":
+		m.navigate(PlanScreen)
+	case "nav-activity":
+		m.navigate(ProgressScreen)
+	case "nav-results":
+		m.navigate(ResultsScreen)
+	case "nav-sources":
+		m.navigate(SourcesScreen)
+	case "welcome":
+		m.navigate(OverviewScreen)
+	case "choose":
+		m.navigate(CatalogScreen)
+	case "review":
+		m.navigate(PlanScreen)
+	case "install":
+		if m.session == nil {
+			m.navigate(PlanScreen)
+			m.status = "Review the plan before starting installation."
+		} else {
+			m.navigate(ProgressScreen)
+		}
+	case "results":
+		m.navigate(ResultsScreen)
+	case "advanced":
+		m.advancedExpanded = !m.advancedExpanded
+	case "environment":
+		m.navigate(EnvironmentScreen)
+	case "sources":
+		m.navigate(SourcesScreen)
+	case "start-setup", "browse-tools":
+		m.navigate(CatalogScreen)
+	case "choose-profile":
+		m.navigate(ProfilesScreen)
+	case "use-profiles":
+		m.navigate(ProfilesScreen)
+	case "review-selection":
+		m.navigate(PlanScreen)
+		return m.buildPlan()
+	case "apply-profiles":
+		m.applyProfiles()
+	case "build-plan":
+		m.navigate(PlanScreen)
+		return m.buildPlan()
+	case "review-install":
+		if m.planReady && !m.plan.Blocked {
+			m.beginApproval()
+		} else {
+			return m.buildPlan()
+		}
+	case "approve":
+		return m.approvePlan()
+	case "cancel-approval":
+		m.cancelApproval()
+	case "search":
+		if m.screen == EnvironmentScreen {
+			m.environmentSearching = true
+			m.input.SetValue(m.environmentFilter)
+			m.input.Placeholder = "Search names, paths, versions..."
+		} else {
+			m.searching = true
+			m.input.SetValue(m.filter)
+			m.input.Placeholder = "Search tools..."
+		}
+		return m.input.Focus()
+	case "input-focus":
+		return m.input.Focus()
+	case "search-tools":
+		m.navigate(CatalogScreen)
+		return m.activateTarget(hitTarget{action: "search", index: 0})
+	case "category-previous":
+		m.cycleCategory(-1)
+		m.cursor = 0
+	case "category-next":
+		m.cycleCategory(1)
+		m.cursor = 0
+	case "state-filter":
+		m.cycleStateFilter()
+		m.cursor = 0
+	case "clear-filters":
+		m.filter, m.categoryFilter = "", ""
+		m.stateFilter = "all"
+		m.searching = false
+		m.input.SetValue("")
+		m.input.Blur()
+		m.cursor = 0
+	case "clear-search":
+		m.environmentFilter = ""
+		m.environmentSearching = false
+		m.input.SetValue("")
+		m.input.Blur()
+		m.cursor = 0
+	case "refresh":
+		return m.refreshInventory()
+	case "toggle-selection":
+		m.cursor = target.index
+		m.toggleCurrent()
+	case "inspect-tool":
+		m.cursor = target.index
+	case "inspect-plan":
+		m.cursor = target.index
+	case "inspect-row":
+		m.cursor = target.index
+	case "inspect-result":
+		m.cursor = target.index
+	case "inspect-warning":
+		m.cursor = 0
+	case "prefer-manager":
+		m.cursor = target.index
+		m.chooseCurrentManager()
+	case "profile-toggle":
+		m.cursor = target.index
+		m.toggleCurrent()
+	case "source-automatic":
+		m.sourceMode = "automatic"
+		m.invalidatePlan("Automatic source choice selected.")
+	case "source-china":
+		m.sourceMode = "mainland-china"
+		m.invalidatePlan("Mainland China source choice selected.")
+	case "source-global":
+		m.sourceMode = "global"
+		m.invalidatePlan("Global source choice selected.")
+	case "source-official-only":
+		m.sourceMode = "official-only"
+		m.invalidatePlan("Publisher-only downloads selected.")
+	case "source-official-first":
+		m.sourceMode = "official-first"
+		m.invalidatePlan("Publisher-first downloads selected.")
+	case "custom-source":
+		m.pathMode, m.pathInput = "custom-source", ""
+		m.input.SetValue("")
+		m.input.Placeholder = "tool-id=https://mirror.example/archive"
+		m.input.Focus()
+		m.status = "Type tool-id=https://... and press Enter. The catalog checksum is still required."
+	case "registry-source":
+		m.pathMode, m.pathInput = "registry", ""
+		m.input.SetValue("")
+		m.input.Placeholder = "npm=https://registry.npmjs.org/"
+		m.input.Focus()
+		m.status = "Type an ecosystem and registry URL, then press Enter."
+	case "offline-archive":
+		m.pathMode, m.pathInput = "offline-archive", ""
+		m.input.SetValue("")
+		m.input.Placeholder = "tool-id=absolute-archive-path"
+		m.input.Focus()
+		m.status = "Type tool-id=absolute-archive-path and press Enter."
+	case "offline-bundle":
+		m.pathMode, m.pathInput = "offline-bundle", ""
+		m.input.SetValue("")
+		m.input.Placeholder = "Signed bundle directory path"
+		m.input.Focus()
+		m.status = "Type the signed bundle directory path and press Enter."
+	case "clear-sources":
+		m.customSources = make(map[string]string)
+		m.registrySources = make(sources.RegistryURLs)
+		m.offlineArchives = make(map[string]string)
+		m.offlineBundlePath = ""
+		m.invalidatePlan("Custom and offline source overrides cleared.")
+	case "reset-manager":
+		m.preferredManager = ""
+		m.invalidatePlan("Automatic package-manager order restored.")
+	case "apply", "save-report":
+		if m.screen == ProfilesScreen {
+			m.pathMode, m.pathInput = "export", ""
+		} else if m.screen == ResultsScreen {
+			m.pathMode, m.pathInput = "diagnostic", ""
+			m.input.SetValue("")
+			m.input.Placeholder = "New redacted report path"
+			return m.input.Focus()
+		}
+	case "export-selection":
+		m.pathMode, m.pathInput = "export", ""
+		m.input.SetValue("")
+		m.input.Placeholder = "New JSON file path"
+		m.input.Focus()
+	case "import-selection":
+		m.pathMode, m.pathInput = "import", ""
+		m.input.SetValue("")
+		m.input.Placeholder = "Selection JSON file path"
+		m.input.Focus()
+	case "help":
+		m.help = true
+	case "commands":
+		m.openCommandPalette()
+	case "close-help":
+		m.help = false
+		m.pageScroll = 0
+	case "close-commands":
+		m.commandPalette = false
+		m.input.Blur()
+	case "palette-command":
+		items := m.commandList.Items()
+		if target.index >= 0 && target.index < len(items) {
+			if selected, ok := items[target.index].(paletteItem); ok {
+				m.commandPalette = false
+				m.input.Blur()
+				return m.activateTarget(hitTarget{action: selected.action, index: selected.index})
+			}
+		}
+	case "quit":
+		return m.quit()
+	case "confirm-path":
+		return m.handlePathKey(tea.KeyPressMsg{Code: tea.KeyEnter}, "enter")
+	case "cancel-path":
+		return m.handlePathKey(tea.KeyPressMsg{Code: tea.KeyEscape}, "esc")
+	}
+	return nil
+}
+
+func (m *Model) quit() tea.Cmd {
+	if m.planningCancel != nil {
+		m.planningCancel()
+		m.planningCancel = nil
+	}
+	m.planning = false
+	if m.session != nil && !m.session.Complete() {
+		m.session.Cancel()
+	}
+	if m.installCancel != nil {
+		m.installCancel()
+		m.installCancel = nil
+	}
+	if m.downloadCancel != nil {
+		m.downloadCancel()
+	}
+	if cleanupErr := m.cleanupPreparedArchives(); cleanupErr != nil {
+		m.status = "Temporary archive cleanup needs attention: " + cleanupErr.Error()
+	}
+	return tea.Quit
+}
+
+func (m *Model) handleSearchKey(message tea.KeyPressMsg, key string) tea.Cmd {
 	switch key {
 	case "enter", "esc":
 		m.searching = false
-	case "backspace":
-		if m.filter != "" {
-			_, size := utf8.DecodeLastRuneInString(m.filter)
-			m.filter = m.filter[:len(m.filter)-size]
-		}
-	case "space":
-		m.filter += " "
+		m.filter = m.input.Value()
+		m.input.Blur()
+		m.cursor = 0
+		return nil
 	default:
-		if text := message.Key().Text; text != "" {
-			m.filter += text
-		}
+		input, command := m.input.Update(message)
+		m.input = input
+		m.filter = input.Value()
+		m.cursor = 0
+		return command
 	}
-	m.cursor = 0
 }
 
-func (m *Model) handleEnvironmentSearchKey(message tea.KeyPressMsg, key string) {
+func (m *Model) handleEnvironmentSearchKey(message tea.KeyPressMsg, key string) tea.Cmd {
 	switch key {
 	case "enter", "esc":
 		m.environmentSearching = false
-	case "backspace":
-		if m.environmentFilter != "" {
-			_, size := utf8.DecodeLastRuneInString(m.environmentFilter)
-			m.environmentFilter = m.environmentFilter[:len(m.environmentFilter)-size]
-		}
-	case "space":
-		m.environmentFilter += " "
+		m.environmentFilter = m.input.Value()
+		m.input.Blur()
+		m.cursor = 0
+		return nil
 	default:
-		if text := message.Key().Text; text != "" {
-			m.environmentFilter += text
-		}
+		input, command := m.input.Update(message)
+		m.input = input
+		m.environmentFilter = input.Value()
+		m.cursor = 0
+		return command
 	}
-	m.cursor = 0
 }
 
 func (m *Model) toggleCurrent() {
@@ -627,16 +1088,22 @@ func (m *Model) toggleCurrent() {
 }
 
 func (m *Model) applyProfiles() {
+	if m.catalog == nil {
+		m.status = "The tool catalog is not available, so profiles cannot be applied."
+		return
+	}
 	selection := make(map[string]bool)
+	selectedProfiles := 0
 	for _, profile := range m.catalog.Profiles() {
 		if !m.selectedProfiles[profile.ID] {
 			continue
 		}
+		selectedProfiles++
 		for _, id := range profile.Tools {
 			selection[id] = true
 		}
 	}
-	if len(m.selectedProfiles) == 0 {
+	if selectedProfiles == 0 {
 		m.status = "Select one or more profiles, then press Enter to combine them."
 		return
 	}
@@ -644,10 +1111,17 @@ func (m *Model) applyProfiles() {
 	m.invalidatePlan("Profiles applied. Review and edit the resulting tool selection.")
 	m.screen = CatalogScreen
 	m.cursor = 0
+	m.pageScroll = 0
 }
 
 func (m *Model) buildPlan() tea.Cmd {
 	selected := m.selectedIDs()
+	if len(selected) == 0 {
+		m.plan = planning.Plan{}
+		m.planReady = false
+		m.status = "Choose at least one tool or profile before reviewing a plan."
+		return nil
+	}
 	plan, err := m.buildSelectedPlan(selected)
 	if err != nil {
 		m.plan = planning.Plan{}
@@ -781,13 +1255,19 @@ func (m *Model) missingToolsHaveExplicitSources(selected []string) bool {
 	return true
 }
 
-func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
+func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) tea.Cmd {
 	switch key {
+	case "?":
+		m.help = true
+		return nil
 	case "enter":
+		if m.pathInput == "" {
+			m.pathInput = m.input.Value()
+		}
 		path := strings.TrimSpace(m.pathInput)
 		if path == "" {
 			m.status = "A file path is required."
-			return
+			return nil
 		}
 		var err error
 		switch m.pathMode {
@@ -826,22 +1306,19 @@ func (m *Model) handlePathKey(message tea.KeyPressMsg, key string) {
 		}
 		m.pathMode = ""
 		m.pathInput = ""
+		m.input.Blur()
 	case "esc":
 		m.pathMode = ""
 		m.pathInput = ""
+		m.input.Blur()
 		m.status = "Selection file operation cancelled."
-	case "backspace":
-		if m.pathInput != "" {
-			_, size := utf8.DecodeLastRuneInString(m.pathInput)
-			m.pathInput = m.pathInput[:len(m.pathInput)-size]
-		}
-	case "space":
-		m.pathInput += " "
 	default:
-		if text := message.Key().Text; text != "" {
-			m.pathInput += text
-		}
+		input, command := m.input.Update(message)
+		m.input = input
+		m.pathInput = input.Value()
+		return command
 	}
+	return nil
 }
 
 func (m *Model) setCustomSource(input string) error {
@@ -988,6 +1465,9 @@ func (m *Model) selectedIDs() []string {
 }
 
 func (m *Model) filteredTools() []tool.Manifest {
+	if m.catalog == nil {
+		return nil
+	}
 	query := strings.ToLower(strings.TrimSpace(m.filter))
 	tools := make([]tool.Manifest, 0)
 	for _, manifest := range m.catalog.Tools() {
@@ -1097,11 +1577,17 @@ func (m *Model) clampCursor() {
 	case CatalogScreen:
 		count = len(m.filteredTools())
 	case ProfilesScreen:
-		count = len(m.catalog.Profiles())
+		if m.catalog != nil {
+			count = len(m.catalog.Profiles())
+		}
 	case EnvironmentScreen:
 		count = len(m.filteredEnvironmentIDs())
 	case PlanScreen:
 		count = len(m.plan.Items) + len(m.plan.Issues)
+	case ProgressScreen:
+		if m.session != nil {
+			count = len(m.session.Report())
+		}
 	case SourcesScreen:
 		count = len(m.inventory.Managers)
 	case ResultsScreen:
@@ -1549,7 +2035,11 @@ func (m *Model) refreshInventory() tea.Cmd {
 	}
 }
 
-func (m *Model) View() tea.View { return tea.NewView(m.render()) }
+func (m *Model) View() tea.View {
+	view := tea.NewView(m.render())
+	view.MouseMode = tea.MouseModeCellMotion
+	return view
+}
 
 func (m *Model) SessionReport() []installation.Result {
 	if m.session == nil {

@@ -197,6 +197,25 @@ func TestManifestRequiresInstallerPlatformToBeDeclared(t *testing.T) {
 	}
 }
 
+func TestManifestRequiresAnInstallSourceForEveryDeclaredArchitecture(t *testing.T) {
+	manifest := validManifest()
+	manifest.Platforms = map[OperatingSystem][]Architecture{Windows: {AMD64, ARM64}}
+	manifest.Installers[0].Architectures = []Architecture{AMD64}
+	manifest.Installers = manifest.Installers[:1]
+	if err := manifest.Validate(); err == nil || !strings.Contains(err.Error(), "windows/arm64 has no compatible installer") {
+		t.Fatalf("missing ARM64 installer error = %v", err)
+	}
+
+	manifest.Artifacts = []Artifact{{
+		Platform: Windows, Architecture: ARM64, Version: "1.2.3",
+		URL: "https://downloads.example/sample.zip", SHA256: "4c5a4f9afca56f9c04b1f6c93a7f70947aa41a279c1d128f0136f726c1ddaf4d",
+		Format: Zip, ArchiveRoot: "sample",
+	}}
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("verified ARM64 archive did not satisfy install-source coverage: %v", err)
+	}
+}
+
 func TestManifestAcceptsVerifiedArchiveInstallersAndLooksUpExactPlatform(t *testing.T) {
 	manifest := validManifest()
 	manifest.Artifacts = []Artifact{{

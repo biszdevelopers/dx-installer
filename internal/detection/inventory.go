@@ -162,7 +162,7 @@ func ScanWithSearchPaths(ctx context.Context, items *catalog.Catalog, machine pl
 }
 
 func scanTool(ctx context.Context, manifest tool.Manifest, machine platform.Info, managers []packagemanager.Detected, installedPackages []packagemanager.InstalledPackage, uncertainManagers map[tool.PackageManager]bool, searchPaths []string) ([]Instance, []PackageOwnership, State) {
-	if !manifest.Supports(machine.OS, machine.Architecture) {
+	if !manifest.Supports(machine.OS, machine.Architecture) || (machine.OS == tool.BSD && !strings.EqualFold(machine.Distribution, "freebsd")) {
 		return nil, nil, Unsupported
 	}
 	packages := installedPackagesFor(manifest, machine.OS, managers, installedPackages)
@@ -572,10 +572,12 @@ func scanKnownInstallDirectories(home string) []string {
 		}
 		appendHomePattern("AppData", "Local", "Programs", "Python", "Python*")
 		appendHomePattern("AppData", "Local", "Programs", "Python", "Python*", "Scripts")
+		appendHomePattern("AppData", "Local", "Programs", "*", "*")
 		appendHomePattern("AppData", "Local", "Programs", "*", "*", "bin")
 		appendHomePattern("AppData", "Local", "Programs", "*", "*", "node_modules", ".bin")
 		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
 			patterns = append(patterns,
+				filepath.Join(localAppData, "Programs", "*", "*"),
 				filepath.Join(localAppData, "Programs", "*", "*", "bin"),
 				filepath.Join(localAppData, "Programs", "*", "*", "node_modules", ".bin"),
 				filepath.Join(localAppData, "Android", "Sdk", "cmdline-tools", "*", "bin"),
@@ -610,6 +612,7 @@ func scanKnownInstallDirectories(home string) []string {
 		appendHomePattern(".pyenv", "versions", "*", "bin")
 		appendHomePattern(".asdf", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
+		appendHomePattern(".local", "opt", "*", "*")
 		appendHomePattern(".local", "opt", "*", "*", "bin")
 		appendHomePattern(".local", "opt", "*", "*", "node_modules", ".bin")
 		patterns = append(patterns, "/usr/local/Cellar/*/*/bin", "/opt/homebrew/Cellar/*/*/bin")
@@ -619,6 +622,7 @@ func scanKnownInstallDirectories(home string) []string {
 		appendHomePattern(".pyenv", "versions", "*", "bin")
 		appendHomePattern(".asdf", "installs", "*", "*", "bin")
 		appendHomePattern(".local", "share", "mise", "installs", "*", "*", "bin")
+		appendHomePattern(".local", "opt", "*", "*")
 		appendHomePattern(".local", "opt", "*", "*", "bin")
 		appendHomePattern(".local", "opt", "*", "*", "node_modules", ".bin")
 	default:

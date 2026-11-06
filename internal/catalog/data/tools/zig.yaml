@@ -13,8 +13,14 @@ dependencies: []
 conflicts: []
 platforms:
   macos: [arm64]
+  linux: [amd64, arm64]
 installers:
   - platform: macos
+    manager: homebrew
+    package_id: zig
+    scope: user
+    source: homebrew-core
+  - platform: linux
     manager: homebrew
     package_id: zig
     scope: user

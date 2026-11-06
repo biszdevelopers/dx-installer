@@ -1,177 +1,208 @@
 === Overview ===
-Developers' Club DX  /  Bootstrap
-windows  /  amd64
-[1 Overview]   2 Catalog   3 Profiles   4 Environment   5 Plan   6 Sources   7
-Progress   8 Results
---------------------------------------------------------------------------------
-Machine overview
-Operating system  windows
-Architecture      amd64
-Distribution      not applicable
-Shell             unknown
-Package managers  winget
-Region signals    Global
-Source policy     automatic
-Existing tools    1 healthy  1 missing  0 needing review
-Selected tools    1
-
-No machine health score is calculated. Existing installations are preserved
-unless a reviewed plan says otherwise.
---------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
-candidate version, transaction preview and command.
-Tab navigate  |  j/k move  |  r refresh  |  ? help  |  q exit
+  DX  Developer workspace                                     windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ──────┐ ┌ HOME ───────────────────────────────────────────────────┐
+│ WORKSPACE        │ │ Welcome to your developer workspace                     │
+│ ▌ ⌂  Home        │ │ Pick tools or start from a profile. DX checks your      │
+│ ◇  Tools  (1)    │ │ machine and shows a plan before anything runs.          │
+│ ▤  Profiles      │ │                                                         │
+│ ◉  Environment   │ │ Browse tools  →                                         │
+│ ◎  Review plan   │ │ Choose a developer profile  →                           │
+│ 1                │ │ View my environment  →                                  │
+│ ↗  Activity      │ │                                                         │
+│ ✓  Results       │ │ YOUR WORKSPACE                                          │
+│                  │ │ 1 tools selected    1 ready    1 not installed    0     │
+│ ▾  Advanced      │ │ need review                                             │
+│                  │ │                                                         │
+│ Ctrl+P  Command  │ │ LATEST PLAN                                             │
+│ palette          │ │ 1 install steps  ·  0 preserved  ·  0 issues            │
+│                  │ │ Review plan  →                                          │
+│                  │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+└──────────────────┘ └─────────────────────────────────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source…
+  [Choose tools]  [Ctrl+P Commands]  [? Help]  [Quit]
 
 === Catalog ===
-Developers' Club DX  /  Bootstrap
-windows  /  amd64
-1 Overview   [2 Catalog]   3 Profiles   4 Environment   5 Plan   6 Sources   7
-Progress   8 Results
---------------------------------------------------------------------------------
-Tool catalog
-Search: all   Category: all   State: all
-> [ ] actionlint         actionlint
-  [ ] adb                Android Platform Tools
-  [ ] android-build-tools Android SDK Build Tools 36.0.0
-  [ ] android-emulator   Android Emulator
-  [ ] android-platform-tools Android Platform Tools
-  [ ] android-sdk-command-line-tools Android SDK Command-Line Tools
-  [ ] ansible            Ansible CLI
-  [ ] ant                Apache Ant
-  [ ] arduino-cli        Arduino CLI
-  [ ] arm-none-eabi-gcc  ARM GNU Toolchain
-  [ ] aspnetcore-runtime-10 ASP.NET Core Runtime 10
-  [ ] avrdude            AVRDUDE
-  [ ] aws-cli            AWS CLI
---------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
-candidate version, transaction preview and command.
-Space select  |  f search  |  [ ] category  |  s state filter  |  p plan
+  DX  Developer workspace                                     windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ──────┐ ┌ TOOLS ──────────────────────────────────────────────────┐
+│ WORKSPACE        │ │ Tools and runtimes                                      │
+│ ⌂  Home          │ │ Choose what you need. Select rows to add them to your   │
+│ ▌ ◇  Tools  (1)  │ │ plan.                                                   │
+│ ▤  Profiles      │ │ ⌕  Search tools                                         │
+│ ◉  Environment   │ │ Category  ‹  All categories  ›                          │
+│ ◎  Review plan   │ │ Installed filter  ·  all  (change)                      │
+│ 1                │ │ Selected: 1   Clear filters                             │
+│ ↗  Activity      │ │                                                         │
+│ ✓  Results       │ │    TOOL                           STATUS                │
+│                  │ │ □  actionlint                     Not installed         │
+│ ▾  Advanced      │ │ □  Android Platform Tools         Not installed         │
+│                  │ │ □  Android SDK Build Tools 36.0.0 Not installed         │
+│ Ctrl+P  Command  │ │ □  Android Emulator               Not installed         │
+│ palette          │ │ □  Android Platform Tools         Not installed         │
+│                  │ │ □  Android SDK Command-Line Tools Not installed         │
+│                  │ │ □  Ansible CLI                    Not installed         │
+│                  │ │ □  Apache Ant                     Not installed         │
+│                  │ │ □  Arduino CLI                    Not installed         │
+└──────────────────┘ └─────────────────────────────────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source…
+  [Review plan]  [Ctrl+P Commands]  [? Help]  [Quit]
 
 === Profiles ===
-Developers' Club DX  /  Bootstrap
-windows  /  amd64
-1 Overview   2 Catalog   [3 Profiles]   4 Environment   5 Plan   6 Sources   7
-Progress   8 Results
---------------------------------------------------------------------------------
-Profiles
-Select multiple profiles to combine them, then press Enter to apply.
-> [ ] Additional languages     21 tools
-    Selectable language runtimes, compilers, package tooling, and language
-servers beyond the core profiles.
-  [ ] API and protocol tooling 7 tools
-    Protocol Buffers, gRPC, OpenAPI, and GraphQL command-line tools.
-  [ ] Complete catalog         220 tools
-    Review every catalog entry and remove anything you do not want.
-  [ ] Database clients         7 tools
-    Database clients only; no database servers are selected.
-  [ ] DevOps tooling           17 tools
-    Container, Kubernetes, infrastructure, cloud, and automation CLIs; does not
-start services or authenticate.
-  [ ] .NET development         6 tools
---------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
-candidate version, transaction preview and command.
-Space combine profiles  |  Enter apply  |  e export  |  o import
+  DX  Developer workspace                                     windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ──────┐ ┌ PROFILES ───────────────────────────────────────────────┐
+│ WORKSPACE        │ │ Start with a profile                                    │
+│ ⌂  Home          │ │ Profiles are editable starting points; choose one or    │
+│ ◇  Tools  (1)    │ │ more and adjust tools afterward.                        │
+│ ▌ ▤  Profiles    │ │ Apply selected profiles                                 │
+│ ◉  Environment   │ │ Browse individual tools                                 │
+│ ◎  Review plan   │ │ Import selection                                        │
+│ 1                │ │ Export selection                                        │
+│ ↗  Activity      │ │                                                         │
+│ ✓  Results       │ │ □  Additional languages          21 tools               │
+│                  │ │ □  API and protocol tooling      7 tools                │
+│ ▾  Advanced      │ │ □  Complete catalog              220 tools              │
+│                  │ │ □  Database clients              7 tools                │
+│ Ctrl+P  Command  │ │ □  DevOps tooling                17 tools               │
+│ palette          │ │ □  .NET development              6 tools                │
+│                  │ │ □  Embedded development          11 tools               │
+│                  │ │ □  Essential                     7 tools                │
+│                  │ │ □  Full-stack                    18 tools               │
+│                  │ │ □  Go                            7 tools                │
+└──────────────────┘ └─────────────────────────────────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source…
+  [Review plan]  [Ctrl+P Commands]  [? Help]  [Quit]
 
 === Environment ===
-Developers' Club DX  /  Bootstrap
-windows  /  amd64
-1 Overview   2 Catalog   3 Profiles   [4 Environment]   5 Plan   6 Sources   7
-Progress   8 Results
---------------------------------------------------------------------------------
-Existing environment
-Search: all
-Each detected executable is checked with its declared version command.
-> git                Git                          healthy
-  go                 Go                           missing
-Path: C:\Program Files\Git\cmd\git.exe
-Version: git version 2.48.1
-Architecture:
---------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
-candidate version, transaction preview and command.
-f search inventory  |  a clear search  |  r refresh  |  j/k inspect records
+  DX  Developer workspace                                     windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ──────┐ ┌ ENVIRONMENT ────────────────────────────────────────────┐
+│ WORKSPACE        │ │ Your environment                                        │
+│ ⌂  Home          │ │ See what is already installed on this machine.          │
+│ ◇  Tools  (1)    │ │ ⌕  Search installed tools                               │
+│ ▤  Profiles      │ │ Clear search                                            │
+│ ▌ ◉  Environment │ │ Refresh inventory                                       │
+│ ◎  Review plan   │ │ 2 tool records  ·  0 inventory warnings                 │
+│ 1                │ │                                                         │
+│ ↗  Activity      │ │ TOOL                 STATUS          ID                 │
+│ ✓  Results       │ │ Git                  Ready           git                │
+│                  │ │ Go                   Not installed   go                 │
+│ ▾  Advanced      │ │                                                         │
+│                  │ │                                                         │
+│ Ctrl+P  Command  │ │                                                         │
+│ palette          │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+└──────────────────┘ └─────────────────────────────────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source…
+  [Ctrl+P Commands]  [? Help]  [Quit]
 
 === Plan ===
-Developers' Club DX  /  Bootstrap
-windows  /  amd64
-1 Overview   2 Catalog   3 Profiles   4 Environment   [5 Plan]   6 Sources   7
-Progress   8 Results
---------------------------------------------------------------------------------
-Installation plan
-Every install is explicit. Existing tools are preserved and no upgrades are
-planned.
-INSTALL   go                 winget  GoLang.Go  system scope / privilege may be
-required
-          source: winget
-          command: winget "install" "--id" "GoLang.Go" "--exact" "--no-upgrade"
-"--source" "winget" "--scope" "machine"
-          preview note: Package-manager preview unavailable: the package-manager
-query exited unsuccessfully; no usable details were returned. DX will not
-refresh repositories automatically; dependencies or other system changes may be
-unresolved. Review this uncertainty and any manager confirmation before
-accepting the operation.
-Package-manager metadata can change before installation. Review each preview and
-the manager's live transaction confirmation before accepting.
---------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
-candidate version, transaction preview and command.
-p rebuild  |  i review approval  |  r refresh inventory
+  DX  Developer workspace                                     windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ──────┐ ┌ PLAN REVIEW ────────────────────────────────────────────┐
+│ WORKSPACE        │ │ Installation plan                                       │
+│ ⌂  Home          │ │ Review every operation, source, version, and setup      │
+│ ◇  Tools  (1)    │ │ change before approving.                                │
+│ ▤  Profiles      │ │ 1 installs  ·  0 already satisfied  ·  0 issues         │
+│ ◉  Environment   │ │ Refresh plan                                            │
+│ ▌ ◎  Review plan │ │ Review and install                                      │
+│ 1                │ │                                                         │
+│ ↗  Activity      │ │ PLAN ITEMS                                              │
+│ ✓  Results       │ │ INSTALL   Go                                            │
+│                  │ │                                                         │
+│ ▾  Advanced      │ │                                                         │
+│                  │ │                                                         │
+│ Ctrl+P  Command  │ │                                                         │
+│ palette          │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+└──────────────────┘ └─────────────────────────────────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source…
+  [Install]  [Ctrl+P Commands]  [? Help]  [Quit]
 
 === Sources ===
-Developers' Club DX  /  Bootstrap
-windows  /  amd64
-1 Overview   2 Catalog   3 Profiles   4 Environment   5 Plan   [6 Sources]   7
-Progress   8 Results
---------------------------------------------------------------------------------
-Download sources
-Package managers already on this machine are preferred when they support the
-selected tool.
-Direct archives use pinned publisher digests; regional mirrors must match that
-digest.
-Region signals: Global
-Source policy: automatic
-Keys: a automatic  |  c Mainland China  |  g global  |  o official-only  |  m
-official-first  |  u custom archive source  |  v registry override  |  l local
-archive  |  b signed bundle  |  x clear overrides  |  Space/Enter manager  |  0
-reset
-A preferred detected package manager is selected when it has a compatible
-catalog entry.
-
---------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
-candidate version, transaction preview and command.
-a/c/g region  |  o official-only  |  m official-first  |  u custom URL  |  l
-local archive  |  b signed bundle  |  Space/Enter manager  |  x clear sources
+  DX  Developer workspace                                     windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ──────┐ ┌ ADVANCED / SOURCES ─────────────────────────────────────┐
+│ WORKSPACE        │ │ Source settings                                         │
+│ ⌂  Home          │ │ Choose download sources. Publisher archives remain      │
+│ ◇  Tools  (1)    │ │ checksum-verified.                                      │
+│ ▤  Profiles      │ │ Current choice: Automatic                               │
+│ ◉  Environment   │ │ ●  Automatic  ·  selected                               │
+│ ◎  Review plan   │ │ ○  Mainland China                                       │
+│ 1                │ │ ○  Global                                               │
+│ ↗  Activity      │ │ ○  Publisher only                                       │
+│ ✓  Results       │ │ ○  Publisher first                                      │
+│                  │ │                                                         │
+│ ▾  Advanced      │ │ CUSTOM SOURCES                                          │
+│                  │ │ Add custom archive URL                                  │
+│ Ctrl+P  Command  │ │ Add registry override                                   │
+│ palette          │ │ Add local archive                                       │
+│                  │ │ Load signed offline bundle                              │
+│                  │ │ Clear source overrides                                  │
+│                  │ │                                                         │
+│                  │ │ PACKAGE MANAGER PREFERENCE                              │
+└──────────────────┘ └─────────────────────────────────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source…
+  [Ctrl+P Commands]  [? Help]  [Quit]
 
 === Progress ===
-Developers' Club DX  /  Bootstrap
-windows  /  amd64
-1 Overview   2 Catalog   3 Profiles   4 Environment   5 Plan   6 Sources   [7
-Progress]   8 Results
---------------------------------------------------------------------------------
-Installation progress
-Completed tasks: 1 of 1
-Go                     installed_and_verified
---------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
-candidate version, transaction preview and command.
-Tab navigate  |  j/k move  |  r refresh  |  ? help  |  q exit
+  DX  Developer workspace                                     windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ──────┐ ┌ ACTIVITY ───────────────────────────────────────────────┐
+│ WORKSPACE        │ │ Installation activity                                   │
+│ ⌂  Home          │ │ 1 of 1 operations completed                             │
+│ ◇  Tools  (1)    │ │ Go  ·  Installed and verified                           │
+│ ▤  Profiles      │ │                                                         │
+│ ◉  Environment   │ │ View results                                            │
+│ ◎  Review plan   │ │                                                         │
+│ 1                │ │                                                         │
+│ ▌ ↗  Activity    │ │                                                         │
+│ ✓  Results       │ │                                                         │
+│                  │ │                                                         │
+│ ▾  Advanced      │ │                                                         │
+│                  │ │                                                         │
+│ Ctrl+P  Command  │ │                                                         │
+│ palette          │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+└──────────────────┘ └─────────────────────────────────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source…
+  [Ctrl+P Commands]  [? Help]  [Quit]
 
 === Results ===
-Developers' Club DX  /  Bootstrap
-windows  /  amd64
-1 Overview   2 Catalog   3 Profiles   4 Environment   5 Plan   6 Sources   7
-Progress   [8 Results]
---------------------------------------------------------------------------------
-Results and diagnostics
-> Go                     installed_and_verified
-Verification: go1.27.3
-Source: winget
-Temporary bootstrap artifacts are removed when the application exits.
---------------------------------------------------------------------------------
-Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,
-candidate version, transaction preview and command.
-j/k inspect results  |  d save redacted report  |  4 environment  |  q exit
+  DX  Developer workspace                                     windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ──────┐ ┌ RESULTS ────────────────────────────────────────────────┐
+│ WORKSPACE        │ │ Installation results                                    │
+│ ⌂  Home          │ │ Save redacted report                                    │
+│ ◇  Tools  (1)    │ │ Inspect environment                                     │
+│ ▤  Profiles      │ │ Go  ·  Installed and verified                           │
+│ ◉  Environment   │ │                                                         │
+│ ◎  Review plan   │ │                                                         │
+│ 1                │ │                                                         │
+│ ↗  Activity      │ │                                                         │
+│ ▌ ✓  Results     │ │                                                         │
+│                  │ │                                                         │
+│ ▾  Advanced      │ │                                                         │
+│                  │ │                                                         │
+│ Ctrl+P  Command  │ │                                                         │
+│ palette          │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+│                  │ │                                                         │
+└──────────────────┘ └─────────────────────────────────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source…
+  [Ctrl+P Commands]  [? Help]  [Quit]
 

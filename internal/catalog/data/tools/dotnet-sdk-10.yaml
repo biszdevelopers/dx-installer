@@ -27,3 +27,8 @@ installers:
     kind: cask
     scope: user
     source: homebrew-cask
+  - platform: linux
+    manager: homebrew
+    package_id: dotnet
+    scope: user
+    source: homebrew-core

@@ -13,5 +13,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "catalog-check:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Validated %d tool manifests and %d profiles.\n", len(items.Tools()), len(items.Profiles()))
+	platforms := 0
+	for _, manifest := range items.Tools() {
+		for _, architectures := range manifest.Platforms {
+			platforms += len(architectures)
+		}
+	}
+	fmt.Printf("Validated %d tools, %d profiles, and %d platform/architecture install paths.\n", len(items.Tools()), len(items.Profiles()), platforms)
 }

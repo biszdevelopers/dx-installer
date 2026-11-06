@@ -36,6 +36,21 @@ func TestInstalledPackageWithoutExecutableIsPreservedAsUnknown(t *testing.T) {
 	}
 }
 
+func TestBSDCatalogSupportIsLimitedToImplementedFreeBSDAdapter(t *testing.T) {
+	manifest := tool.Manifest{
+		ID: "bsd-tool", Executables: []string{"bsd-tool"},
+		Platforms: map[tool.OperatingSystem][]tool.Architecture{tool.BSD: {tool.AMD64}},
+	}
+	for _, distribution := range []string{"openbsd", "netbsd", "dragonfly"} {
+		_, _, state := scanTool(context.Background(), manifest, platform.Info{
+			OS: tool.BSD, Architecture: tool.AMD64, Distribution: distribution,
+		}, nil, nil, nil, nil)
+		if state != Unsupported {
+			t.Errorf("%s inventory state = %s, want unsupported", distribution, state)
+		}
+	}
+}
+
 func TestZephyrSDKDetectionRequiresDeclaredCompilerAndReadsInstalledVersions(t *testing.T) {
 	machine := platform.Detect()
 	home := t.TempDir()
@@ -337,5 +352,43 @@ func TestFindExecutablesSearchesKnownUserToolDirectoryOutsidePath(t *testing.T) 
 	paths := findExecutables(name)
 	if len(paths) != 1 || filepath.Clean(paths[0]) != filepath.Clean(executable) {
 		t.Fatalf("known-directory executable paths = %#v, want %q", paths, executable)
+	}
+}
+
+func TestFindExecutablesSearchesVersionedUserArchiveRootsOutsidePath(t *testing.T) {
+	home := t.TempDir()
+	searchPath := t.TempDir()
+	var directory string
+	if runtime.GOOS == "windows" {
+		localAppData := filepath.Join(home, "AppData", "Local")
+		t.Setenv("USERPROFILE", home)
+		t.Setenv("LOCALAPPDATA", localAppData)
+		directory = filepath.Join(localAppData, "Programs", "PowerShell", "7.6.9")
+	} else {
+		t.Setenv("HOME", home)
+		directory = filepath.Join(home, ".local", "opt", "powershell", "7.6.9")
+	}
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	name := "dx-inventory-archive-root-test"
+	filename := name
+	if runtime.GOOS == "windows" {
+		filename += ".exe"
+	}
+	executable := filepath.Join(directory, filename)
+	if err := os.WriteFile(executable, []byte("test executable"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(executable, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", searchPath)
+
+	paths := findExecutables(name)
+	if len(paths) != 1 || filepath.Clean(paths[0]) != filepath.Clean(executable) {
+		t.Fatalf("versioned archive-root executable paths = %#v, want %q", paths, executable)
 	}
 }

@@ -17,7 +17,7 @@ go run ./cmd/catalog-check
 go test ./...
 ```
 
-The interactive install flow requires a terminal. It refreshes inventory after approval and asks for approval again if the plan changed. `plan` is read-only. The application never bootstraps a package manager, never adds a package repository, and never runs a package-manager command without approval.
+The interactive install flow requires a terminal. It opens as a full-screen workspace with persistent navigation, searchable tool and environment tables, an inspector, installation activity, and clear review and approval actions. Mouse clicks and wheel scrolling work alongside keyboard navigation; narrow terminals keep the same sections in a scrollable single-pane layout. The installer refreshes inventory after approval and asks for approval again if the plan changed. `plan` is read-only. The application never bootstraps a package manager, never adds a package repository, and never runs a package-manager command without approval. See the [terminal interface guide](docs/tui-design.md) for layout and controls.
 
 The embedded catalog contains 220 tool manifests and 18 profiles. Package-manager installations use only managers already detected on the machine. Some tools also have catalog-pinned direct archives, registry installers, regional mirrors, and signed offline-bundle support; availability depends on the selected tool and platform. Direct archives and local copies are checked against embedded SHA-256 pins, and signed bundles are verified against the public key pinned in the client. Plans show sources, integrity data, size disclosures, install paths, setup actions, and persistent PATH changes before approval.
 

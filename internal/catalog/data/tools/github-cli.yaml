@@ -47,3 +47,8 @@ installers:
     package_id: github-cli
     scope: system
     source: configured-pacman-repositories
+  - platform: bsd
+    manager: freebsd-pkg
+    package_id: gh
+    scope: system
+    source: configured-freebsd-pkg-repositories

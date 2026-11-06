@@ -1,28 +1,37 @@
-# Terminal interface
+# Terminal workspace
 
-The application uses Bubble Tea v2 for its event loop and Lip Gloss v2 for restrained styling. The view is rendered from model state; package-manager and artifact tasks run through explicit process steps, and background inventory checks return typed messages. Package-manager operations are serialized.
+The interactive installer uses Bubble Tea v2, Bubbles v2, and Lip Gloss v2. It opens on a dashboard rather than a command prompt. The workspace keeps navigation, the current task, and contextual details visible together. Search, filters, lists, dialogs, and actions are interactive with either the mouse or keyboard.
 
-## Screens
+## Layout and navigation
 
-1. Overview — operating system, architecture, Linux distribution, shell, detected package managers, inventory state, and current selection.
-2. Catalog — text search, category and inventory-state filters, multi-selection, dependencies, platform support, and the proposed installation method.
-3. Profiles — combine predefined profiles and edit the resulting selection in Catalog.
-4. Environment — inspect detected executables, versions, paths, package records, and diagnostics.
-5. Plan — review preserved tools, installs, sources, package IDs, versions, archive digests and size estimates, install paths, setup actions, PATH changes, exact commands, and blockers.
-6. Sources — select a preferred detected manager, choose a source policy, configure a per-tool custom URL or local archive, set an ecosystem registry, or load a signed offline bundle.
-7. Progress — show completed results and the current operation.
-8. Results — show verification state and per-tool diagnostics.
+- At 120 columns and 32 rows or larger, the app shows navigation, the task workspace, and an inspector.
+- At 80–119 columns, it shows navigation and the task workspace; details remain available through the content and scrolling.
+- Smaller terminals use one scrollable pane. Click **Sections** or press `Ctrl+P` to open the command palette and choose any section.
 
-Keyboard navigation is sufficient: Tab or 1–8 changes screens, arrows or `j`/`k` move through rows, Space selects, `f` searches, `a` clears the active search, `[` and `]` change category, `s` changes the inventory-state filter, `p` builds a plan, `i` begins approval, `?` shows help, and `q` exits. Environment search covers tool identity and state, executable paths and versions, diagnostics, and package records.
+The persistent sections are Home, Tools, Profiles, Environment, Plan, Activity, and Results. Source configuration is under **Advanced**. Resizing recalculates layout and click targets.
 
-On Sources, `a`, `c`, `g`, `o`, and `m` choose automatic, mainland-China, global, official-only, and official-first policies. `u` enters a catalog-pinned custom HTTPS archive URL, `v` sets a registry URL, `l` adds a catalog-pinned local archive, `b` loads a signed offline bundle, and `x` clears source overrides. Space or Enter selects a preferred detected package manager; `0` clears that preference. Every source or selection change invalidates the previous plan.
+## Mouse and keyboard
 
-## Approval and fallback
+Click visible navigation items, rows, filters, and actions. Hovered and keyboard-focused controls are highlighted. The mouse wheel scrolls the pane under the pointer, including the inspector and long dialogs.
 
-The complete plan is shown before any package-manager or archive installation starts. Pressing `y` begins a fresh inventory scan; if the plan changes or becomes blocked, it is shown again and is not executed until separately approved. Artifact size disclosures, integrity hashes, vendor setup actions, and persistent PATH changes are visible before approval. Package-manager prompts remain visible to the user.
+Use `Tab` / `Shift+Tab` to move focus, arrow keys to move through selectable rows, `Space` to select, and `Enter` to activate. `Page Up` / `Page Down` scroll long content. Press `Ctrl+P` for commands, `?` for Help, `Esc` to close a dialog, and `q` to quit. Help also lists the controls available in the current interface. All sections and actions remain reachable by keyboard when a terminal does not send mouse events.
+
+## Tools and profiles
+
+Search the catalog, filter by category or installation state, and select individual tools or profile cards. Tool details show platform support, dependencies, detected status, version channel, source, and the available installation method. Profiles are editable starting points; applying them returns to Tools so selections can be changed.
+
+The Environment table shows what is already installed. Search matches names, paths, versions, package ownership, and diagnostics. The inspector shows executable paths, versions, package records, and inventory warnings.
+
+## Review and install
+
+Build or refresh a plan from the Plan section. Review install, preserve, and blocked summaries, then inspect each item for source, version, package ID, digest, download estimate, destination, setup actions, PATH changes, command preview, and package-manager disclosures. Nothing is installed during planning.
+
+The final approval dialog refreshes inventory before starting. If the current plan changes or becomes blocked, DX returns to review and requires approval again. Package-manager prompts remain visible. Existing tools are preserved and are not upgraded.
+
+Advanced Sources retains package-manager preference, source policies, custom and offline archives, registry overrides, and signed bundles. Results provide per-tool verification and a redacted diagnostic report action.
+
+## Fallback and coverage
 
 If Bubble Tea cannot render, the CLI offers a line-oriented selection and approval flow. A non-TTY install invocation exits before changes. `catalog`, `inventory`, and `plan` remain available without a TTY. Progress reports completed operations and the current task; it does not invent byte percentages.
 
-## Automated coverage and terminal fallback
-
-Tests cover source configuration and plan invalidation, approval refresh, fallback interaction, golden snapshots for all eight screens, resize bounds for every screen, Unicode display width, ASCII fallback, and fuzzed environment-search input. The renderer responds to `DX_ASCII=1`, `TERM=dumb`, ASCII locales, and legacy Windows console output code pages. Set `DX_ASCII=0` to force Unicode rendering. Mouse input is optional and is not required.
+Automated coverage includes fresh-inventory approval, plan invalidation and blockers, line fallback, mouse navigation and selection, search and filters, advanced settings, dialog input, focus traversal, scrolling, five responsive terminal sizes, Unicode display width, ASCII fallback, and golden snapshots. Set `DX_ASCII=1` to force ASCII rendering, or `DX_ASCII=0` to force Unicode rendering. Mouse input requires a terminal emulator that sends mouse events; keyboard access works without it.

@@ -433,7 +433,7 @@ func (m Manifest) Validate() error {
 		if artifact.Format != TarGzip && artifact.Format != TarXZ && artifact.Format != Zip && artifact.Format != SevenZip {
 			return fmt.Errorf("artifact %s has unsupported archive format %q", key, artifact.Format)
 		}
-		if artifact.ArchiveRoot == "" || path.Clean(artifact.ArchiveRoot) != artifact.ArchiveRoot || strings.HasPrefix(artifact.ArchiveRoot, "/") || strings.Contains(artifact.ArchiveRoot, "\\") || artifact.ArchiveRoot == "." || artifact.ArchiveRoot == ".." || strings.HasPrefix(artifact.ArchiveRoot, "../") {
+		if artifact.ArchiveRoot == "" || path.Clean(artifact.ArchiveRoot) != artifact.ArchiveRoot || strings.HasPrefix(artifact.ArchiveRoot, "/") || strings.Contains(artifact.ArchiveRoot, "\\") || artifact.ArchiveRoot == ".." || strings.HasPrefix(artifact.ArchiveRoot, "../") {
 			return fmt.Errorf("artifact %s must declare a safe archive root", key)
 		}
 		if artifact.InstallSubdirectory != "" && !validRelativePathEntry(artifact.InstallSubdirectory) {
@@ -464,6 +464,31 @@ func (m Manifest) Validate() error {
 			}
 		}
 	}
+	for os, architectures := range m.Platforms {
+		for _, architecture := range architectures {
+			available := m.ProvidedBy != ""
+			for _, installer := range m.Installers {
+				if installer.Platform == os && installerSupportsArchitecture(installer, architecture) {
+					available = true
+					break
+				}
+			}
+			if !available {
+				_, available = m.ArtifactFor(os, architecture)
+			}
+			if !available {
+				for _, installer := range m.RegistryInstallers {
+					if installer.Platform == os {
+						available = true
+						break
+					}
+				}
+			}
+			if !available {
+				return fmt.Errorf("platform %s/%s has no compatible installer, registry package, or verified archive", os, architecture)
+			}
+		}
+	}
 	return nil
 }
 
@@ -480,7 +505,7 @@ func installerSupportsArchitecture(installer Installer, architecture Architectur
 }
 
 func validRelativePathEntry(entry string) bool {
-	return entry != "" && path.Clean(entry) == entry && !strings.HasPrefix(entry, "/") && !strings.ContainsRune(entry, '\\') && !strings.ContainsAny(entry, ":\x00") && entry != "." && entry != ".." && !strings.HasPrefix(entry, "../")
+	return entry == "." || (entry != "" && path.Clean(entry) == entry && !strings.HasPrefix(entry, "/") && !strings.ContainsRune(entry, '\\') && !strings.ContainsAny(entry, ":\x00") && entry != ".." && !strings.HasPrefix(entry, "../"))
 }
 
 func validRegistryEcosystem(ecosystem RegistryEcosystem) bool {

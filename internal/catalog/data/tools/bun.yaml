@@ -26,3 +26,8 @@ installers:
     package_id: oven-sh/bun/bun
     scope: user
     source: oven-sh-bun-tap
+  - platform: linux
+    manager: homebrew
+    package_id: oven-sh/bun/bun
+    scope: user
+    source: oven-sh-bun-tap

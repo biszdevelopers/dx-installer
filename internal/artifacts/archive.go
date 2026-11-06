@@ -336,8 +336,20 @@ func (s *extractState) memberPath(name string) (string, bool, error) {
 	}
 	trimmed := strings.TrimSuffix(name, "/")
 	clean := path.Clean(trimmed)
-	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || clean != trimmed {
+	if clean == ".." || strings.HasPrefix(clean, "../") || clean != trimmed {
 		return "", false, fmt.Errorf("archive entry %q has a non-canonical or traversing path", name)
+	}
+	if s.root == "." {
+		if clean == "." {
+			return "", true, nil
+		}
+		if hasUnsafeSegment(clean) {
+			return "", false, fmt.Errorf("archive entry %q has an unsafe relative path", name)
+		}
+		if runtime.GOOS == "windows" && hasWindowsDeviceName(clean) {
+			return "", false, fmt.Errorf("archive entry %q uses a reserved Windows file name", name)
+		}
+		return clean, false, nil
 	}
 	if clean != s.root && !strings.HasPrefix(clean, s.root+"/") {
 		return "", false, fmt.Errorf("archive entry %q is outside the declared root %q", name, s.root)
@@ -464,7 +476,7 @@ func (s *extractState) rejectSymlinkAncestors(relative string) error {
 }
 
 func safeArchiveRoot(root string) bool {
-	return root != "" && root != "." && root != ".." && !path.IsAbs(root) && path.Clean(root) == root && !strings.ContainsAny(root, "\\:\x00") && !strings.HasPrefix(root, "../")
+	return root == "." || (root != "" && root != ".." && !path.IsAbs(root) && path.Clean(root) == root && !strings.ContainsAny(root, "\\:\x00") && !strings.HasPrefix(root, "../"))
 }
 
 func hasUnsafeSegment(value string) bool {

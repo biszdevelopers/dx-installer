@@ -1,0 +1,244 @@
+=== Wide dashboard 120x32 ===
+  DX  Developer workspace                                                                             windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ───────┐ ┌ HOME ──────────────────────────────────────────────────────────┐ ┌ INSPECTOR ──────────────────┐
+│ WORKSPACE         │ │ Welcome to your developer workspace                            │ │ THIS MACHINE                │
+│ ▌ ⌂  Home         │ │ Pick tools or start from a profile. DX checks your machine and │ │ WINDOWS  ·  amd64           │
+│ ◇  Tools  (1)     │ │ shows a plan before anything runs.                             │ │ Operating system detected   │
+│ ▤  Profiles       │ │                                                                │ │                             │
+│ ◉  Environment    │ │ Browse tools  →                                                │ │ PACKAGE MANAGERS            │
+│ ◎  Review plan  1 │ │ Choose a developer profile  →                                  │ │ winget  ·  winget.exe       │
+│ ↗  Activity       │ │ View my environment  →                                         │ │                             │
+│ ✓  Results        │ │                                                                │ │ SAFETY                      │
+│                   │ │ YOUR WORKSPACE                                                 │ │ No install begins until you │
+│ ▾  Advanced       │ │ 1 tools selected    1 ready    1 not installed    0 need       │ │ review and approve a plan.  │
+│                   │ │ review                                                         │ │                             │
+│ Ctrl+P  Command   │ │                                                                │ │                             │
+│ palette           │ │ LATEST PLAN                                                    │ │                             │
+│                   │ │ 1 install steps  ·  0 preserved  ·  0 issues                   │ │                             │
+│                   │ │ Review plan  →                                                 │ │                             │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │                             │
+└───────────────────┘ └────────────────────────────────────────────────────────────────┘ └─────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source, candidate version, transaction preview…
+  [Choose tools]  [Ctrl+P Commands]  [? Help]  [Quit]
+=== Wide tool catalog 120x32 ===
+  DX  Developer workspace                                                                             windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ───────┐ ┌ TOOLS ─────────────────────────────────────────────────────────┐ ┌ INSPECTOR ──────────────────┐
+│ WORKSPACE         │ │ Tools and runtimes                                             │ │ actionlint                  │
+│ ⌂  Home           │ │ Choose what you need. Select rows to add them to your plan.    │ │ Static checker for GitHub   │
+│ ▌ ◇  Tools  (1)   │ │ ⌕  Search tools                                                │ │ Actions workflow files.     │
+│ ▤  Profiles       │ │ Category  ‹  All categories  ›                                 │ │                             │
+│ ◉  Environment    │ │ Installed filter  ·  all  (change)                             │ │ STATUS                      │
+│ ◎  Review plan  1 │ │ Selected: 1   Clear filters                                    │ │ Not installed               │
+│ ↗  Activity       │ │                                                                │ │ Category: quality.ci        │
+│ ✓  Results        │ │    TOOL                                  STATUS                │ │ Version channel: stable     │
+│                   │ │ □  actionlint                            Not installed         │ │ Supported here: no          │
+│ ▾  Advanced       │ │ □  Android Platform Tools                Not installed         │ │ No installer is available   │
+│                   │ │ □  Android SDK Build Tools 36.0.0        Not installed         │ │ for this machine.           │
+│ Ctrl+P  Command   │ │ □  Android Emulator                      Not installed         │ │                             │
+│ palette           │ │ □  Android Platform Tools                Not installed         │ │                             │
+│                   │ │ □  Android SDK Command-Line Tools        Not installed         │ │                             │
+│                   │ │ □  Ansible CLI                           Not installed         │ │                             │
+│                   │ │ □  Apache Ant                            Not installed         │ │                             │
+│                   │ │ □  Arduino CLI                           Not installed         │ │                             │
+│                   │ │ □  ARM GNU Toolchain                     Not installed         │ │                             │
+│                   │ │ □  ASP.NET Core Runtime 10               Not installed         │ │                             │
+│                   │ │ □  AVRDUDE                               Not installed         │ │                             │
+│                   │ │ □  AWS CLI                               Not installed         │ │                             │
+│                   │ │ □  Azure CLI                             Not installed         │ │                             │
+│                   │ │ □  Bazel                                 Not installed         │ │                             │
+│                   │ │ □  Biome                                 Not installed         │ │                             │
+│                   │ │ □  Buf CLI                               Not installed         │ │                             │
+│                   │ │ □  Bun                                   Not installed         │ │                             │
+└───────────────────┘ └────────────────────────────────────────────────────────────────┘ └─────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source, candidate version, transaction preview…
+  [Review plan]  [Ctrl+P Commands]  [? Help]  [Quit]
+=== Wide plan review 120x32 ===
+  DX  Developer workspace                                                                             windows  /  amd64
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+┌ NAVIGATION ───────┐ ┌ PLAN REVIEW ───────────────────────────────────────────────────┐ ┌ INSPECTOR ──────────────────┐
+│ WORKSPACE         │ │ Installation plan                                              │ │ PLAN DETAILS                │
+│ ⌂  Home           │ │ Review every operation, source, version, and setup change      │ │ 1 install operations        │
+│ ◇  Tools  (1)     │ │ before approving.                                              │ │ 0 preserved or provided     │
+│ ▤  Profiles       │ │ 1 installs  ·  0 already satisfied  ·  0 issues                │ │                             │
+│ ◉  Environment    │ │ Refresh plan                                                   │ │ Existing tools are          │
+│ ▌ ◎  Review plan  │ │ Review and install                                             │ │ preserved and are not       │
+│ 1                 │ │                                                                │ │ upgraded.                   │
+│ ↗  Activity       │ │ PLAN ITEMS                                                     │ │                             │
+│ ✓  Results        │ │ INSTALL   Go                                                   │ │ Go                          │
+│                   │ │                                                                │ │ Action: install             │
+│ ▾  Advanced       │ │                                                                │ │ Version:                    │
+│                   │ │                                                                │ │ Source: winget              │
+│ Ctrl+P  Command   │ │                                                                │ │ Package: GoLang.Go          │
+│ palette           │ │                                                                │ │ Install path:               │
+│                   │ │                                                                │ │ Command: winget "install"   │
+│                   │ │                                                                │ │ "--id" "GoLang.Go" "--      │
+│                   │ │                                                                │ │ exact" "--no-upgrade" "--   │
+│                   │ │                                                                │ │ source" "winget" "--scope"  │
+│                   │ │                                                                │ │ "machine"                   │
+│                   │ │                                                                │ │                             │
+│                   │ │                                                                │ │ PACKAGE MANAGER DISCLOSURE  │
+│                   │ │                                                                │ │ Package-manager metadata    │
+│                   │ │                                                                │ │ can change before           │
+│                   │ │                                                                │ │ installation. Review each   │
+│                   │ │                                                                │ │ preview and the manager's   │
+│                   │ │                                                                │ │ live transaction            │
+└───────────────────┘ └────────────────────────────────────────────────────────────────┘ └─────────────────────────────┘
+  Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source, candidate version, transaction preview…
+  [Install]  [Ctrl+P Commands]  [? Help]  [Quit]
+=== Approval dialog 120x32 ===
+  DX Bootstrap  /  Approval required
+
+
+
+               ┌ CONFIRM INSTALLATION ──────────────────────────────────────────────────────────────────┐
+               │ DX checked your machine again. Review these operations before continuing.              │
+               │ 1 package-manager operations  ·  0 verified archive downloads                          │
+               │                                                                                        │
+               │ Go  ·                                                                                  │
+               │ Source: winget                                                                         │
+               │ Install path:                                                                          │
+               │ Command: winget "install" "--id" "GoLang.Go" "--exact" "--no-upgrade" "--source"       │
+               │ "winget" "--scope" "machine"                                                           │
+               │                                                                                        │
+               │ PACKAGE MANAGER DISCLOSURE                                                             │
+               │ Package-manager metadata can change before installation. Review each preview and the   │
+               │ manager's live transaction confirmation before accepting.                              │
+               │                                                                                        │
+               │ Install now  ·  y                                                                      │
+               │ Cancel  ·  Esc                                                                         │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               └────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+  Esc closes this window  ·  ↑/↓ and mouse wheel scroll
+  Enter activates the focused action
+=== Command palette 120x32 ===
+  COMMAND PALETTE  ·  type to filter  ·  Esc closes
+
+
+
+               ┌ COMMAND PALETTE ───────────────────────────────────────────────────────────────────────┐
+               │ Jump to a section or run an action.                                                    │
+               │ › Type a section or action...                                                          │
+               │ │ Home                                                                                 │
+               │                                                                                        │
+               │   Tools                                                                                │
+               │                                                                                        │
+               │   Profiles                                                                             │
+               │                                                                                        │
+               │   Environment                                                                          │
+               │                                                                                        │
+               │   Review plan                                                                          │
+               │                                                                                        │
+               │   Activity                                                                             │
+               │                                                                                        │
+               │                                                                                        │
+               │ Close  ·  Esc                                                                          │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               └────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+  Esc closes this window  ·  ↑/↓ and mouse wheel scroll
+  Enter activates the focused action
+=== Source entry dialog 120x32 ===
+  DX Bootstrap  /  Input required
+
+
+
+               ┌ ENTER DETAILS ─────────────────────────────────────────────────────────────────────────┐
+               │ Set an ecosystem registry URL.                                                         │
+               │ Plan ready: 1 installation step(s), 0 preserved tool(s). Review every source,          │
+               │ candidate version, transaction preview and command.                                    │
+               │ › npm=https://registry.npmjs.org/                                                      │
+               │ Enter confirms  ·  Esc cancels                                                         │
+               │                                                                                        │
+               │ Confirm                                                                                │
+               │ Cancel                                                                                 │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               └────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+  Esc closes this window  ·  ↑/↓ and mouse wheel scroll
+  Enter activates the focused action
+=== Help dialog 120x32 ===
+  DX Bootstrap  /  Help
+
+
+
+               ┌ KEYBOARD AND MOUSE ────────────────────────────────────────────────────────────────────┐
+               │ Click any visible control. Use Tab to move focus and Enter to activate it.             │
+               │ Arrow keys move through rows; Space selects. The mouse wheel scrolls the pane under    │
+               │ the pointer.                                                                           │
+               │                                                                                        │
+               │ Tab / Shift+Tab move focus           Ctrl+P open commands                              │
+               │ ↑ / ↓           move through rows    ?      show help                                  │
+               │ Enter           open or activate     Esc    close dialog                               │
+               │ Space           select a tool        q      quit                                       │
+               │                                                                                        │
+               │ Installation always requires reviewing and approving a current plan.                   │
+               │                                                                                        │
+               │ Close help                                                                             │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               │                                                                                        │
+               └────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+  Esc closes this window  ·  ↑/↓ and mouse wheel scroll
+  Enter activates the focused action
+=== Compact dashboard 40x12 ===
+  DX  Developer workspace  windows  / …
+  [Sections] Ctrl+P opens commands
+┌ HOME ────────────────────────────────┐
+│ Welcome to your developer workspace  │
+│ Pick tools or start from a profile.  │
+│ DX checks your machine and shows a   │
+│ plan before anything runs.           │
+│                                      │
+│ Browse tools  →                      │
+└──────────────────────────────────────┘
+  Plan ready: 1 installation step(s), …
+  [Choose tools]  [Ctrl+P Commands]

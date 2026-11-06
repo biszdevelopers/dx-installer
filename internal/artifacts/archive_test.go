@@ -45,6 +45,22 @@ func TestExtractZipArchiveUnderDeclaredRoot(t *testing.T) {
 	}
 }
 
+func TestExtractFlatArchiveUnderExplicitRoot(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "powershell.tar.gz")
+	writeTarGzip(t, archivePath, []tarMember{{name: "pwsh", kind: tar.TypeReg, mode: 0o755, content: []byte("binary")}})
+	destination := t.TempDir()
+	if err := Extract(archivePath, destination, ".", tool.TarGzip, Limits{}); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(filepath.Join(destination, "pwsh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(contents) != "binary" {
+		t.Fatalf("extracted file = %q, want binary", contents)
+	}
+}
+
 func TestExtractTarGzipArchiveUnderDeclaredRoot(t *testing.T) {
 	archivePath := filepath.Join(t.TempDir(), "go.tar.gz")
 	writeTarGzip(t, archivePath, []tarMember{

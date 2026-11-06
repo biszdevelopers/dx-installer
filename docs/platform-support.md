@@ -1,6 +1,6 @@
 # Platform support
 
-Platform detection maps Go targets to Windows, macOS, Linux, and BSD families. Linux distribution identification reads `ID` and `VERSION_ID` from `/etc/os-release`. Manifest support is per tool: a tool can be installed only when its declared platform and architecture match and a compatible installer is available.
+Platform detection maps Go targets to Windows, macOS, Linux, and BSD families. Linux distribution identification reads `ID` and `VERSION_ID` from `/etc/os-release`. The catalog checker requires an installer route for every declared OS/architecture pair and verifies that dependencies support that same pair. Runtime installability also depends on having the declared package manager or runtime installed and configured.
 
 ## Release and install targets
 
@@ -17,12 +17,12 @@ Direct artifact support is declared separately from package-manager support. Cat
 
 ## Operating-system boundaries
 
-The BSD value groups BSD-family systems, but the only implemented BSD package-manager adapter is FreeBSD `pkg`; FreeBSD is the only BSD release and integration target. OpenBSD, NetBSD, and DragonFly can be identified, but have no catalog install adapter. Their selections block instead of running FreeBSD package commands.
+The BSD value groups BSD-family systems, but the only implemented BSD package-manager adapter is FreeBSD `pkg`; FreeBSD is the only BSD release and integration target. OpenBSD, NetBSD, and DragonFly can be identified, but catalog tools are reported unsupported there instead of being shown as missing or attempting FreeBSD package commands.
 
 Package managers must already exist. DX does not install them or change their repositories. System-scope package commands may require approval for `sudo` on Unix-like systems; package-manager prompts remain visible. Direct artifact installers use user-level paths and disclose any planned persistent PATH change before approval.
 
 ## Inventory and verification boundaries
 
-Inventory checks executable names on `PATH` and a bounded set of standard locations, including common JDK, Python, Node version-manager, Scoop-version, and Homebrew Cellar paths. DX does not scan the entire disk, so nonstandard locations can be missed. It queries local package records through Scoop and Chocolatey metadata, `dpkg-query`, `rpm`, Pacman, APK, Homebrew, MacPorts, and FreeBSD `pkg`. WinGet inventory uses a temporary export bounded to 8 MiB and 50,000 packages; its query may consult configured sources, but DX accepts no source agreements. If a manager query fails, affected tools remain unknown. A package record without a discoverable executable is also preserved as unknown.
+Inventory checks executable names on `PATH` and a bounded set of standard locations, including common JDK, Python, Node version-manager, Scoop-version, Homebrew Cellar, and versioned DX user-install paths. DX does not scan the entire disk, so nonstandard locations can be missed. It queries local package records through Scoop and Chocolatey metadata, `dpkg-query`, `rpm`, Pacman, APK, Homebrew, MacPorts, and FreeBSD `pkg`. WinGet inventory uses a temporary export bounded to 8 MiB and 50,000 packages; its query may consult configured sources, but DX accepts no source agreements. If a manager query fails, affected tools remain unknown. A package record without a discoverable executable is also preserved as unknown.
 
 Health checks currently run each manifest's declared version command and verify detected architecture where supported. They do not run a tool-specific build or runtime probe. CI integration coverage is intentionally narrower than the declared manager matrix; see [release process](release-process.md) for the current jobs.

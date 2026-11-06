@@ -12,6 +12,7 @@ import (
 	"developers-club-dx/internal/detection"
 	"developers-club-dx/internal/display"
 	"developers-club-dx/internal/domain/tool"
+	"developers-club-dx/internal/installation"
 	"developers-club-dx/internal/planning"
 	"developers-club-dx/internal/regional"
 	"github.com/charmbracelet/x/ansi"
@@ -26,51 +27,14 @@ var (
 	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	goodStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 	strongStyle   = lipgloss.NewStyle().Bold(true)
+	buttonStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
 	asciiSymbols  = strings.NewReplacer("…", "...", "→", "->", "—", "--", "–", "-")
 )
 
 var screenNames = []string{"Overview", "Catalog", "Profiles", "Environment", "Plan", "Sources", "Progress", "Results"}
 
 func (m *Model) render() string {
-	width := min(max(m.width, 24), 140)
-	height := min(max(m.height, 12), 60)
-	brand := "Developers' Club DX  /  Bootstrap"
-	status := m.status
-	help := m.keyHelp()
-	statusStyle := mutedStyle
-	if m.planReady && m.plan.Blocked {
-		statusStyle = warningStyle
-	}
-	if width < 48 {
-		brand = "DX Bootstrap"
-		status = ansi.Truncate(status, width-2, "…")
-	}
-	if width < 36 {
-		help = "? help  |  j/k move  |  q quit"
-		if m.screen == CatalogScreen || m.screen == EnvironmentScreen {
-			help = "f search  |  a clear  |  q quit"
-		}
-	}
-	header := []string{brandStyle.Render(brand), mutedStyle.Render(m.platformLabel()), m.renderNavigation(width), strings.Repeat("-", width)}
-	header = wrapLayout(header, width)
-	footer := wrapLayout([]string{strings.Repeat("-", width), statusStyle.Render(status), mutedStyle.Render(help)}, width)
-	availableRows := max(0, height-len(header)-len(footer))
-	var body []string
-	switch {
-	case m.pathMode != "":
-		body = strings.Split(m.renderPathPrompt(), "\n")
-	case m.help:
-		body = strings.Split(renderHelp(), "\n")
-	case m.approval:
-		body = strings.Split(m.renderApproval(), "\n")
-	default:
-		body = m.renderScreen(max(1, availableRows))
-	}
-	body = wrapLayout(body, width)
-	if len(body) > availableRows {
-		body = body[:availableRows]
-	}
-	return strings.Join(append(append(header, body...), footer...), "\n")
+	return m.renderWorkspace()
 }
 
 func wrapLayout(lines []string, width int) []string {
@@ -88,6 +52,31 @@ func wrapLayout(lines []string, width int) []string {
 		result[index] = ansi.Truncate(result[index], width, "")
 	}
 	return result
+}
+
+func buttonRows(width int, labels ...string) []string {
+	width = max(24, width)
+	rows := make([]string, 0, len(labels))
+	var current []string
+	currentWidth := 0
+	for _, label := range labels {
+		button := "[" + label + "]"
+		buttonWidth := ansi.StringWidth(button)
+		if len(current) > 0 && currentWidth+2+buttonWidth > width {
+			rows = append(rows, buttonStyle.Render(strings.Join(current, "  ")))
+			current = nil
+			currentWidth = 0
+		}
+		current = append(current, button)
+		if currentWidth > 0 {
+			currentWidth += 2
+		}
+		currentWidth += buttonWidth
+	}
+	if len(current) > 0 {
+		rows = append(rows, buttonStyle.Render(strings.Join(current, "  ")))
+	}
+	return rows
 }
 
 func asciiFallbackEnabled() bool {
@@ -120,25 +109,6 @@ func asciiText(value string) string {
 		}
 		return character
 	}, value)
-}
-
-func (m *Model) renderNavigation(width int) string {
-	if width < 36 {
-		return activeStyle.Render("DX  /  " + screenNames[m.screen])
-	}
-	if width < 70 {
-		return activeStyle.Render(fmt.Sprintf("%d %s", m.screen+1, screenNames[m.screen])) + mutedStyle.Render("  |  Tab to navigate")
-	}
-	parts := make([]string, 0, len(screenNames))
-	for index, name := range screenNames {
-		label := fmt.Sprintf("%d %s", index+1, name)
-		if Screen(index) == m.screen {
-			parts = append(parts, activeStyle.Render("["+label+"]"))
-		} else {
-			parts = append(parts, mutedStyle.Render(label))
-		}
-	}
-	return strings.Join(parts, "   ")
 }
 
 func (m *Model) renderScreen(maxRows int) []string {
@@ -177,28 +147,40 @@ func (m *Model) renderOverview() []string {
 		managers = append(managers, "none detected")
 	}
 	return []string{
-		strongStyle.Render("Machine overview"),
-		fmt.Sprintf("Operating system  %s", m.inventory.Platform.OS),
-		fmt.Sprintf("Architecture      %s", m.inventory.Platform.Architecture),
-		fmt.Sprintf("Distribution      %s", valueOr(m.inventory.Platform.Distribution, "not applicable")),
-		fmt.Sprintf("Shell             %s", valueOr(m.inventory.Platform.Shell, "unknown")),
-		fmt.Sprintf("Package managers  %s", strings.Join(managers, ", ")),
-		fmt.Sprintf("Region signals    %s", regionLabel(m.regionDetection.Region)),
-		fmt.Sprintf("Source policy     %s", m.sourceMode),
-		fmt.Sprintf("Existing tools    %d healthy  %d missing  %d needing review", states[detection.Healthy], states[detection.Missing], states[detection.Unknown]+states[detection.Broken]+states[detection.Partial]+states[detection.Conflicting]),
-		fmt.Sprintf("Selected tools    %d", len(m.selectedIDs())),
+		strongStyle.Render("Welcome to DX Bootstrap"),
+		"Choose the developer tools you need, review the plan, then approve it to install.",
+		"You stay in control: nothing is installed until you approve the complete plan.",
 		"",
-		mutedStyle.Render("No machine health score is calculated. Existing installations are preserved unless a reviewed plan says otherwise."),
+		buttonStyle.Render("[Start setup]"),
+		"",
+		strongStyle.Render("This machine"),
+		fmt.Sprintf("System: %s / %s", m.inventory.Platform.OS, m.inventory.Platform.Architecture),
+		fmt.Sprintf("Package managers found: %s", strings.Join(managers, ", ")),
+		fmt.Sprintf("Tools selected: %d", len(m.selectedIDs())),
+		fmt.Sprintf("Already installed: %d  |  Not found: %d  |  Needs review: %d", states[detection.Healthy], states[detection.Missing], states[detection.Unknown]+states[detection.Broken]+states[detection.Partial]+states[detection.Conflicting]),
 	}
 }
 
 func (m *Model) renderCatalog(maxRows int) []string {
 	tools := m.filteredTools()
 	if len(tools) == 0 {
-		return []string{"No catalog entries match these filters.", "Press a to clear search and filters."}
+		lines := []string{strongStyle.Render("Choose tools")}
+		lines = append(lines, buttonRows(m.width, "Search", "Category -", "Category +", "Installation state", "Clear filters", "Use profiles")...)
+		lines = append(lines, "No catalog entries match these filters.")
+		return lines
 	}
-	start, end := visibleWindow(len(tools), m.cursor, maxRows)
-	lines := []string{strongStyle.Render("Tool catalog"), mutedStyle.Render(fmt.Sprintf("Search: %s   Category: %s   State: %s", valueOr(m.filter, "all"), valueOr(m.categoryFilter, "all"), m.stateFilter))}
+	start, end := visibleWindow(len(tools), m.cursor, max(1, maxRows-7))
+	lines := []string{
+		strongStyle.Render("Choose tools"),
+		"Select tools one at a time, or choose a profile to start with a set of tools.",
+	}
+	lines = append(lines, buttonRows(m.width, "Review my selection", "Use profiles", "Search", "Category -", "Category +", "Installation state", "Clear filters", "Import selection", "Export selection")...)
+	searchSummary := valueOr(m.filter, "all")
+	if m.searching {
+		searchSummary = m.filter + "_"
+		lines = append(lines, mutedStyle.Render("Type to search. Enter finishes; Esc keeps the current search."))
+	}
+	lines = append(lines, mutedStyle.Render(fmt.Sprintf("Selected: %d  |  Search: %s  |  Category: %s  |  Installed filter: %s", len(m.selectedIDs()), searchSummary, valueOr(m.categoryFilter, "all"), m.stateFilter)))
 	for index := start; index < end; index++ {
 		item := tools[index]
 		selection := "[ ]"
@@ -269,9 +251,16 @@ func (m *Model) renderCatalog(maxRows int) []string {
 }
 
 func (m *Model) renderProfiles(maxRows int) []string {
+	if m.catalog == nil {
+		return []string{strongStyle.Render("Choose a profile"), "The tool catalog is not available."}
+	}
 	profiles := m.catalog.Profiles()
-	start, end := visibleWindow(len(profiles), m.cursor, maxRows/2)
-	lines := []string{strongStyle.Render("Profiles"), "Select multiple profiles to combine them, then press Enter to apply."}
+	start, end := visibleWindow(len(profiles), m.cursor, max(1, (maxRows-4)/2))
+	lines := []string{
+		strongStyle.Render("Start with a profile"),
+		"Profiles are editable starting points. You can remove tools before reviewing.",
+	}
+	lines = append(lines, buttonRows(m.width, "Browse tools", "Apply profiles", "Import selection", "Export selection")...)
 	for index := start; index < end; index++ {
 		profile := profiles[index]
 		selection := "[ ]"
@@ -291,8 +280,18 @@ func (m *Model) renderProfiles(maxRows int) []string {
 
 func (m *Model) renderEnvironment(maxRows int) []string {
 	ids := m.filteredEnvironmentIDs()
-	start, end := visibleWindow(len(ids), m.cursor, maxRows)
-	lines := []string{strongStyle.Render("Existing environment"), "Search: " + valueOr(m.environmentFilter, "all"), "Each detected executable is checked with its declared version command."}
+	start, end := visibleWindow(len(ids), m.cursor, max(1, maxRows-5))
+	searchSummary := valueOr(m.environmentFilter, "all")
+	lines := []string{
+		strongStyle.Render("Your existing tools"),
+		"Healthy means the tool runs. Needs review means DX could not verify it fully.",
+	}
+	if m.environmentSearching {
+		searchSummary = m.environmentFilter + "_"
+		lines = append(lines, mutedStyle.Render("Type to search tool names, paths, and versions. Enter finishes."))
+	}
+	lines = append(lines, buttonRows(m.width, "Search", "Clear search", "Refresh inventory")...)
+	lines = append(lines, "Search: "+searchSummary)
 	warningCount := min(len(m.inventory.Warnings), 3)
 	for _, warning := range m.inventory.Warnings[:warningCount] {
 		lines = append(lines, warningStyle.Render("Inventory warning: "+warning))
@@ -336,25 +335,36 @@ func (m *Model) renderEnvironment(maxRows int) []string {
 	return lines
 }
 
-func (m *Model) renderPlan(maxRows int) []string {
-	lines := []string{strongStyle.Render("Installation plan"), "Every install is explicit. Existing tools are preserved and no upgrades are planned."}
-	if !m.planReady {
-		return append(lines, "No plan yet. Select tools, then press p to create a dry run.")
+func (m *Model) renderPlan(_ int) []string {
+	lines := []string{
+		strongStyle.Render("Review your plan"),
+		"Check what DX will install, where it comes from, and any setup changes.",
 	}
+	if !m.planReady {
+		return append(lines, buttonStyle.Render("[Build plan]"), "Your selection is checked first. This step does not install anything.")
+	}
+	if m.plan.Blocked {
+		lines = append(lines, warningStyle.Render("This plan has an issue that must be fixed before installation."), buttonStyle.Render("[Refresh inventory]"))
+	} else if len(m.plan.InstallItems()) == 0 {
+		lines = append(lines, goodStyle.Render("Nothing needs installing. All selected tools are already present."))
+	} else {
+		lines = append(lines, buttonStyle.Render("[Review and install]"), mutedStyle.Render("The next step shows a final confirmation before any command runs."))
+	}
+	lines = append(lines, mutedStyle.Render("Every install is explicit. Existing tools are preserved and not upgraded."))
 	if m.plan.Blocked {
 		lines = append(lines, warningStyle.Render("Execution is blocked until every blocking issue is resolved."))
 	}
 	rows := make([]string, 0, len(m.plan.Items)+len(m.plan.Issues))
 	for _, item := range m.plan.Items {
 		if item.Action == planning.Preserve {
-			rows = append(rows, fmt.Sprintf("PRESERVE  %-18s %s", item.ToolID, item.ExistingState))
+			rows = append(rows, fmt.Sprintf("Already present  %-18s %s", item.ToolID, stateLabel(item.ExistingState)))
 			for _, installed := range item.ExistingPackages {
 				rows = append(rows, "          package: "+display.PackageOwnership(string(installed.Manager), installed.ID, installed.Version, installed.Source))
 			}
 			continue
 		}
 		if item.Action == planning.Provided {
-			rows = append(rows, fmt.Sprintf("PROVIDED  %-18s by %s; verify after dependency install", item.ToolID, item.ProvidedBy))
+			rows = append(rows, fmt.Sprintf("Included with %-18s %s; verify after setup", item.ProvidedBy, item.ToolID))
 			continue
 		}
 		privilege := "user scope"
@@ -429,13 +439,16 @@ func (m *Model) renderPlan(maxRows int) []string {
 		}
 	}
 	for _, issue := range m.plan.Issues {
-		rows = append(rows, fmt.Sprintf("%s  %s: %s", strings.ToUpper(string(issue.Severity)), issue.ToolID, issue.Message))
+		label := "Needs attention"
+		if issue.Severity == planning.Blocking {
+			label = "Blocks installation"
+		}
+		rows = append(rows, fmt.Sprintf("%s  %s: %s", label, issue.ToolID, issue.Message))
 	}
 	if len(rows) == 0 {
 		rows = append(rows, "No package-manager operations are required.")
 	}
-	start, end := visibleWindow(len(rows), m.cursor, maxRows-3)
-	lines = append(lines, rows[start:end]...)
+	lines = append(lines, rows...)
 	if !m.plan.Blocked && len(m.plan.InstallItems()) > 0 {
 		lines = append(lines, warningStyle.Render(m.plan.TransactionDisclosure))
 	}
@@ -444,7 +457,14 @@ func (m *Model) renderPlan(maxRows int) []string {
 
 func (m *Model) renderSources(maxRows int) []string {
 	managers := m.inventory.Managers
-	lines := []string{strongStyle.Render("Download sources"), "Package managers already on this machine are preferred when they support the selected tool.", "Direct archives use pinned publisher digests; regional mirrors must match that digest.", "Region signals: " + regionLabel(m.regionDetection.Region), "Source policy: " + m.sourceMode, "Keys: a automatic  |  c Mainland China  |  g global  |  o official-only  |  m official-first  |  u custom archive source  |  v registry override  |  l local archive  |  b signed bundle  |  x clear overrides  |  Space/Enter manager  |  0 reset", "A preferred detected package manager is selected when it has a compatible catalog entry.", ""}
+	lines := []string{
+		strongStyle.Render("Advanced source settings"),
+		"Choose where downloads come from. Publisher archives remain checksum-verified.",
+		"Detected region: " + regionLabel(m.regionDetection.Region),
+		"Current choice: " + sourceModeLabel(m.sourceMode),
+	}
+	lines = append(lines, buttonRows(m.width, "Automatic sources", "Mainland China", "Global sources", "Publisher only", "Publisher first", "Custom archive", "Registry", "Local archive", "Signed bundle", "Clear source overrides", "Reset package manager")...)
+	lines = append(lines, strongStyle.Render("Package manager"), "DX prefers a detected manager when it supports a selected tool.")
 	if m.offlineBundlePath != "" {
 		lines = append(lines, "Verified signed offline bundle: "+m.offlineBundlePath)
 	}
@@ -462,17 +482,12 @@ func (m *Model) renderSources(maxRows int) []string {
 		start, end := visibleWindow(len(managers), m.cursor, maxRows-len(lines)-3)
 		for index := start; index < end; index++ {
 			manager := managers[index]
-			label := string(manager.Manager)
+			prefix := "  "
 			if manager.Manager == m.preferredManager {
-				label += "  (preferred)"
+				prefix = "✓ "
 			}
-			row := fmt.Sprintf("%-22s %s", label, filepath.Base(manager.Path))
-			if index == m.cursor {
-				row = activeStyle.Render("> ") + row
-			} else {
-				row = "  " + row
-			}
-			lines = append(lines, row)
+			label := "Prefer " + string(manager.Manager)
+			lines = append(lines, prefix+buttonStyle.Render("["+label+"]")+"  "+filepath.Base(manager.Path))
 		}
 	}
 	for _, id := range m.selectedIDs() {
@@ -515,12 +530,15 @@ func (m *Model) renderSources(maxRows int) []string {
 	return lines
 }
 
-func (m *Model) renderProgress(maxRows int) []string {
+func (m *Model) renderProgress(_ int) []string {
 	lines := []string{strongStyle.Render("Installation progress")}
 	if m.session == nil {
-		return append(lines, "Approve a reviewed plan to begin installation.")
+		return append(lines, "Review and approve your plan to begin installation.", buttonStyle.Render("[Review plan]"))
 	}
 	results := m.session.Report()
+	if m.session.Complete() {
+		lines = append(lines, buttonRows(m.width, "Results")...)
+	}
 	lines = append(lines, fmt.Sprintf("Completed tasks: %d of %d", len(results), len(m.plan.Items)))
 	if m.preparingDownloads {
 		concurrency := artifacts.DefaultConcurrentDownloads
@@ -559,16 +577,14 @@ func (m *Model) renderProgress(maxRows int) []string {
 		}
 	}
 	for _, result := range results {
-		lines = append(lines, fmt.Sprintf("%-22s %s", result.Name, result.State))
-	}
-	if len(lines) > maxRows {
-		lines = lines[:maxRows]
+		lines = append(lines, fmt.Sprintf("%-22s %s", result.Name, resultStateLabel(result.State)))
 	}
 	return lines
 }
 
 func (m *Model) renderResults(maxRows int) []string {
-	lines := []string{strongStyle.Render("Results and diagnostics")}
+	lines := []string{strongStyle.Render("Installation results")}
+	lines = append(lines, buttonRows(m.width, "Save report", "Environment")...)
 	if m.session == nil {
 		return append(lines, "No installation session has run.")
 	}
@@ -579,7 +595,7 @@ func (m *Model) renderResults(maxRows int) []string {
 	start, end := visibleWindow(len(results), m.cursor, maxRows-2)
 	for index := start; index < end; index++ {
 		result := results[index]
-		row := fmt.Sprintf("%-22s %s", result.Name, result.State)
+		row := fmt.Sprintf("%-22s %s", result.Name, resultStateLabel(result.State))
 		if index == m.cursor {
 			row = activeStyle.Render("> ") + row
 		} else {
@@ -629,7 +645,11 @@ func (m *Model) renderApproval() string {
 			archiveCount++
 		}
 	}
-	lines := []string{strongStyle.Render("Approve installation plan?"), fmt.Sprintf("This will run %d package-manager command(s) and install %d verified archive(s).", packageCount, archiveCount), "Review each source, version, integrity digest, install path, and persistent PATH change before continuing."}
+	lines := []string{
+		strongStyle.Render("Confirm installation"),
+		fmt.Sprintf("DX will run %d package-manager operation(s) and install %d checksum-verified archive(s).", packageCount, archiveCount),
+		"Review sources, versions, integrity checks, install locations, and PATH changes before continuing.",
+	}
 	if m.plan.TransactionDisclosure != "" {
 		lines = append(lines, warningStyle.Render(m.plan.TransactionDisclosure))
 	}
@@ -676,7 +696,11 @@ func (m *Model) renderApproval() string {
 			lines = append(lines, warningStyle.Render("  preview note: "+item.TransactionNote))
 		}
 	}
-	lines = append(lines, warningStyle.Render("Press y to refresh inventory and continue. Any plan change requires approval again."), mutedStyle.Render("Press n or Esc to cancel without changes."))
+	lines = append(lines,
+		warningStyle.Render("DX will refresh the machine state first. If the plan changes, it will ask you to review again."),
+		mutedStyle.Render("Keyboard: y installs after a fresh check; n or Esc cancels."),
+	)
+	lines = append(lines, buttonRows(m.width, "Install now", "Cancel installation")...)
 	return strings.Join(lines, "\n")
 }
 
@@ -695,7 +719,10 @@ func (m *Model) renderPathPrompt() string {
 	} else if m.pathMode == "offline-bundle" {
 		label = "Signed offline bundle directory"
 	}
-	return strings.Join([]string{strongStyle.Render(label), "Path: " + m.pathInput + "_", mutedStyle.Render("Enter confirms  |  Esc cancels")}, "\n")
+	lines := []string{strongStyle.Render(label), "Path: " + m.pathInput + "_"}
+	lines = append(lines, buttonRows(m.width, "Confirm", "Cancel input")...)
+	lines = append(lines, mutedStyle.Render("Type the value above, then press Enter. Esc cancels."))
+	return strings.Join(lines, "\n")
 }
 
 func (m *Model) platformLabel() string {
@@ -714,7 +741,7 @@ func (m *Model) keyHelp() string {
 		return "Enter confirm  |  Esc cancel"
 	}
 	if m.approval {
-		return "y approve  |  n cancel"
+		return "y approve  |  n cancel  |  Page Up/Down or wheel to review"
 	}
 	if m.searching {
 		return "Type to search  |  Enter finish  |  Esc keep current search"
@@ -724,19 +751,19 @@ func (m *Model) keyHelp() string {
 	}
 	switch m.screen {
 	case CatalogScreen:
-		return "Space select  |  f search  |  [ ] category  |  s state filter  |  p plan"
-	case EnvironmentScreen:
-		return "f search inventory  |  a clear search  |  r refresh  |  j/k inspect records"
+		return "Tab next  |  arrows move  |  Space select  |  f search  |  e export  |  o import  |  wheel scroll"
 	case ProfilesScreen:
-		return "Space combine profiles  |  Enter apply  |  e export  |  o import"
+		return "Space select  |  Enter apply  |  e export  |  o import  |  click Browse tools to edit"
+	case EnvironmentScreen:
+		return "arrows inspect  |  f search  |  a clear search  |  r refresh  |  wheel scroll"
 	case PlanScreen:
-		return "p rebuild  |  i review approval  |  r refresh inventory"
+		return "p rebuild plan  |  i review and install  |  arrows/Page Up/Page Down/wheel scroll"
 	case SourcesScreen:
-		return "a/c/g region  |  o official-only  |  m official-first  |  u custom URL  |  l local archive  |  b signed bundle  |  Space/Enter manager  |  x clear sources"
+		return "a/c/g/o/m source  |  u/v/l/b add source  |  x clear  |  0 reset manager"
 	case ResultsScreen:
-		return "j/k inspect results  |  d save redacted report  |  4 environment  |  q exit"
+		return "arrows inspect results  |  d save report  |  click Environment for details"
 	default:
-		return "Tab navigate  |  j/k move  |  r refresh  |  ? help  |  q exit"
+		return "Tab next  |  Enter continue  |  arrows/wheel scroll"
 	}
 }
 
@@ -753,38 +780,84 @@ func regionLabel(region regional.Region) string {
 	}
 }
 
+func sourceModeLabel(mode string) string {
+	switch mode {
+	case "automatic":
+		return "Automatic"
+	case "mainland-china":
+		return "Mainland China"
+	case "global":
+		return "Global"
+	case "official-only":
+		return "Publisher only"
+	case "official-first":
+		return "Publisher first"
+	default:
+		return "Unknown"
+	}
+}
+
 func renderHelp() string {
 	return strings.Join([]string{
-		strongStyle.Render("Keyboard help"),
-		"1-8       Open Overview, Catalog, Profiles, Environment, Plan, Sources, Progress, Results",
-		"Tab       Move to the next section",
-		"j / k     Move through lists",
-		"Space     Select a tool, profile, or source manager",
-		"f         Search the catalog",
-		"f         Search installed tools, versions, and paths from Environment",
-		"[ / ]     Change catalog category; s cycles the installation-state filter; a clears the active search",
-		"p         Generate a dry-run plan",
-		"i         Review and approve a plan",
-		"r         Refresh inventory",
-		"Sources: a automatic; c Mainland China; g global; o official-only; m official-first; v registry override",
-		"e / o     Export or import an explicit selection file",
-		"d         Save a redacted JSON diagnostic report from Results",
-		"q         Exit",
+		strongStyle.Render("Using this screen"),
+		"Click the labeled controls, or use the keyboard shortcuts shown beside them.",
+		buttonStyle.Render("[Close help]"),
+		"Tab / Shift+Tab    Move through setup steps",
+		"Up / Down          Move through lists; Space selects an item",
+		"Page Up / Down     Move faster through long lists",
+		"Mouse wheel        Scroll lists and details",
+		"Enter              Continue or activate the current choice",
+		"f                  Search tools or installed software",
+		"[ / ] and s        Change tool filters; a clears them",
+		"p                  Rebuild the review plan",
+		"i, then y          Review, refresh, and approve installation",
+		"r                  Refresh the machine inventory",
+		"Sources: a/c/g/o/m choose policy; u/v/l/b configure a source; x clears overrides",
+		"Sources: Space/Enter chooses a package manager; 0 restores automatic choice",
+		"Catalog/Profiles: e exports and o imports a tool selection; Results: d saves a report",
+		"?                  Close help; q exits",
 		"",
-		mutedStyle.Render("No installation runs until the complete plan is approved. Package-manager prompts remain visible."),
+		mutedStyle.Render("Nothing installs until you review and approve the complete plan."),
 	}, "\n")
 }
 
 func stateLabel(state detection.State) string {
 	switch state {
 	case detection.Healthy:
-		return goodStyle.Render(string(state))
-	case detection.Broken, detection.Partial, detection.Conflicting:
-		return errorStyle.Render(string(state))
+		return goodStyle.Render("Ready")
 	case detection.Missing:
-		return mutedStyle.Render(string(state))
-	case detection.Unknown, detection.Unsupported:
-		return warningStyle.Render(string(state))
+		return mutedStyle.Render("Not installed")
+	case detection.Broken:
+		return errorStyle.Render("Needs repair")
+	case detection.Partial:
+		return errorStyle.Render("Partly installed")
+	case detection.Conflicting:
+		return errorStyle.Render("Conflicting installs")
+	case detection.Unknown:
+		return warningStyle.Render("Needs review")
+	case detection.Unsupported:
+		return warningStyle.Render("Not supported here")
+	case detection.Outdated:
+		return warningStyle.Render("Update available")
+	default:
+		return string(state)
+	}
+}
+
+func resultStateLabel(state installation.ResultState) string {
+	switch state {
+	case installation.InstalledVerified:
+		return goodStyle.Render("Installed and verified")
+	case installation.AlreadySatisfied:
+		return goodStyle.Render("Already installed")
+	case installation.Preserved:
+		return mutedStyle.Render("Kept existing tool")
+	case installation.Skipped:
+		return mutedStyle.Render("Skipped")
+	case installation.PartiallyInstalled:
+		return warningStyle.Render("Partly installed; needs attention")
+	case installation.Failed:
+		return errorStyle.Render("Failed")
 	default:
 		return string(state)
 	}

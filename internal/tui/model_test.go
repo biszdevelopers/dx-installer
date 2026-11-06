@@ -133,7 +133,7 @@ func TestSourceScreenShowsSignalsAndManualChoices(t *testing.T) {
 	model := NewModel(context.Background(), nil, detection.Inventory{Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64}}, nil)
 	model.regionDetection = regional.Result{Region: regional.Conflict, Signals: []regional.Signal{{Source: "locale", Value: "zh_CN", Region: regional.MainlandChina}, {Source: "time-zone", Value: "UTC", Region: regional.Global}}}
 	text := ansi.Strip(strings.Join(model.renderSources(30), "\n"))
-	for _, expected := range []string{"conflicting signals", "zh_CN", "UTC", "Mainland China", "global", "official-only", "official-first"} {
+	for _, expected := range []string{"conflicting signals", "zh_CN", "UTC", "Mainland China", "global", "Publisher only", "Publisher first"} {
 		if !strings.Contains(text, expected) {
 			t.Errorf("source screen omitted %q: %s", expected, text)
 		}
@@ -309,6 +309,7 @@ func TestEnvironmentSearchMatchesVersionsAndPathsIndependently(t *testing.T) {
 }
 
 func TestEnvironmentScreenGolden(t *testing.T) {
+	t.Setenv("DX_ASCII", "0")
 	model := NewModel(context.Background(), nil, detection.Inventory{
 		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64, Distribution: "ubuntu", Shell: "bash"},
 		Managers: []packagemanager.Detected{{Manager: tool.APT, Path: "/usr/bin/apt"}},
@@ -366,13 +367,83 @@ func TestScreensGolden(t *testing.T) {
 	}
 }
 
+func TestWorkspaceLayoutsGolden(t *testing.T) {
+	t.Setenv("DX_ASCII", "0")
+	model := screenGoldenModel(t)
+	var rendered strings.Builder
+	for _, sample := range []struct {
+		name   string
+		width  int
+		height int
+		setup  func()
+	}{
+		{name: "Wide dashboard 120x32", width: 120, height: 32, setup: func() { model.screen = OverviewScreen }},
+		{name: "Wide tool catalog 120x32", width: 120, height: 32, setup: func() { model.screen = CatalogScreen; model.cursor = 0 }},
+		{name: "Wide plan review 120x32", width: 120, height: 32, setup: func() { model.screen = PlanScreen; model.cursor = 0 }},
+		{name: "Approval dialog 120x32", width: 120, height: 32, setup: func() {
+			model.screen = PlanScreen
+			model.approval = true
+			model.help = false
+			model.pathMode = ""
+			model.commandPalette = false
+			model.pageScroll = 0
+		}},
+		{name: "Command palette 120x32", width: 120, height: 32, setup: func() {
+			model.approval = false
+			model.help = false
+			model.pathMode = ""
+			model.commandPalette = true
+			model.updateCommandList()
+			model.pageScroll = 0
+		}},
+		{name: "Source entry dialog 120x32", width: 120, height: 32, setup: func() {
+			model.commandPalette = false
+			model.screen = SourcesScreen
+			model.pathMode = "registry"
+			model.pathInput = "npm=https://registry.npmjs.org/"
+			model.input.SetValue(model.pathInput)
+			model.pageScroll = 0
+		}},
+		{name: "Help dialog 120x32", width: 120, height: 32, setup: func() { model.pathMode = ""; model.help = true; model.pageScroll = 0 }},
+		{name: "Compact dashboard 40x12", width: 40, height: 12, setup: func() {
+			model.help = false
+			model.pathMode = ""
+			model.commandPalette = false
+			model.approval = false
+			model.screen = OverviewScreen
+			model.pageScroll = 0
+		}},
+	} {
+		model.Update(tea.WindowSizeMsg{Width: sample.width, Height: sample.height})
+		model.focusedTarget = ""
+		sample.setup()
+		fmt.Fprintf(&rendered, "=== %s ===\n%s\n", sample.name, strings.TrimRight(normalizedRender(model.render()), "\n"))
+	}
+	path := filepath.Join("testdata", "workspace-layouts.golden")
+	if os.Getenv("UPDATE_GOLDEN") == "1" {
+		if err := os.WriteFile(path, []byte(rendered.String()), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rendered.String() != string(want) {
+		t.Fatalf("workspace layout snapshots differ\n--- got ---\n%s\n--- want ---\n%s", rendered.String(), want)
+	}
+}
+
 func TestEveryScreenFitsSmallAndResizedTerminals(t *testing.T) {
 	t.Setenv("DX_ASCII", "0")
 	model := screenGoldenModel(t)
-	for _, size := range []struct{ width, height int }{{24, 12}, {40, 16}, {80, 24}} {
+	for _, size := range []struct{ width, height int }{{120, 32}, {96, 28}, {80, 24}, {60, 18}, {40, 12}} {
 		model.Update(tea.WindowSizeMsg{Width: size.width, Height: size.height})
 		for screen := OverviewScreen; screen <= ResultsScreen; screen++ {
 			model.screen = screen
+			model.pageScroll = 0
+			model.focusedTarget = ""
 			lines := strings.Split(ansi.Strip(model.render()), "\n")
 			if len(lines) > size.height {
 				t.Errorf("%s rendered %d rows for %dx%d terminal", screenNames[screen], len(lines), size.width, size.height)
@@ -382,8 +453,315 @@ func TestEveryScreenFitsSmallAndResizedTerminals(t *testing.T) {
 					t.Errorf("%s line %d is %d columns wide for %dx%d terminal: %q", screenNames[screen], index+1, ansi.StringWidth(line), size.width, size.height, line)
 				}
 			}
+			for _, target := range model.hitTargets {
+				if target.x < 0 || target.y < 0 || target.width <= 0 || target.height <= 0 || target.x+target.width > size.width || target.y+target.height > size.height {
+					t.Errorf("%s has out-of-bounds target %+v for %dx%d terminal", screenNames[screen], target, size.width, size.height)
+				}
+			}
 		}
 	}
+}
+
+func TestMouseNavigationSelectionAndGuidedReview(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+	}, nil)
+	model.Update(tea.WindowSizeMsg{Width: 120, Height: 32})
+	clickAction(t, model, "nav-tools", 0)
+	if model.screen != CatalogScreen {
+		t.Fatalf("Tools navigation opened %v, want CatalogScreen", model.screen)
+	}
+	clickAction(t, model, "toggle-selection", 0)
+	firstID := model.filteredTools()[0].ID
+	if !model.selected[firstID] {
+		t.Fatalf("clicking the first catalog row did not select %q", firstID)
+	}
+	command := clickAction(t, model, "review-selection", 0)
+	if model.screen != PlanScreen || !model.planning && !model.planReady {
+		t.Fatalf("Review my selection did not produce a reviewable plan: screen=%v planning=%v planReady=%v command=%v", model.screen, model.planning, model.planReady, command != nil)
+	}
+}
+
+func TestMouseAdvancedSourceChoiceAndProfileActions(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+		Managers: []packagemanager.Detected{{Manager: tool.APT, Path: "/usr/bin/apt"}},
+	}, []string{"git"})
+	model.planReady = true
+	model.plan = planning.Plan{Items: []planning.Item{{ToolID: "git", Action: planning.Install}}}
+	model.Update(tea.WindowSizeMsg{Width: 120, Height: 32})
+	clickAction(t, model, "advanced", 0)
+	clickAction(t, model, "nav-sources", 0)
+	if model.screen != SourcesScreen {
+		t.Fatalf("Advanced Sources opened %v", model.screen)
+	}
+	clickAction(t, model, "source-official-only", 0)
+	if model.sourceMode != "official-only" || model.planReady {
+		t.Fatalf("source choice was not applied or did not invalidate the plan: source=%q planReady=%v", model.sourceMode, model.planReady)
+	}
+
+	model.navigate(ProfilesScreen)
+	clickAction(t, model, "profile-toggle", 0)
+	profiles := items.Profiles()
+	if len(profiles) == 0 || !model.selectedProfiles[profiles[0].ID] {
+		t.Fatal("clicking a profile did not select it")
+	}
+	clickAction(t, model, "apply-profiles", 0)
+	if model.screen != CatalogScreen || len(model.selectedIDs()) == 0 {
+		t.Fatalf("Apply profiles did not return an editable tool selection: screen=%v selected=%v", model.screen, model.selectedIDs())
+	}
+}
+
+func TestMouseCatalogFiltersAndSearchControls(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+	}, nil)
+	model.width = 100
+	model.height = 50
+	model.screen = CatalogScreen
+	clickAction(t, model, "category-next", 0)
+	if model.categoryFilter == "" {
+		t.Fatal("category button did not change the category")
+	}
+	clickAction(t, model, "category-previous", 0)
+	if model.categoryFilter != "" {
+		t.Fatalf("previous-category arrow did not return to All categories: %q", model.categoryFilter)
+	}
+	clickAction(t, model, "state-filter", 0)
+	if model.stateFilter == "all" {
+		t.Fatal("installation-state button did not change the filter")
+	}
+	clickAction(t, model, "clear-filters", 0)
+	if model.filter != "" || model.categoryFilter != "" || model.stateFilter != "all" {
+		t.Fatalf("Clear filters left an active filter: search=%q category=%q state=%q", model.filter, model.categoryFilter, model.stateFilter)
+	}
+	clickAction(t, model, "search", 0)
+	if !model.searching {
+		t.Fatal("Search button did not focus catalog search")
+	}
+}
+
+func TestBlockedPlanRowUpdatesInspector(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{}, nil)
+	model.width, model.height, model.screen = 120, 32, PlanScreen
+	model.planReady = true
+	model.plan = planning.Plan{Blocked: true, Issues: []planning.Issue{{ToolID: "missing-tool", Severity: planning.Blocking, Message: "No supported installer is available on this platform."}}}
+	clickAction(t, model, "inspect-plan", 0)
+	if output := ansi.Strip(model.render()); !strings.Contains(output, "No supported installer is") || !strings.Contains(output, "available on this platform.") || !strings.Contains(output, "Blocks installation") {
+		t.Fatalf("selecting a blocked item did not show its explanation in the inspector:\n%s", output)
+	}
+}
+
+func TestMouseSourceDialogInputAndConfirmation(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{}, nil)
+	model.width, model.height, model.screen = 120, 32, SourcesScreen
+	clickAction(t, model, "registry-source", 0)
+	if model.pathMode != "registry" {
+		t.Fatalf("registry source action opened dialog %q", model.pathMode)
+	}
+	clickAction(t, model, "input-focus", 0)
+	for _, character := range "npm=https://registry.npmjs.org/" {
+		model.Update(keyMessage(character))
+	}
+	clickAction(t, model, "confirm-path", 0)
+	if model.pathMode != "" || len(model.registrySources) != 1 {
+		t.Fatalf("clickable source dialog did not save the registry entry: mode=%q sources=%v status=%q", model.pathMode, model.registrySources, model.status)
+	}
+}
+
+func TestMouseApprovalRequiresFinalConfirmation(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{}, nil)
+	model.width = 100
+	model.height = 50
+	model.screen = PlanScreen
+	model.planReady = true
+	model.plan = planning.Plan{Items: []planning.Item{{ToolID: "go", Name: "Go", Action: planning.Install}}}
+	model.approval = true
+	command := clickAction(t, model, "approve", 0)
+	if !model.preflighting || model.approval || command == nil {
+		t.Fatalf("Install now did not start the fresh preflight: preflighting=%v approval=%v command=%v", model.preflighting, model.approval, command != nil)
+	}
+
+	model.approval = true
+	clickAction(t, model, "cancel-approval", 0)
+	if model.approval || !strings.Contains(model.status, "cancelled") {
+		t.Fatalf("cancel click did not leave the approval screen safely: approval=%v status=%q", model.approval, model.status)
+	}
+}
+
+func TestMouseHelpCanOpenAndCloseDuringInputPrompt(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{}, nil)
+	model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	model.Update(keyMessage('?'))
+	if !model.help {
+		t.Fatal("Help keyboard shortcut did not open the help dialog")
+	}
+	clickAction(t, model, "close-help", 0)
+	if model.help {
+		t.Fatal("Close help click did not close the help dialog")
+	}
+
+	model.pathMode = "import"
+	model.render()
+	model.Update(keyMessage('?'))
+	if !model.help || model.pathMode != "import" {
+		t.Fatalf("Help did not open over the input dialog: help=%v pathMode=%q", model.help, model.pathMode)
+	}
+	clickAction(t, model, "close-help", 0)
+	if model.help || model.pathMode != "import" {
+		t.Fatalf("closing Help lost the input prompt: help=%v pathMode=%q", model.help, model.pathMode)
+	}
+}
+
+func TestMouseWheelAndPageKeysScrollLongDetails(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+	}, nil)
+	model.height = 12
+	model.render()
+	main := model.mainViewportRect
+	model.Update(tea.MouseWheelMsg{X: main.x + 1, Y: main.y + 1, Button: tea.MouseWheelDown})
+	if model.pageScroll == 0 {
+		t.Fatal("mouse wheel did not scroll the welcome content")
+	}
+	before := model.pageScroll
+	model.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	if model.pageScroll <= before {
+		t.Fatal("Page Down did not move the viewport")
+	}
+
+	model.screen = PlanScreen
+	model.pageScroll = 0
+	model.planReady = true
+	model.plan = planning.Plan{}
+	for index := 0; index < 10; index++ {
+		model.plan.Items = append(model.plan.Items, planning.Item{
+			ToolID: fmt.Sprintf("tool-%02d", index), Name: fmt.Sprintf("Tool %02d", index),
+			Action: planning.Install, Manager: tool.APT, PackageID: fmt.Sprintf("package-%02d", index),
+		})
+	}
+	model.width = 80
+	model.height = 18
+	initialPlan := ansi.Strip(model.render())
+	sawLastPlanItem := false
+	for index := 0; index < 12; index++ {
+		main := model.mainViewportRect
+		model.Update(tea.MouseWheelMsg{X: main.x + 1, Y: main.y + 1, Button: tea.MouseWheelDown})
+		if strings.Contains(ansi.Strip(model.render()), "Tool 09") {
+			sawLastPlanItem = true
+		}
+	}
+	if !strings.Contains(initialPlan, "Tool 00") || !sawLastPlanItem {
+		t.Fatalf("mouse wheel did not expose the full installation plan (scroll=%d):\n%s", model.pageScroll, ansi.Strip(model.render()))
+	}
+
+	model.screen = EnvironmentScreen
+	model.advancedExpanded = true
+	model.pageScroll = 0
+	model.inventory = detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+		Tools: map[string]detection.Tool{
+			"git": {ID: "git", Name: "Git", State: detection.Healthy, Instances: []detection.Instance{{Executable: "git", Path: "/usr/bin/git", Version: "2.0", State: detection.Healthy, Diagnostic: strings.Repeat("extra diagnostic detail ", 20)}}},
+		},
+	}
+	model.regionDetection = regional.Detect(model.inventory.Platform)
+	initial := ansi.Strip(model.render())
+	main = model.mainViewportRect
+	model.Update(tea.MouseWheelMsg{X: main.x + 1, Y: main.y + 1, Button: tea.MouseWheelDown})
+	updated := ansi.Strip(model.render())
+	for index := 0; index < 10 && !strings.Contains(updated, "extra diagnostic"); index++ {
+		main := model.mainViewportRect
+		model.Update(tea.MouseWheelMsg{X: main.x + 1, Y: main.y + 1, Button: tea.MouseWheelDown})
+		updated = ansi.Strip(model.render())
+	}
+	if model.pageScroll == 0 || !strings.Contains(updated, "extra diagnostic") || initial == updated {
+		t.Fatalf("mouse wheel did not expose clipped environment details: scroll=%d\n%s", model.pageScroll, updated)
+	}
+}
+
+func TestMouseWheelScrollsWideInspectorIndependently(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+		Tools: map[string]detection.Tool{
+			"git": {ID: "git", Name: "Git", State: detection.Healthy, Instances: []detection.Instance{{Executable: "git", Path: "/usr/bin/git", Version: "2.0", State: detection.Healthy, Diagnostic: "first segment " + strings.Repeat("diagnostic-tail ", 160)}}},
+		},
+	}, nil)
+	model.width, model.height, model.screen = 120, 32, EnvironmentScreen
+	model.render()
+	inspector := model.detailViewportRect
+	if inspector.width <= 0 || inspector.height <= 0 {
+		t.Fatal("wide workspace did not lay out an independent inspector")
+	}
+	model.Update(tea.MouseWheelMsg{X: inspector.x + 1, Y: inspector.y + 1, Button: tea.MouseWheelDown})
+	if model.inspectorScroll == 0 || model.pageScroll != 0 {
+		t.Fatalf("wheel over inspector changed main scroll: inspector=%d main=%d", model.inspectorScroll, model.pageScroll)
+	}
+}
+
+func TestMouseTargetsAreRecomputedAfterResize(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{}, nil)
+	if mouseMode := model.View().MouseMode; mouseMode != tea.MouseModeCellMotion {
+		t.Fatalf("Bubble Tea View mouse mode = %v, want cell-motion clicks and wheel events", mouseMode)
+	}
+	model.render()
+	if len(model.hitTargets) == 0 {
+		t.Fatal("initial render registered no mouse targets")
+	}
+	model.Update(tea.WindowSizeMsg{Width: 24, Height: 12})
+	if len(model.hitTargets) != 0 {
+		t.Fatal("resize left stale mouse targets active")
+	}
+	clickAction(t, model, "commands", 0)
+	clickAction(t, model, "palette-command", 1)
+	if model.screen != CatalogScreen {
+		t.Fatalf("compact command navigation opened %v, want catalog", model.screen)
+	}
+}
+
+func TestKeyboardFocusTraversalAndNavigation(t *testing.T) {
+	model := NewModel(context.Background(), nil, detection.Inventory{}, nil)
+	model.width, model.height = 120, 32
+	model.render()
+	initialFocus := model.focusedTarget
+	model.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if model.focusedTarget == initialFocus {
+		t.Fatal("Tab did not move focus to the next visible control")
+	}
+	model.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	if model.focusedTarget != initialFocus {
+		t.Fatalf("Shift+Tab restored focus to %q, want %q", model.focusedTarget, initialFocus)
+	}
+	model.focusedTarget = actionID("nav-tools", 0)
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if model.screen != CatalogScreen {
+		t.Fatalf("Enter activated focused navigation to screen %v, want CatalogScreen", model.screen)
+	}
+}
+
+func clickAction(t *testing.T, model *Model, action string, index int) tea.Cmd {
+	t.Helper()
+	model.render()
+	for _, target := range model.hitTargets {
+		if target.action != action || target.index != index {
+			continue
+		}
+		_, command := model.Update(tea.MouseClickMsg{X: target.x, Y: target.y, Button: tea.MouseLeft})
+		return command
+	}
+	t.Fatalf("rendered screen %v has no visible target %q at index %d", model.screen, action, index)
+	return nil
 }
 
 func TestCatalogDetailsShowCurrentPlatformDependencies(t *testing.T) {

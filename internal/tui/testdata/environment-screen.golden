@@ -1,16 +1,18 @@
-Developers' Club DX  /  Bootstrap
-linux  /  amd64  /  ubuntu  /  bash
-1 Overview   2 Catalog   3 Profiles   [4 Environment]   5 Plan   6
-Sources   7 Progress   8 Results
-------------------------------------------------------------------------
-Existing environment
-Search: all
-Each detected executable is checked with its declared version command.
-> git                Git                          healthy
-Path: /usr/bin/git
-Version: git version 2.48.1
-Architecture:
-------------------------------------------------------------------------
-Review the machine overview, then select tools from the catalog.
-f search inventory  |  a clear search  |  r refresh  |  j/k inspect
-records
+  DX  Developer workspace  linux  /  amd64  /  ubuntu  /  bash
+  [Sections] Ctrl+P opens commands
+┌ ENVIRONMENT ─────────────────────────────────────────────────────────┐
+│ Your environment                                                     │
+│ See what is already installed on this machine.                       │
+│ ⌕  Search installed tools                                            │
+│ Clear search                                                         │
+│ Refresh inventory                                                    │
+│ 1 tool records  ·  0 inventory warnings                              │
+│                                                                      │
+│ TOOL                              STATUS          ID                 │
+│ Git                               Ready           git                │
+│                                                                      │
+│ DETAILS                                                              │
+│ Git                                                                  │
+└──────────────────────────────────────────────────────────────────────┘
+  Choose tools for this machine. Nothing installs until you approve a …
+  [Ctrl+P Commands]  [? Help]  [Quit]
