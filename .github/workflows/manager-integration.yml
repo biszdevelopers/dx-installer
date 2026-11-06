@@ -40,9 +40,45 @@ jobs:
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
           }
-          Get-Command sqlite3 -All -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandType -eq 'Application' -and $_.Source -and (Test-Path -LiteralPath $_.Source) } |
-            ForEach-Object { Remove-Item -LiteralPath $_.Source -Force }
+          $sqliteDirectories = @($env:PATH -split ';')
+          foreach ($root in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+            if ($root) {
+              foreach ($relativeDirectory in @('Git\cmd', 'Git\bin', 'Git\usr\bin', 'nodejs', 'dotnet')) {
+                $sqliteDirectories += Join-Path $root $relativeDirectory
+              }
+            }
+          }
+          if ($env:LOCALAPPDATA) {
+            foreach ($relativeDirectory in @(
+              'Programs\Git\cmd',
+              'Programs\Git\bin',
+              'Microsoft\WinGet\Links',
+              'Android\Sdk\cmdline-tools\latest\bin',
+              'Android\Sdk\platform-tools',
+              'Android\Sdk\emulator'
+            )) {
+              $sqliteDirectories += Join-Path $env:LOCALAPPDATA $relativeDirectory
+            }
+          }
+          $sqliteDirectories += @(
+            (Join-Path $env:USERPROFILE '.cargo\bin'),
+            (Join-Path $env:USERPROFILE '.dotnet'),
+            (Join-Path $env:USERPROFILE 'scoop\shims')
+          )
+          if ($env:SCOOP) { $sqliteDirectories += Join-Path $env:SCOOP 'shims' }
+          $sqliteExecutables = @(
+            Get-Command sqlite3 -All -ErrorAction SilentlyContinue |
+              Where-Object { $_.CommandType -eq 'Application' -and $_.Source } |
+              ForEach-Object { $_.Source }
+            foreach ($directory in $sqliteDirectories | Where-Object { $_ } | Select-Object -Unique) {
+              $candidate = Join-Path $directory 'sqlite3.exe'
+              if (Test-Path -LiteralPath $candidate -PathType Leaf) { $candidate }
+            }
+          ) | Select-Object -Unique
+          foreach ($executable in $sqliteExecutables) {
+            Remove-Item -LiteralPath $executable -Force
+          }
+          if (Get-Command sqlite3 -ErrorAction SilentlyContinue) { throw 'SQLite runner-image executable remains after cleanup.' }
 
           $bootstrap = Join-Path $env:RUNNER_TEMP 'dx-bootstrap.exe'
           $approvals = (1..8 | ForEach-Object { 'y' }) -join "`n"
