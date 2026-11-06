@@ -18,7 +18,9 @@ Use `--json` with `catalog` or `inventory` for structured output. Inventory repo
 go run ./cmd/bootstrap plan --tools git,github-cli
 ```
 
-Planning is read-only. A plan lists dependencies, manager, package identifier, configured manager source, scope, command, and blocking issues. For APT, DNF, YUM, Pacman, Zypper, and APK, DX runs a cache-only preview without refreshing repository metadata and shows the candidate version and package operations when the manager exposes them. Other managers disclose when a safe local preview is unavailable. Cached previews can become stale, and unresolved previews may omit dependency or system changes; review that uncertainty and any manager confirmation before accepting the plan. If inventory is uncertain or a tool is already installed, the tool is preserved. A plan with a blocker exits without executing anything.
+Planning is read-only. A plan lists dependencies, manager, package identifier and kind, configured manager source, scope, command, candidate version, package operations, and blocking issues. APT, DNF, YUM, Pacman, Zypper, APK, and FreeBSD pkg use non-installing dry runs against existing repository metadata. Chocolatey uses its no-op mode, Homebrew uses --dry-run with automatic updates disabled, and Scoop and MacPorts show candidate metadata and dependency lists while disclosing that those lists are not full transaction simulations. WinGet and Android SDK tools inspect available-version metadata; Espressif EIM shows the catalog-pinned release. Managers that cannot show a complete transaction identify that uncertainty in the plan.
+
+DX does not run an explicit repository refresh while planning and does not accept package-source or SDK license agreements. WinGet, Chocolatey, Homebrew, and Android SDK queries may contact their configured sources to inspect current metadata. Cached and source-backed previews can become stale before installation; review each preview and any manager confirmation before accepting the plan. If inventory is uncertain or a tool is already installed, the tool is preserved. A plan with a blocker exits without executing anything.
 
 ## Install interactively
 
