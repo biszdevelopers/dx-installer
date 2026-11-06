@@ -130,18 +130,7 @@ func queryManager(ctx context.Context, detected Detected) ([]packageRecord, erro
 		return queryWindowsPackageManager(detected.Manager, detected.Path)
 	}
 	if detected.Manager == tool.Homebrew {
-		formulae, err := runInventoryCommand(ctx, "brew", []string{"list", "--json=v1", "--formula"}, tool.Homebrew, false)
-		if err != nil {
-			return nil, err
-		}
-		if detected.OperatingSystem == tool.Linux {
-			return formulae, nil
-		}
-		casks, err := runInventoryCommand(ctx, "brew", []string{"list", "--json=v1", "--cask"}, tool.Homebrew, true)
-		if err != nil {
-			return nil, err
-		}
-		return append(formulae, casks...), nil
+		return runInventoryCommand(ctx, "brew", []string{"info", "--json=v2", "--installed"}, tool.Homebrew, false)
 	}
 	command, args, err := inventoryCommand(detected.Manager)
 	if err != nil {
@@ -287,33 +276,38 @@ func parseMacPortsInventory(output []byte, _ bool) ([]packageRecord, error) {
 type homebrewFormula struct {
 	Name      string `json:"name"`
 	FullName  string `json:"full_name"`
-	Token     string `json:"token"`
-	Version   string `json:"version"`
 	Installed []struct {
 		Version string `json:"version"`
 	} `json:"installed"`
 }
 
-func parseHomebrewInventory(output []byte, cask bool) ([]packageRecord, error) {
-	var entries []homebrewFormula
-	if err := json.Unmarshal(output, &entries); err != nil {
+type homebrewCask struct {
+	Token     string `json:"token"`
+	FullToken string `json:"full_token"`
+	Version   string `json:"version"`
+}
+
+type homebrewInventory struct {
+	Formulae []homebrewFormula `json:"formulae"`
+	Casks    []homebrewCask    `json:"casks"`
+}
+
+func parseHomebrewInventory(output []byte, _ bool) ([]packageRecord, error) {
+	var inventory homebrewInventory
+	if err := json.Unmarshal(output, &inventory); err != nil {
 		return nil, fmt.Errorf("decode Homebrew inventory: %w", err)
 	}
-	packages := make([]packageRecord, 0, len(entries))
-	for _, entry := range entries {
+	if inventory.Formulae == nil && inventory.Casks == nil {
+		return nil, errors.New("Homebrew inventory omitted formulae and casks")
+	}
+	packages := make([]packageRecord, 0, len(inventory.Formulae)+len(inventory.Casks))
+	for _, entry := range inventory.Formulae {
 		id := entry.FullName
-		if cask {
-			id = entry.Token
-		}
 		if id == "" {
 			id = entry.Name
 		}
 		if id == "" {
 			return nil, errors.New("Homebrew inventory contains an unnamed formula")
-		}
-		if cask {
-			packages = append(packages, packageRecord{ID: id, Version: entry.Version})
-			continue
 		}
 		versions := []string{""}
 		if len(entry.Installed) > 0 {
@@ -330,6 +324,19 @@ func parseHomebrewInventory(output []byte, cask bool) ([]packageRecord, error) {
 			for _, version := range versions {
 				packages = append(packages, packageRecord{ID: identifier, Version: version})
 			}
+		}
+	}
+	for _, entry := range inventory.Casks {
+		id := entry.Token
+		if id == "" {
+			id = entry.FullToken
+		}
+		if id == "" {
+			return nil, errors.New("Homebrew inventory contains an unnamed cask")
+		}
+		packages = append(packages, packageRecord{ID: id, Version: entry.Version})
+		if entry.FullToken != "" && entry.FullToken != id {
+			packages = append(packages, packageRecord{ID: entry.FullToken, Version: entry.Version})
 		}
 	}
 	return packages, nil
