@@ -363,6 +363,9 @@ func printPlan(output io.Writer, plan planning.Plan) {
 			continue
 		}
 		fmt.Fprintf(output, "  INSTALL %s\n    source: %s (%s)\n    scope: %s\n", item.Name, item.Source, item.Manager, item.Scope)
+		if item.InstallerKind != "" {
+			fmt.Fprintf(output, "    package kind: %s\n", item.InstallerKind)
+		}
 		if item.ApproximateSize > 0 {
 			fmt.Fprintf(output, "    approximate download: %s\n", display.ApproximateSize(item.ApproximateSize))
 		} else if item.SizeEstimateNote != "" {
