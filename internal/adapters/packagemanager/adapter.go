@@ -166,6 +166,7 @@ func BuildCommand(installer tool.Installer, currentOS tool.OperatingSystem) (Com
 			command.Arguments = append(command.Arguments, "--cask")
 		}
 		command.Arguments = append(command.Arguments, packageID)
+		command.Environment = map[string]string{"HOMEBREW_NO_INSTALL_UPGRADE": "1"}
 	case tool.MacPorts:
 		command.Arguments = []string{"install", packageID}
 		command.RequiresPrivilege = true
