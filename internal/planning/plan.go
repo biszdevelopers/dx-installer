@@ -53,6 +53,7 @@ type Item struct {
 	ExistingPackages   []detection.PackageOwnership
 	Manager            tool.PackageManager
 	PackageID          string
+	InstallerKind      string
 	Source             string
 	Scope              tool.Scope
 	Command            packagemanager.Command
@@ -260,6 +261,7 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 				ExistingState:     entry.State,
 				Manager:           installer.Manager,
 				PackageID:         installer.PackageID,
+				InstallerKind:     installer.Kind,
 				Source:            installer.Source,
 				Scope:             installer.Scope,
 				ApproximateSize:   installer.ApproximateSize,
@@ -636,9 +638,10 @@ func (p Plan) InstallItems() []Item {
 	return items
 }
 
-// PreviewPackageTransactions adds bounded, cache-only transaction previews to
-// package-manager plan items. Unsupported or unavailable previews remain
-// explicit per-item disclosures and never trigger repository refreshes.
+// PreviewPackageTransactions adds bounded, non-mutating package-manager
+// candidate and transaction previews. Unsupported or unavailable previews
+// remain explicit per-item disclosures, and DX never explicitly refreshes
+// repositories during planning.
 func PreviewPackageTransactions(ctx context.Context, current detection.Inventory, plan Plan) Plan {
 	indices := make([]int, 0, len(plan.Items))
 	for index := range plan.Items {
@@ -664,7 +667,11 @@ func PreviewPackageTransactions(ctx context.Context, current detection.Inventory
 			defer workers.Done()
 			for index := range jobs {
 				item := plan.Items[index]
-				preview := packagemanager.InspectInstall(ctx, current.Managers, item.Manager, item.PackageID)
+				preview := packagemanager.InspectInstall(ctx, current.Managers, item.Manager, item.PackageID, packagemanager.PreviewOptions{
+					Source:      item.Source,
+					Kind:        item.InstallerKind,
+					Environment: item.Command.Environment,
+				})
 				plan.Items[index].CandidateVersion = preview.CandidateVersion
 				plan.Items[index].TransactionPreview = preview.Transaction
 				plan.Items[index].TransactionNote = preview.Disclosure
