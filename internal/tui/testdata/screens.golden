@@ -107,8 +107,8 @@ required
           source: winget
           command: winget "install" "--id" "GoLang.Go" "--exact" "--no-upgrade"
 "--source" "winget" "--scope" "machine"
-          preview note: Package-manager preview unavailable: this package
-manager does not provide a safe cache-only transaction preview. DX will not
+          preview note: Package-manager preview unavailable: the package-manager
+query exited unsuccessfully; no usable details were returned. DX will not
 refresh repositories automatically; dependencies or other system changes may be
 unresolved. Review this uncertainty and any manager confirmation before
 accepting the operation.
