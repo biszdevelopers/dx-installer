@@ -52,7 +52,7 @@ func queryWingetExport(ctx context.Context, executablePath string) (packages []p
 
 	outputPath := filepath.Join(directory, "packages.json")
 	command := exec.CommandContext(ctx, executablePath,
-		"export", "--output", outputPath, "--include-versions", "--disable-interactivity", "--output-locale", "en-US")
+		"export", "--output", outputPath, "--include-versions", "--disable-interactivity")
 	stdout := &boundedOutput{limit: 16 << 10}
 	stderr := &boundedOutput{limit: 16 << 10}
 	command.Stdout = stdout
