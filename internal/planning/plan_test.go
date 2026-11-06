@@ -150,6 +150,7 @@ func TestPlanDisclosesZephyrSDKSizeAndVendorSetupBeforeApproval(t *testing.T) {
 	}
 	home := t.TempDir()
 	t.Setenv("USERPROFILE", home)
+	t.Setenv("HOME", home)
 	current := windowsInventory([]packagemanager.Detected{{Manager: tool.Winget}},
 		detection.Tool{ID: "cmake", Name: "CMake", State: detection.Healthy},
 		detection.Tool{ID: "seven-zip", Name: "7-Zip", State: detection.Missing},

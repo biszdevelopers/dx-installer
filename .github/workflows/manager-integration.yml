@@ -31,11 +31,34 @@ jobs:
       - name: Install SQLite through Chocolatey and verify it
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          if (Get-Command choco -ErrorAction SilentlyContinue) {
+            $chocoList = choco list --limit-output 2>$null
+            $chocoPackages = @('sqlite', 'sqlite.install', 'sqlite.portable') | Where-Object { $chocoList -match "(?im)^$([regex]::Escape($_))\|" }
+            foreach ($package in $chocoPackages) {
+              choco uninstall $package --yes --no-progress
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
+          }
           $bootstrap = Join-Path $env:RUNNER_TEMP 'dx-bootstrap.exe'
+          $inventoryOutput = & $bootstrap inventory --json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runnerInventory = ($inventoryOutput -join "`n") | ConvertFrom-Json
+          foreach ($instance in @($runnerInventory.Tools.sqlite.Instances)) {
+            if ($instance.Path -and (Test-Path -LiteralPath $instance.Path -PathType Leaf)) {
+              Write-Output "Removing runner-image SQLite executable: $($instance.Path)"
+              Remove-Item -LiteralPath $instance.Path -Force
+            }
+          }
+          if (Get-Command sqlite3 -ErrorAction SilentlyContinue) { throw 'SQLite runner-image executable remains after cleanup.' }
+
           $approvals = (1..8 | ForEach-Object { 'y' }) -join "`n"
           $approvals | & $bootstrap install --tools sqlite --yes --manager chocolatey
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          sqlite3 --version
+          $sqlite = Get-Command sqlite3 -ErrorAction SilentlyContinue
+          if (-not $sqlite) { throw 'SQLite CLI was not added to PATH after the Chocolatey install.' }
+          & $sqlite.Source --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   windows-seven-zip-install:
     name: Install 7-Zip through ${{ matrix.manager }} on Windows amd64
@@ -92,13 +115,28 @@ jobs:
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
           }
-          if (Get-Command 7z -ErrorAction SilentlyContinue) { throw '7-Zip is still installed after removing runner image copies.' }
+          Get-Command 7z -All -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandType -eq 'Application' -and $_.Source -and (Test-Path -LiteralPath $_.Source) } |
+            ForEach-Object { Remove-Item -LiteralPath $_.Source -Force }
+
+          $wingetInventory = Join-Path $env:RUNNER_TEMP 'winget-inventory.json'
+          winget export --output $wingetInventory --include-versions --accept-source-agreements --disable-interactivity | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Could not initialize WinGet source agreements for the integration test.' }
 
           $bootstrap = Join-Path $env:RUNNER_TEMP 'dx-bootstrap.exe'
           $approvals = (1..8 | ForEach-Object { 'y' }) -join "`n"
           $approvals | & $bootstrap install --tools seven-zip --yes --manager $env:PACKAGE_MANAGER
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          7z i
+          if ($env:PACKAGE_MANAGER -eq 'scoop') {
+            $sevenZip = Join-Path $env:SCOOP 'apps\7zip\current\7z.exe'
+          } else {
+            $sevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe'
+          }
+          if (-not (Test-Path -LiteralPath $sevenZip -PathType Leaf)) {
+            throw "7-Zip was not installed at the expected package path: $sevenZip"
+          }
+          & $sevenZip i
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   macos-manager-install:
     name: Install through Homebrew on macOS ${{ matrix.architecture }}

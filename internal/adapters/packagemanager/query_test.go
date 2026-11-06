@@ -52,22 +52,27 @@ func TestYUMInventoryUsesRPMDatabase(t *testing.T) {
 }
 
 func TestParseHomebrewInventory(t *testing.T) {
-	formulae, err := parseHomebrewInventory([]byte(`[{"name":"bun","full_name":"oven-sh/bun/bun","installed":[{"version":"1.2.3"}]}]`), false)
+	formulae, err := parseHomebrewInventory([]byte(`{"formulae":[{"name":"bun","full_name":"oven-sh/bun/bun","installed":[{"version":"1.2.3"}]}],"casks":[]}`), false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(formulae) != 2 || formulae[0] != (packageRecord{ID: "oven-sh/bun/bun", Version: "1.2.3"}) || formulae[1] != (packageRecord{ID: "bun", Version: "1.2.3"}) {
 		t.Fatalf("formula inventory = %#v", formulae)
 	}
-	casks, err := parseHomebrewInventory([]byte(`[{"token":"temurin@25","version":"25.0.1"}]`), true)
+	casks, err := parseHomebrewInventory([]byte(`{"formulae":[],"casks":[{"token":"temurin@25","full_token":"homebrew/cask/temurin@25","version":"25.0.1"}]}`), false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(casks) != 1 || casks[0] != (packageRecord{ID: "temurin@25", Version: "25.0.1"}) {
+	if len(casks) != 2 || casks[0] != (packageRecord{ID: "temurin@25", Version: "25.0.1"}) || casks[1] != (packageRecord{ID: "homebrew/cask/temurin@25", Version: "25.0.1"}) {
 		t.Fatalf("cask inventory = %#v", casks)
 	}
-	if _, err := parseHomebrewInventory([]byte("not json"), false); err == nil {
-		t.Fatal("malformed Homebrew JSON was accepted")
+	if empty, err := parseHomebrewInventory([]byte(`{"formulae":[],"casks":[]}`), false); err != nil || len(empty) != 0 {
+		t.Fatalf("empty Homebrew inventory = %#v, %v", empty, err)
+	}
+	for _, output := range []string{"not json", `{}`, `{"formulae":[{}],"casks":[]}`, `{"formulae":[],"casks":[{}]}`} {
+		if _, err := parseHomebrewInventory([]byte(output), false); err == nil {
+			t.Errorf("invalid Homebrew inventory was accepted: %s", output)
+		}
 	}
 }
 

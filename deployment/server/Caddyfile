@@ -2,7 +2,7 @@
 	admin off
 }
 
-{$DX_DOMAIN} {
+dx.bisz.dev {
 	log {
 		output discard
 	}

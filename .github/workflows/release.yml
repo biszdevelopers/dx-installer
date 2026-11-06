@@ -88,7 +88,7 @@ jobs:
     environment: production
     timeout-minutes: 45
     env:
-      DX_PUBLIC_ORIGIN: ${{ vars.DX_PUBLIC_ORIGIN }}
+      DX_PUBLIC_ORIGIN: https://dx.bisz.dev
       DX_DEPLOY_HOST: ${{ secrets.DX_DEPLOY_HOST }}
       DX_DEPLOY_ROOT: ${{ vars.DX_DEPLOY_ROOT }}
       DX_SIGNING_PRIVATE_KEY: ${{ secrets.DX_SIGNING_PRIVATE_KEY }}
