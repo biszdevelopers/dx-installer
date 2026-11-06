@@ -11,11 +11,12 @@ import (
 
 func TestBuildCommandUsesTypedArgumentsWithoutSilentAcceptance(t *testing.T) {
 	cases := []struct {
-		name      string
-		installer tool.Installer
-		os        tool.OperatingSystem
-		want      []string
-		privilege bool
+		name        string
+		installer   tool.Installer
+		os          tool.OperatingSystem
+		want        []string
+		environment map[string]string
+		privilege   bool
 	}{
 		{
 			name:      "winget user scope",
@@ -30,10 +31,11 @@ func TestBuildCommandUsesTypedArgumentsWithoutSilentAcceptance(t *testing.T) {
 			want:      []string{"install", "git"},
 		},
 		{
-			name:      "homebrew cask",
-			installer: tool.Installer{Manager: tool.Homebrew, PackageID: "visual-studio-code", Platform: tool.MacOS, Scope: tool.UserScope, Kind: "cask"},
-			os:        tool.MacOS,
-			want:      []string{"install", "--cask", "visual-studio-code"},
+			name:        "homebrew cask",
+			installer:   tool.Installer{Manager: tool.Homebrew, PackageID: "visual-studio-code", Platform: tool.MacOS, Scope: tool.UserScope, Kind: "cask"},
+			os:          tool.MacOS,
+			want:        []string{"install", "--cask", "visual-studio-code"},
+			environment: map[string]string{"HOMEBREW_NO_INSTALL_UPGRADE": "1"},
 		},
 		{
 			name:      "apt system scope",
@@ -61,6 +63,9 @@ func TestBuildCommandUsesTypedArgumentsWithoutSilentAcceptance(t *testing.T) {
 			}
 			if command.RequiresPrivilege != test.privilege {
 				t.Fatalf("RequiresPrivilege = %v, want %v", command.RequiresPrivilege, test.privilege)
+			}
+			if !reflect.DeepEqual(command.Environment, test.environment) {
+				t.Fatalf("environment = %#v, want %#v", command.Environment, test.environment)
 			}
 			for _, arg := range command.Arguments {
 				if strings.Contains(strings.ToLower(arg), "accept") || strings.Contains(strings.ToLower(arg), "agree") {
