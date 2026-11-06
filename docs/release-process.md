@@ -32,16 +32,15 @@ The output is `dist/releases/vX.Y.Z`. `SHA256SUMS.sig` is a base64 Ed25519 signa
 
 ## Protected GitHub release workflow
 
-The manual workflow accepts a version and requires dispatch from the matching Git tag. Configure the `production` environment with required reviewers and only permit protected release tags. Configure these environment values:
+The manual workflow accepts a version and requires dispatch from the matching Git tag. It publishes to `https://dx.bisz.dev`. Configure the `production` environment with required reviewers and only permit protected release tags. Configure these values:
 
-- Variable `DX_PUBLIC_ORIGIN`: the real HTTPS origin, without a path.
 - Variable `DX_DEPLOY_ROOT`: optional remote static root (defaults to `/srv/www/developers-club-dx`).
 - Secret `DX_DEPLOY_HOST`: an SSH `user@host` name.
 - Secret `DX_SIGNING_PRIVATE_KEY`: maintainer Ed25519 key file contents.
 - Secret `DX_SSH_PRIVATE_KEY`: deployment SSH private key.
 - Secret `DX_SSH_KNOWN_HOSTS`: preverified known-host entries; do not populate this with an unauthenticated `ssh-keyscan` at deployment time.
 
-The workflow tests all six native Windows/macOS/Linux architecture jobs and gates publication on the disposable package-manager integration workflow. That workflow installs and verifies Ninja through six Linux managers and FreeBSD `pkg` in a FreeBSD 15.1 VM, SQLite through Chocolatey, 7-Zip through WinGet and Scoop on Windows amd64, and OpenOCD through Homebrew on macOS amd64 and arm64. Native jobs build and run the bootstrap catalog command as a smoke check. It generates scripts and artifacts on a fresh runner, deploys only through SSH, and checks the public HTTPS endpoints after publication. It never prints the private key. A real domain, server account, key material, production environment approval, and protected tag are external prerequisites; without them, no production release can be created.
+The workflow tests all six native Windows/macOS/Linux architecture jobs and gates publication on the disposable package-manager integration workflow. That workflow installs and verifies Ninja through six Linux managers and FreeBSD `pkg` in a FreeBSD 15.1 VM, SQLite through Chocolatey, 7-Zip through WinGet and Scoop on Windows amd64, and OpenOCD through Homebrew on macOS amd64 and arm64. Native jobs build and run the bootstrap catalog command as a smoke check. It generates scripts and artifacts on a fresh runner, deploys only through SSH, and checks the public HTTPS endpoints after publication. It never prints the private key. DNS and the VPS, server account, key material, production environment approval, and protected tag must be ready before a production release; the configured domain may be deployed later.
 
 ## Rollback
 
