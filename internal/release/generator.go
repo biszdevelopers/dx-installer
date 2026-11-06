@@ -282,6 +282,12 @@ func LoadPrivateKey(path string) (ed25519.PrivateKey, error) {
 		}
 		return key, nil
 	}
+	if len(contents) == ed25519.SeedSize {
+		return ed25519.NewKeyFromSeed(contents), nil
+	}
+	if len(contents) == ed25519.PrivateKeySize {
+		return ed25519.PrivateKey(append([]byte(nil), contents...)), nil
+	}
 	trimmed := bytes.TrimSpace(contents)
 	if len(trimmed) != ed25519.SeedSize && len(trimmed) != ed25519.PrivateKeySize {
 		decoded, err := base64.StdEncoding.DecodeString(string(trimmed))
