@@ -408,6 +408,9 @@ func (m *Model) renderPlan(maxRows int) []string {
 			}
 		} else {
 			rows = append(rows, fmt.Sprintf("INSTALL   %-18s %s  %s  %s", item.ToolID, item.Manager, item.PackageID, privilege), "          source: "+item.Source)
+			if item.InstallerKind != "" {
+				rows = append(rows, "          package kind: "+item.InstallerKind)
+			}
 			if item.CandidateVersion != "" {
 				rows = append(rows, "          candidate version: "+item.CandidateVersion)
 			}
@@ -660,6 +663,9 @@ func (m *Model) renderApproval() string {
 			continue
 		}
 		lines = append(lines, fmt.Sprintf("%s  %s  %s  %s", item.ToolID, item.Manager, item.PackageID, item.Scope))
+		if item.InstallerKind != "" {
+			lines = append(lines, "  package kind: "+item.InstallerKind)
+		}
 		if item.CandidateVersion != "" {
 			lines = append(lines, "  candidate version: "+item.CandidateVersion)
 		}
