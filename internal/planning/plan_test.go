@@ -124,6 +124,25 @@ func TestPlanUsesVerifiedArchiveWhenNoPackageManagerIsAvailable(t *testing.T) {
 	}
 }
 
+func TestPlanPreservesHomebrewCaskKindForPreviewAndApproval(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := detection.Inventory{
+		Platform: platform.Info{OS: tool.MacOS, Architecture: tool.ARM64},
+		Managers: []packagemanager.Detected{{Manager: tool.Homebrew, Path: "/opt/homebrew/bin/brew"}},
+		Tools:    map[string]detection.Tool{"adb": {ID: "adb", Name: "Android Platform Tools", State: detection.Missing}},
+	}
+	plan, err := Build(items, current, []string{"adb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Blocked || len(plan.Items) != 1 || plan.Items[0].Manager != tool.Homebrew || plan.Items[0].InstallerKind != "cask" {
+		t.Fatalf("Homebrew cask was not preserved in the installation plan: %#v", plan)
+	}
+}
+
 func TestPlanDisclosesZephyrSDKSizeAndVendorSetupBeforeApproval(t *testing.T) {
 	items, err := catalog.LoadEmbedded()
 	if err != nil {
