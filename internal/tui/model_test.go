@@ -644,6 +644,16 @@ func TestPlanSignatureIncludesArchiveSetupAndLimits(t *testing.T) {
 	}
 }
 
+func TestPlanSignatureIncludesPackageKind(t *testing.T) {
+	base := planning.Plan{Items: []planning.Item{{ToolID: "adb", Action: planning.Install, Manager: tool.Homebrew, PackageID: "android-platform-tools", InstallerKind: "formula"}}}
+	changed := base
+	changed.Items = append([]planning.Item(nil), base.Items...)
+	changed.Items[0].InstallerKind = "cask"
+	if planSignature(base) == planSignature(changed) {
+		t.Fatal("changing a Homebrew formula to a cask should invalidate the plan approval")
+	}
+}
+
 func TestProgressScreenShowsKnownDownloadProgress(t *testing.T) {
 	plan := planning.Plan{Items: []planning.Item{{ToolID: "go", Name: "Go", Action: planning.Install}}}
 	session, err := installation.NewSession(plan)
