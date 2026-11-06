@@ -1249,7 +1249,7 @@ func (m *Model) handleArchivesPrepared(message archivesPreparedMsg) (tea.Model, 
 func planSignature(plan planning.Plan) string {
 	parts := make([]string, 0, len(plan.Items)+len(plan.Issues))
 	for _, item := range plan.Items {
-		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.Source, string(item.Scope), item.Command.Display(), item.Version, item.CandidateVersion, item.TransactionPreview, item.TransactionNote, item.InstallPath, fmt.Sprint(item.ApproximateSize), item.SizeEstimateNote, item.InstallationNote, fmt.Sprint(item.RegionalFallback), item.CustomSourceURL, item.OfflineArchivePath}, "|"))
+		parts = append(parts, strings.Join([]string{item.ToolID, string(item.Action), string(item.ExistingState), string(item.Manager), item.PackageID, item.InstallerKind, item.Source, string(item.Scope), item.Command.Display(), item.Version, item.CandidateVersion, item.TransactionPreview, item.TransactionNote, item.InstallPath, fmt.Sprint(item.ApproximateSize), item.SizeEstimateNote, item.InstallationNote, fmt.Sprint(item.RegionalFallback), item.CustomSourceURL, item.OfflineArchivePath}, "|"))
 		if item.Artifact != nil {
 			parts = append(parts, fmt.Sprintf("%#v", *item.Artifact))
 		}
