@@ -6,7 +6,7 @@ This distribution server only serves release files. The supplied Caddyfile disab
 
 Use a Linux VPS with Caddy, OpenSSH, rsync-compatible SSH access, and enough disk space for retained releases. The host also needs OpenSSL Ed25519 support, `sha256sum`, `base64`, `find`, `awk`, `sed`, `readlink`, and GNU `mv -T` for remote release validation and atomic switching. The deployment account must own the static root; do not run the DX application on the VPS.
 
-Create `/srv/www/developers-club-dx/releases`, install `deployment/server/Caddyfile` as the Caddy site config, and set `DX_DOMAIN` in the Caddy service environment to the real DNS hostname. Point A/AAAA records directly at the VPS and allow inbound TCP 80/443 for certificate issuance and HTTPS. Keep SSH access restricted to deployment operators. Do not add a CDN or cache proxy.
+Create `/srv/www/developers-club-dx/releases` and install `deployment/server/Caddyfile` as the Caddy site config for `dx.bisz.dev`. Point its A/AAAA records directly at the VPS and allow inbound TCP 80/443 for certificate issuance and HTTPS. Keep SSH access restricted to deployment operators. Do not add a CDN or cache proxy.
 
 The root directory is intentionally expected to be pre-created. Each successful publication creates `current -> releases/vX.Y.Z`, while `install.sh` and `install.ps1` are stable symlinks through `current`. Versioned release directories are never overwritten or removed by these scripts.
 
@@ -28,7 +28,7 @@ After switching `current`, it checks stable installer and versioned artifact end
 deployment/scripts/check-published-release.sh https://your-real-hostname v1.2.3
 ```
 
-The smoke check validates TLS through curl, endpoint availability, no-store headers, expected target artifacts, and that `/api/health` is not a dynamic endpoint. It does not install a tool or claim a package-manager integration test.
+The smoke check validates TLS through curl, endpoint availability, no-store headers, expected target artifacts, and that `/api/health` is not a dynamic endpoint. It does not install a tool or claim a package-manager integration test. Run it after `dx.bisz.dev` points to the configured VPS and HTTPS is available.
 
 ## Roll back
 
