@@ -69,7 +69,13 @@ fi
 
 chmod 700 "$binary_path"
 set +e
-"$binary_path" "$@"
+if [ -t 0 ]; then
+    "$binary_path" "$@"
+elif [ -r /dev/tty ]; then
+    "$binary_path" "$@" </dev/tty
+else
+    "$binary_path" "$@"
+fi
 exit_code=$?
 set -e
 exit "$exit_code"

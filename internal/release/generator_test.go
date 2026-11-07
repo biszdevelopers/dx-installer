@@ -170,6 +170,23 @@ func TestPowerShellBootstrapRejectsRedirectsBeforeExecutingDownloadedBinary(t *t
 	if !strings.Contains(script, "-MaximumRedirection 0") || strings.Contains(script, "ResponseUri") {
 		t.Fatal("PowerShell bootstrap must reject redirects without relying on a response object returned by OutFile")
 	}
+	if !strings.Contains(script, "if ($MyInvocation.PSCommandPath)") || !strings.Contains(script, "return $exitCode") {
+		t.Fatal("PowerShell bootstrap must return cleanly when evaluated by irm | iex")
+	}
+}
+
+func TestShellBootstrapRestoresTerminalInputWhenPipedToSh(t *testing.T) {
+	script, err := renderTemplate("templates/install.sh.tmpl", map[string]string{
+		"@@VERSION@@":       "v1.2.3",
+		"@@ORIGIN@@":        "https://dx.example.invalid",
+		"@@SHELL_TARGETS@@": "    linux-amd64) binary_name='dx-bootstrap-linux-amd64'; expected_hash='" + strings.Repeat("0", 64) + "' ;;",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(script, `"$binary_path" "$@" </dev/tty`) {
+		t.Fatal("shell bootstrap must attach the interactive app to the controlling terminal after curl | sh")
+	}
 }
 
 func TestTargetEnvironmentDisablesUserGoBuildOverrides(t *testing.T) {

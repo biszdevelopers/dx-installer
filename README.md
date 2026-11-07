@@ -1,48 +1,109 @@
-# Developers' Club DX Bootstrap
+# Developers' Club DX
 
-DX is a temporary, approval-driven developer-tool selector. It inventories executables available on the current `PATH` and package records from supported local package databases, lets a user select tools, resolves declared dependencies, previews package-manager commands, and verifies tools after approved installs. The Go client embeds its strict YAML catalog and does not install or persist itself.
+DX is a cross-platform developer-tool installer with a full-screen, mouse-clickable terminal interface. It detects tools already on your machine, helps you choose tools or a developer profile, and shows an installation plan for review before it runs anything. The DX program itself is a single executable; it does not install itself or add itself to your `PATH`.
 
-## Run from source
+## Start DX from a published release
 
-Use Go 1.26 or later:
+The hosted commands below work after a signed release has been published to `dx.bisz.dev`. If the site has no published release yet, use [Build and run from source](#build-and-run-from-source).
+
+### Windows PowerShell
+
+Open PowerShell or Windows Terminal and run:
+
+```powershell
+irm https://dx.bisz.dev/install.ps1 | iex
+```
+
+`irm` downloads the PowerShell launcher and `iex` runs it. The launcher detects Windows x64 or ARM64, downloads the matching DX executable to a temporary folder, checks its SHA-256 digest, starts DX, and removes the temporary executable when DX exits.
+
+To use a read-only command instead of opening the interface, fetch the launcher as a script block and pass a command:
+
+```powershell
+$dx = [scriptblock]::Create((irm 'https://dx.bisz.dev/install.ps1'))
+& $dx catalog
+& $dx inventory
+& $dx plan --tools 'git,github-cli'
+```
+
+### macOS, Linux, and FreeBSD
+
+Open a terminal and run:
+
+```sh
+curl -fsSL https://dx.bisz.dev/install.sh | sh
+```
+
+The launcher detects the operating system and CPU architecture, downloads the matching executable to a temporary folder, verifies its SHA-256 digest, starts DX, and removes the temporary executable when DX exits. When the launcher is piped into `sh`, it reconnects DX to the terminal so the interface can receive keyboard and mouse input.
+
+Pass a read-only command after `--` to the shell:
+
+```sh
+curl -fsSL https://dx.bisz.dev/install.sh | sh -s -- catalog
+curl -fsSL https://dx.bisz.dev/install.sh | sh -s -- inventory
+curl -fsSL https://dx.bisz.dev/install.sh | sh -s -- plan --tools git,github-cli
+```
+
+These launchers require an attached terminal for the interactive installer. They do not install Go or a package manager on the target machine. Package managers used for tool installation must already be present.
+
+## Your first install
+
+DX opens to **Home**. Use the sidebar to open **Tools** and select individual tools, or open **Profiles** and choose a starter set. DX shows selected tools, detected tools, and installation details as you work.
+
+Open **Plan** and review each item, including its source, version, download size and digest when available, destination, dependencies, and any setup or PATH changes. Choose the install action and approve the refreshed plan. DX rescans the machine immediately before approval; if the plan changed or became blocked, it returns to review. Package-manager prompts remain visible. Existing tools are preserved rather than upgraded automatically.
+
+Click visible controls or use the keyboard. Press `Tab` / `Shift+Tab` to move focus, arrow keys to move between rows, `Space` to select, `Enter` to activate, `Page Up` / `Page Down` to scroll, `Ctrl+P` to open the command palette, `?` for help, and `Esc` to close a dialog. Mouse input depends on terminal support; keyboard navigation remains available. The layout adjusts to smaller terminals. See the [terminal interface guide](docs/tui-design.md) for details.
+
+## Build and run from source
+
+Install Go 1.26 or later, then run these commands from the repository folder:
 
 ```powershell
 go run ./cmd/bootstrap
 go run ./cmd/bootstrap catalog
-go run ./cmd/bootstrap inventory --json
+go run ./cmd/bootstrap inventory
 go run ./cmd/bootstrap plan --tools git,github-cli
-go run ./cmd/bootstrap plan --tools git,github-cli --manager winget
-go run ./cmd/bootstrap plan --tools go --source-policy official-first
 go run ./cmd/catalog-check
-go test ./...
 ```
 
-The interactive install flow requires a terminal. It opens as a full-screen workspace with persistent navigation, searchable tool and environment tables, an inspector, installation activity, and clear review and approval actions. Mouse clicks and wheel scrolling work alongside keyboard navigation; narrow terminals keep the same sections in a scrollable single-pane layout. The installer refreshes inventory after approval and asks for approval again if the plan changed. `plan` is read-only. The application never bootstraps a package manager, never adds a package repository, and never runs a package-manager command without approval. See the [terminal interface guide](docs/tui-design.md) for layout and controls.
-
-The embedded catalog contains 220 tool manifests and 18 profiles. Package-manager installations use only managers already detected on the machine. Some tools also have catalog-pinned direct archives, registry installers, regional mirrors, and signed offline-bundle support; availability depends on the selected tool and platform. Direct archives and local copies are checked against embedded SHA-256 pins, and signed bundles are verified against the public key pinned in the client. Plans show sources, integrity data, size disclosures, install paths, setup actions, and persistent PATH changes before approval.
-
-Inventory checks executables on `PATH`, a bounded set of standard locations, and supported local package databases. Package records without a discoverable executable are preserved as unknown; failed manager queries also leave affected tools unknown. WinGet inventory uses a temporary export and may consult configured sources; DX does not accept source agreements. From Results, press `d` to save an explicitly requested redacted JSON diagnostic report; reports are created as new files and never overwrite existing paths. See [platform support](docs/platform-support.md), [source behavior](docs/source-selection.md), [regional behavior](docs/regional-support.md), and [offline installation](docs/offline-installation.md) for the exact support boundaries.
-
-## Build a signed release
-
-The release tool cross-builds Windows, macOS, and Linux on amd64 and arm64 plus FreeBSD amd64, verifies binary formats and architectures, generates versioned PowerShell and POSIX entry points containing artifact digests, signs `SHA256SUMS` with Ed25519, and verifies the staged output before publishing it locally.
+`catalog` lists the embedded tools, `inventory` reports tools detected on the current machine, and `plan` previews changes without installing anything. To build a single executable for the current Windows machine:
 
 ```powershell
-go run ./cmd/release `
-  --version v1.2.3 `
-  --origin https://your-real-hostname `
-  --output-dir .\dist `
-  --signing-key C:\secure\dx-release-ed25519.key
+go build -trimpath -o dx-bootstrap.exe ./cmd/bootstrap
 ```
 
-The command requires an operator-supplied signing key and real HTTPS origin. The repository intentionally contains neither. Release directories are immutable; choose a new semantic version for each build. An already-built client can run `dx-bootstrap verify-release --directory PATH` to verify the signed checksums with the public key pinned into that executable.
+On macOS or Linux, use `-o dx-bootstrap` instead. The Go release tool can cross-build the complete supported release set and create the download launchers; see [Build and publish a signed release](docs/release-process.md).
 
-## Static distribution
+## Tool availability and machine changes
 
-The server is only a static file origin. Caddy configuration disables access logs and sends no-store headers. The deployment scripts upload to a hidden staging directory, verify the pinned Ed25519 signature and checksums on the host, atomically publish `releases/vX.Y.Z`, and atomically switch the `current` symlink. Previous releases remain available for rollback. They require an operator-provided DNS name, Caddy TLS setup, SSH host key, deployment account, and signing key; no production host or credentials are fabricated here.
+The catalog contains 221 tool manifests and 18 editable profiles. Availability varies by operating system and CPU architecture; see the current [platform support matrix](docs/platform-support.md) before choosing a tool for another machine. A declared route depends on its package manager or runtime being installed and configured. Some tools use an explicitly labeled native equivalent where the original tool is unavailable; the plan describes compatibility limits.
 
-See [architecture](docs/architecture.md), [quick start](docs/quick-start.md), [release process](docs/release-process.md), and [VPS deployment](docs/vps-deployment.md).
+DX does not install package managers, add package repositories, or run package-manager commands before you approve a reviewed plan. Some managers may request system-level permission for a tool whose installation is system-scoped; the plan identifies that scope. Tool installations remain on the machine according to the selected package manager or install path. DX itself runs from a temporary location when started by the hosted launcher and is removed when it exits.
 
-## Current verification
+## Catalog, sources, and offline installs
 
-Run `go test ./...`, `go vet ./...`, and `go run ./cmd/catalog-check`. CI runs Go tests, static analysis, manifest validation, and native builds on Windows, macOS, and Linux for amd64 and arm64. The integration workflow installs Ninja through apt, dnf, pacman, zypper, and apk in disposable containers, Ninja through `pkg` in a FreeBSD 15.1 VM, SQLite through Chocolatey on Windows amd64, and OpenOCD through Homebrew on macOS amd64 and arm64. Release publication waits for these jobs. Scoop, WinGet, MacPorts, and the remaining manager/tool pairs do not have live install coverage.
+The catalog includes exact-version registry entries and catalog-pinned direct archives for tools that declare them. Direct archives are checked against embedded SHA-256 pins before installation. Plans disclose the selected source, install target, and persistent PATH changes. The **Advanced** area contains source policies, package-manager preferences, custom sources, and offline options.
+
+From **Results**, save a redacted JSON diagnostic report when you need help. DX creates it only after you request one and will not overwrite an existing file. Read more about [source selection](docs/source-selection.md), [regional sources](docs/regional-support.md), and [offline installation](docs/offline-installation.md).
+
+## Build and publish a signed release
+
+For a hosted release, choose a new immutable version and supply a persistent Ed25519 signing key from a secure location outside the repository. Set the public origin to `https://dx.bisz.dev`:
+
+```powershell
+go test ./...
+go vet ./...
+go run ./cmd/catalog-check
+go run ./cmd/release `
+  --version v1.2.3 `
+  --origin https://dx.bisz.dev `
+  --output-dir .\dist `
+  --signing-key C:\secure\dx-release-ed25519.pem
+```
+
+The generated release includes Windows, macOS, and Linux executables for x64 and ARM64, FreeBSD x64, and the `install.ps1` and `install.sh` launchers shown above. Before publishing, verify the signed release and follow the [VPS deployment guide](docs/vps-deployment.md). The repository does not contain a production signing key or server credentials. Keep the signing key for future releases; the client pins its matching public key.
+
+## Verification
+
+Run `go test ./...`, `go vet ./...`, and `go run ./cmd/catalog-check` for local checks. CI builds natively on Windows, macOS, and Linux for x64 and ARM64. Its live package-manager installs cover a smaller set than the catalog; see the [platform support guide](docs/platform-support.md) for the tested combinations and uncovered tools.
+
+For architecture, source, security, and rollback details, see [quick start](docs/quick-start.md), [release process](docs/release-process.md), [security](docs/security.md), and [VPS deployment](docs/vps-deployment.md).

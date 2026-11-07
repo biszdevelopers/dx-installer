@@ -24,9 +24,9 @@ DX does not run an explicit repository refresh while planning and does not accep
 
 ## Install interactively
 
-Run `go run ./cmd/bootstrap` in an attached terminal, move to Catalog, select tools with Space, then open Plan and press `p`. Review all operations and press `i` to request approval. Type `y` to approve after the application rescans inventory. If the plan changed, review and approve the new plan. Package-manager prompts stay visible. Press `q` or Ctrl+C to exit.
+Run `go run ./cmd/bootstrap` in an attached terminal, or use the hosted launchers described in the [README](../README.md#start-dx-from-a-published-release). The app opens on Home. Open Tools to select items, or Profiles to start with a set. Open Plan and review the install, preserve, and blocked summaries and each tool's source and disclosures. Choose the install action and approve after DX refreshes inventory. If the plan changes, review and approve the new plan. Package-manager prompts stay visible. Press `q` or Ctrl+C to exit.
 
-The numbered screens are Overview, Catalog, Profiles, Environment, Plan, Sources, Progress, and Results. Use Tab or 1–8 to navigate; `j`/`k` or arrow keys move through lists; `f` searches; `[` and `]` filter categories; `s` changes installation-state filters; `e` exports a selection and `o` imports one. Help is available with `?`.
+The persistent sections are Home, Tools, Profiles, Environment, Plan, Activity, and Results; source settings are under Advanced. Click visible navigation, rows, filters, and buttons, or use `Tab` / `Shift+Tab` to move focus, arrows to move through rows, `Space` to select, and `Enter` to activate. Press `Page Up` / `Page Down` to scroll, `Ctrl+P` to open the command palette, `?` for Help, and `Esc` to close a dialog. At narrow terminal sizes, the app becomes a scrollable single pane. See the [terminal interface guide](tui-design.md) for layouts and controls.
 
 From Results, press `d` and enter a new path to save a redacted JSON diagnostic report. It omits command lines and executable paths, redacts credentials and user-directory paths, and refuses to overwrite an existing file.
 
