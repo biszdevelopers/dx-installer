@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -50,6 +51,7 @@ type Model struct {
 	inventory              detection.Inventory
 	screen                 Screen
 	selected               map[string]bool
+	selectedAlternatives   map[string]string
 	selectedProfiles       map[string]bool
 	preferredManager       tool.PackageManager
 	sourceMode             string
@@ -200,22 +202,23 @@ func NewModel(ctx context.Context, items *catalog.Catalog, initial detection.Inv
 		selection[id] = true
 	}
 	model := &Model{
-		ctx:              ctx,
-		catalog:          items,
-		inventory:        initial,
-		screen:           OverviewScreen,
-		selected:         selection,
-		selectedProfiles: make(map[string]bool),
-		sourceMode:       "automatic",
-		regionDetection:  regional.Detect(initial.Platform),
-		archiveInstaller: artifacts.NewArchiveInstaller(),
-		customSources:    make(map[string]string),
-		offlineArchives:  make(map[string]string),
-		stateFilter:      "all",
-		status:           "Choose tools for this machine. Nothing installs until you approve a plan.",
-		width:            80,
-		height:           24,
-		darkTheme:        true,
+		ctx:                  ctx,
+		catalog:              items,
+		inventory:            initial,
+		screen:               OverviewScreen,
+		selected:             selection,
+		selectedAlternatives: make(map[string]string),
+		selectedProfiles:     make(map[string]bool),
+		sourceMode:           "automatic",
+		regionDetection:      regional.Detect(initial.Platform),
+		archiveInstaller:     artifacts.NewArchiveInstaller(),
+		customSources:        make(map[string]string),
+		offlineArchives:      make(map[string]string),
+		stateFilter:          "all",
+		status:               "Choose tools for this machine. Nothing installs until you approve a plan.",
+		width:                80,
+		height:               24,
+		darkTheme:            true,
 	}
 	model.initializeComponents()
 	return model
@@ -899,6 +902,8 @@ func (m *Model) activateTarget(target hitTarget) tea.Cmd {
 	case "toggle-selection":
 		m.cursor = target.index
 		m.toggleCurrent()
+	case "select-platform-alternative":
+		m.selectPlatformAlternative(target.index)
 	case "inspect-tool":
 		m.cursor = target.index
 	case "inspect-plan":
@@ -1072,8 +1077,22 @@ func (m *Model) toggleCurrent() {
 	case CatalogScreen:
 		tools := m.filteredTools()
 		if m.cursor >= 0 && m.cursor < len(tools) {
-			id := tools[m.cursor].ID
-			m.selected[id] = !m.selected[id]
+			item := tools[m.cursor]
+			id := item.ID
+			if !m.selected[id] && !item.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture) {
+				if alternatives := m.availablePlatformAlternatives(item); len(alternatives) > 0 {
+					m.selected[id] = true
+					m.selectedAlternatives[id] = alternatives[0].ToolID
+					m.invalidatePlan(fmt.Sprintf("Selected %s as the native alternative for %s. Review its limits in the details panel.", m.toolName(alternatives[0].ToolID), item.Name))
+					break
+				}
+			}
+			if m.selected[id] {
+				delete(m.selected, id)
+				delete(m.selectedAlternatives, id)
+			} else {
+				m.selected[id] = true
+			}
 			m.invalidatePlan("Selection changed. Rebuild the installation plan.")
 		}
 	case ProfilesScreen:
@@ -1085,6 +1104,68 @@ func (m *Model) toggleCurrent() {
 	case SourcesScreen:
 		m.chooseCurrentManager()
 	}
+}
+
+func (m *Model) selectPlatformAlternative(index int) {
+	tools := m.filteredTools()
+	if m.catalog == nil || m.cursor < 0 || m.cursor >= len(tools) {
+		return
+	}
+	item := tools[m.cursor]
+	alternatives := m.availablePlatformAlternatives(item)
+	if index < 0 || index >= len(alternatives) {
+		return
+	}
+	selectedTool := alternatives[index].ToolID
+	if m.selectedPlatformAlternative(item, selectedTool) {
+		delete(m.selected, item.ID)
+		delete(m.selectedAlternatives, item.ID)
+		m.invalidatePlan("Native alternative removed from the selection.")
+		return
+	}
+	m.selected[item.ID] = true
+	m.selectedAlternatives[item.ID] = selectedTool
+	m.invalidatePlan(fmt.Sprintf("Selected %s instead of %s. The details panel explains the compatibility limits.", m.toolName(selectedTool), item.Name))
+}
+
+func (m *Model) availablePlatformAlternatives(item tool.Manifest) []tool.PlatformAlternative {
+	if m.catalog == nil {
+		return nil
+	}
+	available := make([]tool.PlatformAlternative, 0)
+	for _, alternative := range item.PlatformAlternatives[m.inventory.Platform.OS] {
+		if len(alternative.Architectures) > 0 && !slices.Contains(alternative.Architectures, m.inventory.Platform.Architecture) {
+			continue
+		}
+		candidate, exists := m.catalog.Tool(alternative.ToolID)
+		if exists && candidate.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture) {
+			available = append(available, alternative)
+		}
+	}
+	return available
+}
+
+func (m *Model) selectedPlatformAlternative(item tool.Manifest, alternativeID string) bool {
+	if !m.selected[item.ID] {
+		return false
+	}
+	selectedID := m.selectedAlternatives[item.ID]
+	if selectedID == "" {
+		alternatives := m.availablePlatformAlternatives(item)
+		if len(alternatives) > 0 {
+			selectedID = alternatives[0].ToolID
+		}
+	}
+	return selectedID == alternativeID
+}
+
+func (m *Model) toolName(id string) string {
+	if m.catalog != nil {
+		if item, exists := m.catalog.Tool(id); exists {
+			return item.Name
+		}
+	}
+	return id
 }
 
 func (m *Model) applyProfiles() {
@@ -1108,6 +1189,7 @@ func (m *Model) applyProfiles() {
 		return
 	}
 	m.selected = selection
+	m.selectedAlternatives = make(map[string]string)
 	m.invalidatePlan("Profiles applied. Review and edit the resulting tool selection.")
 	m.screen = CatalogScreen
 	m.cursor = 0
@@ -1226,7 +1308,38 @@ func (m *Model) buildSelectedPlan(selected []string) (planning.Plan, error) {
 		CustomSources:         cloneStringMap(m.customSources),
 		OfflineArchives:       cloneStringMap(m.offlineArchives),
 		RegistrySources:       cloneRegistryURLs(m.registrySources),
+		NativeAlternatives:    m.nativeAlternativeSelections(),
 	})
+}
+
+func (m *Model) nativeAlternativeSelections() map[string][]string {
+	selected := make(map[string][]string)
+	if m.catalog == nil {
+		return selected
+	}
+	for requestedID, isSelected := range m.selected {
+		if !isSelected {
+			continue
+		}
+		requested, exists := m.catalog.Tool(requestedID)
+		if !exists || requested.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture) {
+			continue
+		}
+		alternativeID := m.selectedAlternatives[requestedID]
+		if alternativeID == "" {
+			alternatives := m.availablePlatformAlternatives(requested)
+			if len(alternatives) > 0 {
+				alternativeID = alternatives[0].ToolID
+			}
+		}
+		if alternativeID != "" {
+			selected[alternativeID] = append(selected[alternativeID], requestedID)
+		}
+	}
+	for id := range selected {
+		sort.Strings(selected[id])
+	}
+	return selected
 }
 
 func (m *Model) missingToolsHaveExplicitSources(selected []string) bool {
@@ -1417,6 +1530,7 @@ func (m *Model) readSelection(path string) error {
 		return err
 	}
 	m.selected = make(map[string]bool, len(selected))
+	m.selectedAlternatives = make(map[string]string)
 	for _, id := range selected {
 		m.selected[id] = true
 	}
@@ -1454,11 +1568,32 @@ func (m *Model) invalidatePlan(message string) {
 }
 
 func (m *Model) selectedIDs() []string {
-	ids := make([]string, 0, len(m.selected))
-	for id, selected := range m.selected {
-		if selected {
-			ids = append(ids, id)
+	resolved := make(map[string]bool, len(m.selected))
+	for id, isSelected := range m.selected {
+		if !isSelected {
+			continue
 		}
+		if m.catalog == nil {
+			resolved[id] = true
+			continue
+		}
+		manifest, exists := m.catalog.Tool(id)
+		if exists && !manifest.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture) {
+			alternatives := m.availablePlatformAlternatives(manifest)
+			alternativeID := m.selectedAlternatives[id]
+			if alternativeID == "" && len(alternatives) > 0 {
+				alternativeID = alternatives[0].ToolID
+			}
+			if alternativeID != "" {
+				resolved[alternativeID] = true
+				continue
+			}
+		}
+		resolved[id] = true
+	}
+	ids := make([]string, 0, len(resolved))
+	for id := range resolved {
+		ids = append(ids, id)
 	}
 	sort.Strings(ids)
 	return ids

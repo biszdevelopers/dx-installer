@@ -12,7 +12,9 @@ version_args: [--version]
 dependencies: [git]
 conflicts: [dart]
 platforms:
+  windows: [amd64]
   macos: [amd64, arm64]
+  linux: [amd64]
 installers:
   - platform: macos
     manager: homebrew
@@ -20,3 +22,28 @@ installers:
     kind: cask
     scope: user
     source: homebrew-cask
+artifacts:
+  - platform: windows
+    architecture: amd64
+    version: 3.47.9
+    url: https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.47.9-stable.zip
+    sha256: d8e2b5977e09082c6440f89dc1aa887b94c8fbcc3b39222797046295a3f68a9e
+    size_estimate_note: About 1.5 GB compressed; extraction requires several GB.
+    max_download_bytes: 4294967296
+    max_expanded_bytes: 8589934592
+    format: zip
+    archive_root: flutter
+    path_entries: [bin]
+    allowed_redirect_hosts: [storage.googleapis.com]
+  - platform: linux
+    architecture: amd64
+    version: 3.47.9
+    url: https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz
+    sha256: 25ed8c3c29d51a7353f2a944310b478af8214920639524b19c50a19e6c044c5a
+    size_estimate_note: About 1.5 GB compressed; extraction requires several GB.
+    max_download_bytes: 4294967296
+    max_expanded_bytes: 8589934592
+    format: tar.xz
+    archive_root: flutter
+    path_entries: [bin]
+    allowed_redirect_hosts: [storage.googleapis.com]

@@ -169,6 +169,23 @@ func (c *Catalog) validateGraph() error {
 				return fmt.Errorf("tool %q cannot declare both provided_by and an installer", id)
 			}
 		}
+		for operatingSystem, alternatives := range manifest.PlatformAlternatives {
+			for _, alternative := range alternatives {
+				candidate, exists := c.tools[alternative.ToolID]
+				if !exists {
+					return fmt.Errorf("tool %q references unknown %s alternative %q", id, operatingSystem, alternative.ToolID)
+				}
+				architectures := alternative.Architectures
+				if len(architectures) == 0 {
+					architectures = []tool.Architecture{tool.AMD64, tool.ARM64}
+				}
+				for _, architecture := range architectures {
+					if !candidate.Supports(operatingSystem, architecture) {
+						return fmt.Errorf("tool %q alternative %q does not support %s/%s", id, alternative.ToolID, operatingSystem, architecture)
+					}
+				}
+			}
+		}
 		for _, installer := range manifest.RegistryInstallers {
 			runtimeTool := tool.RegistryRuntimeTool(installer.Ecosystem)
 			if runtimeTool == "" || !slices.Contains(manifest.DependenciesFor(installer.Platform), runtimeTool) {

@@ -10,10 +10,29 @@ version:
 executables: [fastboot]
 version_args: [--version]
 dependencies: []
+platform_dependencies:
+  windows: [android-sdk-command-line-tools]
+  macos: [android-sdk-command-line-tools]
 conflicts: []
 platforms:
+  windows: [amd64]
+  macos: [amd64, arm64]
   linux: [amd64, arm64]
 installers:
+  - platform: windows
+    manager: android-sdk
+    package_id: platform-tools
+    scope: user
+    source: google-android-sdk (interactive license prompt)
+    path_entries: [platform-tools]
+    approximate_size: 15728640
+  - platform: macos
+    manager: android-sdk
+    package_id: platform-tools
+    scope: user
+    source: google-android-sdk (interactive license prompt)
+    path_entries: [platform-tools]
+    approximate_size: 15728640
   - platform: linux
     manager: apt
     package_id: fastboot

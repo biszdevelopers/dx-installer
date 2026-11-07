@@ -72,6 +72,54 @@ func TestCatalogRejectsCommonDependencyUnsupportedByTarget(t *testing.T) {
 	}
 }
 
+func TestCatalogRejectsInvalidPlatformAlternativeReferences(t *testing.T) {
+	requester := manifestYAML("sample", "") + `platform_alternatives:
+  linux:
+    - tool_id: candidate
+      reason: Native alternative for this platform.
+`
+
+	unknown := fstest.MapFS{"data/tools/sample.yaml": {Data: []byte(requester)}}
+	if _, err := Load(unknown); err == nil {
+		t.Fatal("platform alternative referencing a missing tool was accepted")
+	}
+
+	candidate := strings.Replace(manifestYAML("candidate", ""), "windows: [amd64]", "linux: [amd64]", 1)
+	candidate = strings.Replace(candidate, "platform: windows", "platform: linux", 1)
+	candidate = strings.Replace(candidate, "manager: winget", "manager: apt", 1)
+	candidate = strings.Replace(candidate, "scope: user", "scope: system", 1)
+	source := fstest.MapFS{
+		"data/tools/sample.yaml":    {Data: []byte(requester)},
+		"data/tools/candidate.yaml": {Data: []byte(candidate)},
+	}
+	if _, err := Load(source); err == nil {
+		t.Fatal("platform alternative missing one target architecture was accepted")
+	}
+}
+
+func TestCatalogAcceptsArchitectureSpecificAlternative(t *testing.T) {
+	requester := manifestYAML("sample", "") + `platform_alternatives:
+  windows:
+    - tool_id: candidate
+      architectures: [arm64]
+      reason: Native Windows ARM alternative.
+`
+	candidate := strings.Replace(manifestYAML("candidate", ""), "windows: [amd64]", "windows: [amd64, arm64]", 1)
+	source := fstest.MapFS{
+		"data/tools/sample.yaml":    {Data: []byte(requester)},
+		"data/tools/candidate.yaml": {Data: []byte(candidate)},
+	}
+	if _, err := Load(source); err != nil {
+		t.Fatalf("valid architecture-specific alternative was rejected: %v", err)
+	}
+
+	unsupportedTarget := strings.Replace(requester, "windows: [amd64]", "windows: [amd64, arm64]", 1)
+	source["data/tools/sample.yaml"] = &fstest.MapFile{Data: []byte(unsupportedTarget)}
+	if _, err := Load(source); err == nil {
+		t.Fatal("architecture-specific alternative for an already supported target was accepted")
+	}
+}
+
 func TestCatalogRejectsUnknownFieldsAndDependencyCycles(t *testing.T) {
 	unknown := catalogFS(`
 schema_version: 1

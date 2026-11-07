@@ -9,7 +9,7 @@ version:
   upgrade_policy: never_automatically
 executables: [checkstyle]
 version_args: [--version]
-dependencies: [openjdk-27]
+dependencies: [openjdk-21]
 conflicts: []
 platforms:
   macos: [arm64]

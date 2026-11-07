@@ -2,7 +2,7 @@ schema_version: 1
 id: redis-cli
 name: Redis CLI
 category: database.client
-description: Redis command-line client without installing a Redis server.
+description: Redis command-line client. Windows uses a community Redis build that also includes server binaries; DX does not start a service.
 tags: [database, redis, key-value, client]
 version:
   channel: stable
@@ -12,10 +12,28 @@ version_args: [--version]
 dependencies: []
 conflicts: []
 platforms:
+  windows: [amd64]
+  macos: [amd64, arm64]
   linux: [amd64, arm64]
 installers:
+  - platform: windows
+    manager: scoop
+    package_id: redis
+    scope: user
+    source: Scoop Main bucket (community Windows port)
+    architectures: [amd64]
+  - platform: macos
+    manager: homebrew
+    package_id: redis
+    scope: user
+    source: homebrew-core
   - platform: linux
     manager: apt
     package_id: redis-tools
     scope: system
     source: configured-apt-repositories
+  - platform: linux
+    manager: homebrew
+    package_id: redis
+    scope: user
+    source: homebrew-core

@@ -1,0 +1,38 @@
+schema_version: 1
+id: openjdk-25
+name: OpenJDK 25
+category: java.runtime
+description: OpenJDK 25 development kit, installed alongside other Java versions.
+tags: [java, jdk, openjdk]
+version:
+  channel: stable-25
+  upgrade_policy: never_automatically
+executables: [java, javac]
+version_args: [-version]
+dependencies: []
+conflicts: []
+platforms:
+  macos: [arm64]
+  linux: [amd64, arm64]
+platform_alternatives:
+  windows:
+    - tool_id: temurin-jdk-25
+      reason: Eclipse Temurin 25 provides the same Java 25 toolchain through a different distribution.
+      architectures: [amd64, arm64]
+  macos:
+    - tool_id: temurin-jdk-25
+      reason: Eclipse Temurin 25 provides the same Java 25 toolchain through a different distribution.
+      architectures: [amd64]
+installers:
+  - platform: macos
+    manager: homebrew
+    package_id: openjdk@25
+    scope: user
+    source: homebrew-core
+    path_entries: [bin]
+  - platform: linux
+    manager: homebrew
+    package_id: openjdk@25
+    scope: user
+    source: homebrew-core
+    path_entries: [bin]

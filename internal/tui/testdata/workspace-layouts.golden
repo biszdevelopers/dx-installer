@@ -43,7 +43,7 @@
 │ ◎  Review plan  1 │ │ Selected: 1   Clear filters                                    │ │ Not installed               │
 │ ↗  Activity       │ │                                                                │ │ Category: quality.ci        │
 │ ✓  Results        │ │    TOOL                                  STATUS                │ │ Version channel: stable     │
-│                   │ │ □  actionlint                            Not installed         │ │ Supported here: no          │
+│                   │ │ □  actionlint                            Not installed         │ │ Supported here: Yes         │
 │ ▾  Advanced       │ │ □  Android Platform Tools                Not installed         │ │ No installer is available   │
 │                   │ │ □  Android SDK Build Tools 36.0.0        Not installed         │ │ for this machine.           │
 │ Ctrl+P  Command   │ │ □  Android Emulator                      Not installed         │ │                             │

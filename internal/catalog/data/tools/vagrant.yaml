@@ -14,6 +14,7 @@ conflicts: []
 platforms:
   macos: [amd64, arm64]
   windows: [amd64]
+  linux: [amd64]
 installers:
   - platform: windows
     manager: winget
@@ -26,3 +27,9 @@ installers:
     kind: cask
     scope: user
     source: homebrew-cask
+  - platform: linux
+    manager: homebrew
+    package_id: hashicorp/tap/hashicorp-vagrant
+    scope: user
+    source: hashicorp/tap (official HashiCorp Homebrew tap)
+    architectures: [amd64]

@@ -9,13 +9,34 @@ version:
   upgrade_policy: never_automatically
 executables: [grpcui]
 version_args: [--version]
-dependencies: []
+dependencies: [go]
 conflicts: []
 platforms:
-  macos: [arm64]
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
 installers:
   - platform: macos
     manager: homebrew
     package_id: grpcui
     scope: user
     source: homebrew-core
+registry_installers:
+  - platform: windows
+    ecosystem: go-modules
+    package_id: github.com/fullstorydev/grpcui/cmd/grpcui
+    version: v1.5.4
+    scope: user
+    source: https://proxy.golang.org
+  - platform: macos
+    ecosystem: go-modules
+    package_id: github.com/fullstorydev/grpcui/cmd/grpcui
+    version: v1.5.4
+    scope: user
+    source: https://proxy.golang.org
+  - platform: linux
+    ecosystem: go-modules
+    package_id: github.com/fullstorydev/grpcui/cmd/grpcui
+    version: v1.5.4
+    scope: user
+    source: https://proxy.golang.org

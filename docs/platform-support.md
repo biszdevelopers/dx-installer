@@ -15,6 +15,23 @@ CI runs native Go tests and builds on the six Windows/macOS/Linux architecture p
 
 Direct artifact support is declared separately from package-manager support. Catalog manifests may provide ZIP, tar.gz, tar.xz, or 7z archives for exact OS/architecture pairs. The archive is hash-checked, size-bounded, safely extracted to a user-level path, and verified with its declared version command. Registry installs are available only for manifests that declare an exact-version npm, PyPI, Go module, or Cargo installer. Neither capability implies universal support across the catalog.
 
+Some tools have a platform alternative when the original upstream project does not support that operating system or architecture. DX labels the selected replacement and includes its compatibility limits in the reviewed plan. Alternatives do not make the original tool compatible, and the matrix report counts them separately from direct install routes.
+
+## Current catalog coverage
+
+`go run ./cmd/catalog-check -matrix` compares all 221 catalog tools with the declared routes and native alternatives for the six Windows, macOS, and Linux release targets. The current manifest coverage is:
+
+| Target | Direct routes | Native alternatives | No route or alternative |
+| --- | ---: | ---: | ---: |
+| Windows amd64 | 189 | 6 | 26 |
+| Windows arm64 | 111 | 5 | 105 |
+| macOS amd64 | 143 | 6 | 72 |
+| macOS arm64 | 216 | 5 | 0 |
+| Linux amd64 | 217 | 4 | 0 |
+| Linux arm64 | 210 | 4 | 7 |
+
+This is a manifest-route count, not a claim that the package manager, network, or upstream project has been exercised on every machine. The tools without a route or declared native alternative remain visibly unsupported in that matrix. The release binary itself supports all six Windows/macOS/Linux targets; tool availability in the catalog is a separate matter.
+
 ## Operating-system boundaries
 
 The BSD value groups BSD-family systems, but the only implemented BSD package-manager adapter is FreeBSD `pkg`; FreeBSD is the only BSD release and integration target. OpenBSD, NetBSD, and DragonFly can be identified, but catalog tools are reported unsupported there instead of being shown as missing or attempting FreeBSD package commands.

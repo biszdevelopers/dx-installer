@@ -2,7 +2,7 @@ schema_version: 1
 id: mingw-w64
 name: MinGW-w64
 category: cpp.compiler
-description: GCC, G++, GDB, GNU Make, and binutils for native Windows development.
+description: GCC, G++, GDB, GNU Make, and binutils for building Windows programs from supported hosts.
 tags: [cpp, gcc, windows, compiler, debugger]
 version:
   channel: stable
@@ -13,7 +13,19 @@ dependencies: []
 conflicts: []
 platforms:
   windows: [amd64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
 installers:
+  - platform: macos
+    manager: homebrew
+    package_id: mingw-w64
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: mingw-w64
+    scope: user
+    source: homebrew-core
   - platform: windows
     manager: scoop
     package_id: mingw

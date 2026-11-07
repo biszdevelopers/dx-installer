@@ -13,5 +13,6 @@ dependencies: [r]
 provided_by: r
 conflicts: []
 platforms:
+  windows: [amd64]
   macos: [arm64]
   linux: [amd64, arm64]

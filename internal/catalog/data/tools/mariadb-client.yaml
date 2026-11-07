@@ -2,7 +2,7 @@ schema_version: 1
 id: mariadb-client
 name: MariaDB Client
 category: database.client
-description: MariaDB command-line client for connecting to MariaDB and MySQL-compatible servers; does not install a database server.
+description: MariaDB command-line client for connecting to MariaDB and MySQL-compatible servers. Homebrew also installs server binaries but does not start a service.
 tags: [database, mariadb, mysql, sql, client]
 version:
   channel: stable
@@ -12,10 +12,21 @@ version_args: [--version]
 dependencies: []
 conflicts: []
 platforms:
+  macos: [amd64, arm64]
   linux: [amd64, arm64]
 installers:
+  - platform: macos
+    manager: homebrew
+    package_id: mariadb
+    scope: user
+    source: homebrew-core
   - platform: linux
     manager: apt
     package_id: mariadb-client
     scope: system
     source: configured-apt-repositories
+  - platform: linux
+    manager: homebrew
+    package_id: mariadb
+    scope: user
+    source: homebrew-core

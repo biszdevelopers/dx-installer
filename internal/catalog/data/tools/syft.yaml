@@ -13,7 +13,20 @@ dependencies: []
 conflicts: []
 platforms:
   macos: [arm64]
+  windows: [amd64, arm64]
+  linux: [amd64, arm64]
 installers:
+  - platform: linux
+    manager: homebrew
+    package_id: syft
+    scope: user
+    source: homebrew-core
+  - platform: windows
+    manager: scoop
+    package_id: syft
+    scope: user
+    source: Scoop Main bucket
+    architectures: [amd64, arm64]
   - platform: macos
     manager: homebrew
     package_id: syft

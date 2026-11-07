@@ -14,7 +14,14 @@ conflicts: []
 platforms:
   macos: [arm64]
   linux: [amd64, arm64]
+  windows: [amd64]
 installers:
+  - platform: windows
+    manager: scoop
+    package_id: make
+    scope: user
+    source: Scoop Main bucket
+    architectures: [amd64]
   - platform: macos
     manager: homebrew
     package_id: make

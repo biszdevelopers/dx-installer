@@ -187,7 +187,13 @@ func (m *Model) renderCatalog(maxRows int) []string {
 		if m.selected[item.ID] {
 			selection = selectedStyle.Render("[x]")
 		}
-		row := fmt.Sprintf("%s %-18s %-24s %s", selection, item.ID, item.Name, stateLabel(m.inventory.Tools[item.ID].State))
+		state := stateLabel(m.inventory.Tools[item.ID].State)
+		if m.inventory.Tools[item.ID].State == detection.Unsupported {
+			if alternatives := m.availablePlatformAlternatives(item); len(alternatives) > 0 {
+				state = "Use " + m.toolName(alternatives[0].ToolID)
+			}
+		}
+		row := fmt.Sprintf("%s %-18s %-24s %s", selection, item.ID, item.Name, state)
 		if index == m.cursor {
 			row = activeStyle.Render("> ") + row
 		} else {
@@ -213,7 +219,18 @@ func (m *Model) renderCatalog(maxRows int) []string {
 		platforms = append(platforms, string(operatingSystem)+"/"+strings.Join(architecturesText, ", "))
 	}
 	sort.Strings(platforms)
-	lines = append(lines, "Supported platforms: "+strings.Join(platforms, "; "), "Supported here: "+yesNo(item.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture)))
+	lines = append(lines, "Supported platforms: "+strings.Join(platforms, "; "))
+	alternatives := m.availablePlatformAlternatives(item)
+	if item.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture) {
+		lines = append(lines, "Supported here: Yes")
+	} else if len(alternatives) > 0 {
+		lines = append(lines, "Exact tool supported here: No", "Select this row to add a native alternative:")
+		for _, alternative := range alternatives {
+			lines = append(lines, m.toolName(alternative.ToolID)+": "+alternative.Reason)
+		}
+	} else {
+		lines = append(lines, "Supported here: No")
+	}
 	verification := make([]string, len(item.Executables))
 	for index, executable := range item.Executables {
 		verification[index] = executable + " " + strings.Join(item.VersionArgs, " ")
@@ -231,6 +248,13 @@ func (m *Model) renderCatalog(maxRows int) []string {
 	}
 	if installer, ok := item.InstallerForPlatform(m.inventory.Platform.OS, m.inventory.Platform.Architecture, m.managerOrder()); ok {
 		lines = append(lines, fmt.Sprintf("Proposed source: %s / %s (%s)", installer.Manager, installer.PackageID, installer.Source))
+	} else if installer, ok := item.RegistryInstallerForPlatform(m.inventory.Platform.OS); ok {
+		lines = append(lines,
+			fmt.Sprintf("Proposed method: %s registry", installer.Ecosystem),
+			"Package: "+installer.PackageID+" "+installer.Version,
+			"Source: "+installer.Source,
+			"Scope: "+string(installer.Scope),
+		)
 	} else {
 		if artifact, exists := item.ArtifactFor(m.inventory.Platform.OS, m.inventory.Platform.Architecture); exists {
 			lines = append(lines, "Proposed method: verified official archive", "Artifact version: "+artifact.Version, "Official source: "+artifact.URL, "SHA-256: "+artifact.SHA256)
@@ -649,6 +673,11 @@ func (m *Model) renderApproval() string {
 		strongStyle.Render("Confirm installation"),
 		fmt.Sprintf("DX will run %d package-manager operation(s) and install %d checksum-verified archive(s).", packageCount, archiveCount),
 		"Review sources, versions, integrity checks, install locations, and PATH changes before continuing.",
+	}
+	for _, issue := range m.plan.Issues {
+		if issue.Severity == planning.Warning {
+			lines = append(lines, warningStyle.Render("Review note: "+issue.Message))
+		}
 	}
 	if m.plan.TransactionDisclosure != "" {
 		lines = append(lines, warningStyle.Render(m.plan.TransactionDisclosure))

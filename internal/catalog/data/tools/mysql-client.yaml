@@ -12,7 +12,7 @@ version_args: [--version]
 dependencies: []
 conflicts: []
 platforms:
-  macos: [arm64]
+  macos: [amd64, arm64]
   linux: [amd64, arm64]
 installers:
   - platform: macos
@@ -20,8 +20,10 @@ installers:
     package_id: mysql-client
     scope: user
     source: homebrew-core
+    path_entries: [bin]
   - platform: linux
     manager: homebrew
     package_id: mysql-client
     scope: user
     source: homebrew-core
+    path_entries: [bin]

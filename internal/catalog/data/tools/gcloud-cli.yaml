@@ -10,20 +10,66 @@ version:
 executables: [gcloud]
 version_args: [--version]
 dependencies: []
+platform_dependencies:
+  macos: [python]
 conflicts: []
 platforms:
+  windows: [amd64]
   macos: [amd64, arm64]
   linux: [amd64, arm64]
-installers:
+artifacts:
+  - platform: windows
+    architecture: amd64
+    version: 592.0.0
+    url: https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-592.0.0-windows-x86_64-bundled-python.zip
+    sha256: 65002e0d679fc2ade00163b97637f45656d6fd5250d6f5962e4a1a555f2628ea
+    format: zip
+    archive_root: google-cloud-sdk
+    path_entries: [bin]
+    max_download_bytes: 536870912
+    max_expanded_bytes: 2147483648
+    allowed_redirect_hosts: [dl.google.com, storage.googleapis.com]
   - platform: macos
-    manager: homebrew
-    package_id: gcloud-cli
-    kind: cask
-    scope: user
-    source: homebrew-cask
+    architecture: amd64
+    version: 592.0.0
+    url: https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-592.0.0-darwin-x86_64.tar.gz
+    sha256: bad0a5caba7b67c5d97a278e8ef31e56d341c72f944293f4e3b06091ef69148d
+    format: tar.gz
+    archive_root: google-cloud-sdk
+    path_entries: [bin]
+    max_download_bytes: 536870912
+    max_expanded_bytes: 2147483648
+    allowed_redirect_hosts: [dl.google.com, storage.googleapis.com]
+  - platform: macos
+    architecture: arm64
+    version: 592.0.0
+    url: https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-592.0.0-darwin-arm.tar.gz
+    sha256: 57553ae3c300f4ebaaa8fb4dee8d40c4d8c1141d84d266b41c1daf1669c4001a
+    format: tar.gz
+    archive_root: google-cloud-sdk
+    path_entries: [bin]
+    max_download_bytes: 536870912
+    max_expanded_bytes: 2147483648
+    allowed_redirect_hosts: [dl.google.com, storage.googleapis.com]
   - platform: linux
-    manager: homebrew
-    package_id: gcloud-cli
-    kind: cask
-    scope: user
-    source: homebrew-cask
+    architecture: amd64
+    version: 592.0.0
+    url: https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-592.0.0-linux-x86_64.tar.gz
+    sha256: 16fda6058d66e4ec29e8575e2b6e19b0d03cea7b091e6730f7e8361209e6955f
+    format: tar.gz
+    archive_root: google-cloud-sdk
+    path_entries: [bin]
+    max_download_bytes: 536870912
+    max_expanded_bytes: 2147483648
+    allowed_redirect_hosts: [dl.google.com, storage.googleapis.com]
+  - platform: linux
+    architecture: arm64
+    version: 592.0.0
+    url: https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-592.0.0-linux-arm.tar.gz
+    sha256: cc584dabf7b1f7ba79354744027b6de654ff6876c03dffb2174c1b1e3c0c6956
+    format: tar.gz
+    archive_root: google-cloud-sdk
+    path_entries: [bin]
+    max_download_bytes: 536870912
+    max_expanded_bytes: 2147483648
+    allowed_redirect_hosts: [dl.google.com, storage.googleapis.com]

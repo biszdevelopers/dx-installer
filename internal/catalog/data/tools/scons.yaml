@@ -9,10 +9,11 @@ version:
   upgrade_policy: never_automatically
 executables: [scons]
 version_args: [--version]
-dependencies: [python]
+dependencies: [python, uv]
 conflicts: []
 platforms:
-  macos: [arm64]
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
   linux: [amd64, arm64]
 installers:
   - platform: macos
@@ -25,3 +26,22 @@ installers:
     package_id: scons
     scope: user
     source: homebrew-core
+registry_installers:
+  - platform: windows
+    ecosystem: pypi
+    package_id: scons
+    version: 4.11.1
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: macos
+    ecosystem: pypi
+    package_id: scons
+    version: 4.11.1
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: linux
+    ecosystem: pypi
+    package_id: scons
+    version: 4.11.1
+    scope: user
+    source: https://pypi.org/simple/

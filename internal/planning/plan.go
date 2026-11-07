@@ -94,6 +94,7 @@ type Options struct {
 	CustomSources         map[string]string
 	OfflineArchives       map[string]string
 	RegistrySources       map[tool.RegistryEcosystem]string
+	NativeAlternatives    map[string][]string
 }
 
 func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selected []string, options Options) (Plan, error) {
@@ -301,6 +302,33 @@ func BuildWithOptions(items *catalog.Catalog, current detection.Inventory, selec
 			if item.Artifact == nil {
 				plan.TransactionDisclosure = TransactionDisclosure
 				break
+			}
+		}
+	}
+	for actualID, requestedIDs := range options.NativeAlternatives {
+		actual, exists := items.Tool(actualID)
+		if !exists {
+			continue
+		}
+		for _, requestedID := range requestedIDs {
+			requested, exists := items.Tool(requestedID)
+			if !exists || requested.Supports(current.Platform.OS, current.Platform.Architecture) {
+				continue
+			}
+			for _, alternative := range requested.PlatformAlternatives[current.Platform.OS] {
+				if alternative.ToolID != actualID {
+					continue
+				}
+				for index := range plan.Items {
+					if plan.Items[index].ToolID != actualID {
+						continue
+					}
+					if !strings.Contains(plan.Items[index].Name, "(native alternative for ") {
+						plan.Items[index].Name += " (native alternative for " + requested.Name + ")"
+					}
+					plan.add(Warning, actualID, actual.Name+" is the native alternative for "+requested.Name+": "+alternative.Reason)
+					break
+				}
 			}
 		}
 	}

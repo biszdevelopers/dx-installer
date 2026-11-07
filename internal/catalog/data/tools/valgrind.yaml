@@ -13,6 +13,13 @@ dependencies: []
 conflicts: []
 platforms:
   linux: [amd64, arm64]
+platform_alternatives:
+  windows:
+    - tool_id: clang
+      reason: Clang AddressSanitizer provides compiler-assisted memory checks, but is not a Valgrind drop-in.
+  macos:
+    - tool_id: clang
+      reason: Clang AddressSanitizer provides compiler-assisted memory checks, but is not a Valgrind drop-in.
 installers:
   - platform: linux
     manager: homebrew

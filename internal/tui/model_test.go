@@ -486,6 +486,46 @@ func TestMouseNavigationSelectionAndGuidedReview(t *testing.T) {
 	}
 }
 
+func TestUnsupportedToolCanBeReplacedByClickableNativeAlternative(t *testing.T) {
+	items, err := catalog.LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(context.Background(), items, detection.Inventory{
+		Platform: platform.Info{OS: tool.Linux, Architecture: tool.AMD64},
+		Managers: []packagemanager.Detected{{Manager: tool.APT, Path: "/usr/bin/apt"}},
+		Tools: map[string]detection.Tool{
+			"msvc-build-tools": {ID: "msvc-build-tools", Name: "MSVC Build Tools", State: detection.Unsupported},
+			"clang":            {ID: "clang", Name: "Clang", State: detection.Missing},
+		},
+	}, nil)
+	model.screen = CatalogScreen
+	model.filter = "msvc-build-tools"
+	model.sourceMode = "official-only"
+	model.Update(tea.WindowSizeMsg{Width: 120, Height: 32})
+
+	clickAction(t, model, "select-platform-alternative", 0)
+	if !model.selected["msvc-build-tools"] || model.selectedAlternatives["msvc-build-tools"] != "clang" {
+		t.Fatalf("click did not choose Clang as the MSVC alternative: selected=%v alternatives=%v", model.selected, model.selectedAlternatives)
+	}
+	selected := model.selectedIDs()
+	if len(selected) != 1 || selected[0] != "clang" {
+		t.Fatalf("installer selection should resolve to Clang: %v", selected)
+	}
+	plan, err := model.buildSelectedPlan(selected)
+	if err != nil || plan.Blocked || len(plan.Items) != 1 || plan.Items[0].ToolID != "clang" {
+		t.Fatalf("native alternative did not produce an installable plan: plan=%#v err=%v", plan, err)
+	}
+	if !strings.Contains(plan.Items[0].Name, "native alternative for MSVC Build Tools") || len(plan.Issues) != 1 || !strings.Contains(plan.Issues[0].Message, "does not provide the MSVC ABI") {
+		t.Fatalf("plan did not disclose the alternative and its limits: %#v", plan)
+	}
+
+	output := ansi.Strip(model.render())
+	if !strings.Contains(output, "Use Clang") {
+		t.Fatalf("catalog did not identify the native alternative:\n%s", output)
+	}
+}
+
 func TestMouseAdvancedSourceChoiceAndProfileActions(t *testing.T) {
 	items, err := catalog.LoadEmbedded()
 	if err != nil {
@@ -950,7 +990,7 @@ func TestCatalogDetailsShowCompatibilityDependenciesConflictsAndVerification(t *
 		"Flutter SDK details",
 		"Dependencies: git",
 		"Conflicts: dart",
-		"Supported platforms: macos/amd64, arm64",
+		"Supported platforms: linux/amd64; macos/amd64, arm64; windows/amd64",
 		"Verification: flutter --version",
 		"Proposed source: homebrew / flutter (homebrew-cask)",
 	} {

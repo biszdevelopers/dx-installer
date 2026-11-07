@@ -13,7 +13,13 @@ dependencies: []
 conflicts: []
 platforms:
   macos: [arm64]
+  linux: [amd64, arm64]
 installers:
+  - platform: linux
+    manager: homebrew
+    package_id: protobuf
+    scope: user
+    source: homebrew-core
   - platform: macos
     manager: homebrew
     package_id: protobuf

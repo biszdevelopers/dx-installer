@@ -13,7 +13,20 @@ dependencies: []
 conflicts: []
 platforms:
   macos: [arm64]
+  windows: [amd64]
+  linux: [amd64, arm64]
 installers:
+  - platform: linux
+    manager: homebrew
+    package_id: shfmt
+    scope: user
+    source: homebrew-core
+  - platform: windows
+    manager: scoop
+    package_id: shfmt
+    scope: user
+    source: Scoop Main bucket
+    architectures: [amd64]
   - platform: macos
     manager: homebrew
     package_id: shfmt

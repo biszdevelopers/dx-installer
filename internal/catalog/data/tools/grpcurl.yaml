@@ -9,13 +9,45 @@ version:
   upgrade_policy: never_automatically
 executables: [grpcurl]
 version_args: [-version]
-dependencies: []
+dependencies: [go]
 conflicts: []
 platforms:
-  macos: [arm64]
+  macos: [amd64, arm64]
+  windows: [amd64, arm64]
+  linux: [amd64, arm64]
 installers:
+  - platform: linux
+    manager: homebrew
+    package_id: grpcurl
+    scope: user
+    source: homebrew-core
+  - platform: windows
+    manager: scoop
+    package_id: grpcurl
+    scope: user
+    source: Scoop Main bucket
+    architectures: [amd64, arm64]
   - platform: macos
     manager: homebrew
     package_id: grpcurl
     scope: user
     source: homebrew-core
+registry_installers:
+  - platform: windows
+    ecosystem: go-modules
+    package_id: github.com/fullstorydev/grpcurl/cmd/grpcurl
+    version: v1.9.4
+    scope: user
+    source: https://proxy.golang.org
+  - platform: macos
+    ecosystem: go-modules
+    package_id: github.com/fullstorydev/grpcurl/cmd/grpcurl
+    version: v1.9.4
+    scope: user
+    source: https://proxy.golang.org
+  - platform: linux
+    ecosystem: go-modules
+    package_id: github.com/fullstorydev/grpcurl/cmd/grpcurl
+    version: v1.9.4
+    scope: user
+    source: https://proxy.golang.org

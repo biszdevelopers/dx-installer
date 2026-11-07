@@ -14,7 +14,14 @@ conflicts: []
 platforms:
   macos: [arm64]
   linux: [amd64, arm64]
+  windows: [amd64, arm64]
 installers:
+  - platform: windows
+    manager: scoop
+    package_id: zig
+    scope: user
+    source: Scoop Main bucket
+    architectures: [amd64, arm64]
   - platform: macos
     manager: homebrew
     package_id: zig

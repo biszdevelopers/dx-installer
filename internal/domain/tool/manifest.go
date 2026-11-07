@@ -122,30 +122,37 @@ type RegistryInstaller struct {
 	Source    string            `yaml:"source"`
 }
 
+type PlatformAlternative struct {
+	ToolID        string         `yaml:"tool_id" json:"tool_id"`
+	Architectures []Architecture `yaml:"architectures,omitempty" json:"architectures,omitempty"`
+	Reason        string         `yaml:"reason" json:"reason"`
+}
+
 type VersionPolicy struct {
 	Channel       string `yaml:"channel"`
 	UpgradePolicy string `yaml:"upgrade_policy"`
 }
 
 type Manifest struct {
-	SchemaVersion        int                                `yaml:"schema_version"`
-	ID                   string                             `yaml:"id"`
-	Name                 string                             `yaml:"name"`
-	Category             string                             `yaml:"category"`
-	Description          string                             `yaml:"description"`
-	Tags                 []string                           `yaml:"tags"`
-	Version              VersionPolicy                      `yaml:"version"`
-	Executables          []string                           `yaml:"executables"`
-	VersionArgs          []string                           `yaml:"version_args"`
-	HealthPattern        string                             `yaml:"health_pattern,omitempty"`
-	Dependencies         []string                           `yaml:"dependencies"`
-	PlatformDependencies map[OperatingSystem][]string       `yaml:"platform_dependencies,omitempty"`
-	ProvidedBy           string                             `yaml:"provided_by,omitempty"`
-	Conflicts            []string                           `yaml:"conflicts"`
-	Platforms            map[OperatingSystem][]Architecture `yaml:"platforms"`
-	Installers           []Installer                        `yaml:"installers"`
-	RegistryInstallers   []RegistryInstaller                `yaml:"registry_installers,omitempty"`
-	Artifacts            []Artifact                         `yaml:"artifacts,omitempty"`
+	SchemaVersion        int                                       `yaml:"schema_version"`
+	ID                   string                                    `yaml:"id"`
+	Name                 string                                    `yaml:"name"`
+	Category             string                                    `yaml:"category"`
+	Description          string                                    `yaml:"description"`
+	Tags                 []string                                  `yaml:"tags"`
+	Version              VersionPolicy                             `yaml:"version"`
+	Executables          []string                                  `yaml:"executables"`
+	VersionArgs          []string                                  `yaml:"version_args"`
+	HealthPattern        string                                    `yaml:"health_pattern,omitempty"`
+	Dependencies         []string                                  `yaml:"dependencies"`
+	PlatformDependencies map[OperatingSystem][]string              `yaml:"platform_dependencies,omitempty"`
+	ProvidedBy           string                                    `yaml:"provided_by,omitempty"`
+	Conflicts            []string                                  `yaml:"conflicts"`
+	Platforms            map[OperatingSystem][]Architecture        `yaml:"platforms"`
+	PlatformAlternatives map[OperatingSystem][]PlatformAlternative `yaml:"platform_alternatives,omitempty"`
+	Installers           []Installer                               `yaml:"installers"`
+	RegistryInstallers   []RegistryInstaller                       `yaml:"registry_installers,omitempty"`
+	Artifacts            []Artifact                                `yaml:"artifacts,omitempty"`
 }
 
 type Profile struct {
@@ -226,6 +233,15 @@ func (m Manifest) RegistryInstallerFor(os OperatingSystem, ecosystem RegistryEco
 	return RegistryInstaller{}, false
 }
 
+func (m Manifest) RegistryInstallerForPlatform(os OperatingSystem) (RegistryInstaller, bool) {
+	for _, installer := range m.RegistryInstallers {
+		if installer.Platform == os {
+			return installer, true
+		}
+	}
+	return RegistryInstaller{}, false
+}
+
 func (m Manifest) Validate() error {
 	if m.SchemaVersion != 1 {
 		return fmt.Errorf("schema_version must be 1, got %d", m.SchemaVersion)
@@ -280,6 +296,31 @@ func (m Manifest) Validate() error {
 				return fmt.Errorf("dependency %q for %q is invalid, self-referential, or duplicated", dependency, os)
 			}
 			seenPlatformDependencies[dependency] = true
+		}
+	}
+	for os, alternatives := range m.PlatformAlternatives {
+		if !validPlatform(os) || len(alternatives) == 0 {
+			return fmt.Errorf("platform alternatives for %q require a supported platform name and at least one alternative", os)
+		}
+		seenAlternatives := make(map[string]bool, len(alternatives))
+		for _, alternative := range alternatives {
+			if !identifierPattern.MatchString(alternative.ToolID) || alternative.ToolID == m.ID || seenAlternatives[alternative.ToolID] {
+				return fmt.Errorf("platform alternative %q for %q is invalid, self-referential, or duplicated", alternative.ToolID, os)
+			}
+			if alternative.Reason == "" || strings.TrimSpace(alternative.Reason) != alternative.Reason || len(alternative.Reason) > 256 || strings.ContainsAny(alternative.Reason, "\r\n\x00") {
+				return fmt.Errorf("platform alternative %q for %q requires a single-line reason of at most 256 characters", alternative.ToolID, os)
+			}
+			seenArchitectures := make(map[Architecture]bool, len(alternative.Architectures))
+			for _, architecture := range alternative.Architectures {
+				if !validArchitecture(architecture) || m.Supports(os, architecture) || seenArchitectures[architecture] {
+					return fmt.Errorf("platform alternative %q for %q targets a supported or invalid architecture %q", alternative.ToolID, os, architecture)
+				}
+				seenArchitectures[architecture] = true
+			}
+			if len(alternative.Architectures) == 0 && hasPlatform(m.Platforms, os) {
+				return fmt.Errorf("platform alternative %q for %q must name the unsupported architectures", alternative.ToolID, os)
+			}
+			seenAlternatives[alternative.ToolID] = true
 		}
 	}
 	for os, architectures := range m.Platforms {

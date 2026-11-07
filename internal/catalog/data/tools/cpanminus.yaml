@@ -13,6 +13,14 @@ dependencies: [perl]
 conflicts: []
 platforms:
   linux: [amd64, arm64]
+platform_alternatives:
+  windows:
+    - tool_id: perl
+      architectures: [amd64]
+      reason: Perl includes the CPAN client, which installs modules through the cpan command but does not have the cpanminus interface.
+  macos:
+    - tool_id: perl
+      reason: Perl includes the CPAN client, which installs modules through the cpan command but does not have the cpanminus interface.
 installers:
   - platform: linux
     manager: apt

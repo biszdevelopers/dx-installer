@@ -9,13 +9,39 @@ version:
   upgrade_policy: never_automatically
 executables: [checkov]
 version_args: [--version]
-dependencies: []
+dependencies: [python, uv]
 conflicts: []
 platforms:
-  macos: [arm64]
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
 installers:
+  - platform: linux
+    manager: homebrew
+    package_id: checkov
+    scope: user
+    source: homebrew-core
   - platform: macos
     manager: homebrew
     package_id: checkov
     scope: user
     source: homebrew-core
+registry_installers:
+  - platform: windows
+    ecosystem: pypi
+    package_id: checkov
+    version: 3.3.11
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: macos
+    ecosystem: pypi
+    package_id: checkov
+    version: 3.3.11
+    scope: user
+    source: https://pypi.org/simple/
+  - platform: linux
+    ecosystem: pypi
+    package_id: checkov
+    version: 3.3.11
+    scope: user
+    source: https://pypi.org/simple/

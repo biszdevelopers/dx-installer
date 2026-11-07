@@ -13,7 +13,17 @@ dependencies: []
 conflicts: []
 platforms:
   macos: [arm64]
+  linux: [amd64, arm64]
+platform_alternatives:
+  windows:
+    - tool_id: powershell
+      reason: PowerShell scripts provide native Windows automation but do not run Ansible playbooks.
 installers:
+  - platform: linux
+    manager: homebrew
+    package_id: ansible
+    scope: user
+    source: homebrew-core
   - platform: macos
     manager: homebrew
     package_id: ansible

@@ -12,7 +12,8 @@ version_args: [version]
 dependencies: [go]
 conflicts: []
 platforms:
-  macos: [arm64]
+  windows: [amd64, arm64]
+  macos: [amd64, arm64]
   linux: [amd64, arm64]
 installers:
   - platform: macos
@@ -25,3 +26,22 @@ installers:
     package_id: gopls
     scope: user
     source: homebrew-core
+registry_installers:
+  - platform: windows
+    ecosystem: go-modules
+    package_id: golang.org/x/tools/gopls
+    version: v0.24.0
+    scope: user
+    source: https://proxy.golang.org
+  - platform: macos
+    ecosystem: go-modules
+    package_id: golang.org/x/tools/gopls
+    version: v0.24.0
+    scope: user
+    source: https://proxy.golang.org
+  - platform: linux
+    ecosystem: go-modules
+    package_id: golang.org/x/tools/gopls
+    version: v0.24.0
+    scope: user
+    source: https://proxy.golang.org

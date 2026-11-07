@@ -9,7 +9,7 @@ version:
   upgrade_policy: never_automatically
 executables: [plantuml]
 version_args: [-version]
-dependencies: [graphviz, openjdk-27]
+dependencies: [graphviz, openjdk-21]
 conflicts: []
 platforms:
   macos: [arm64]

@@ -9,9 +9,10 @@ version:
   upgrade_policy: never_automatically
 executables: [esbuild]
 version_args: [--version]
-dependencies: []
+dependencies: [nodejs-lts]
 conflicts: []
 platforms:
+  windows: [amd64, arm64]
   macos: [amd64, arm64]
   linux: [amd64, arm64]
 installers:
@@ -25,3 +26,22 @@ installers:
     package_id: esbuild
     scope: user
     source: homebrew-core
+registry_installers:
+  - platform: windows
+    ecosystem: npm
+    package_id: esbuild
+    version: 0.28.2
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: macos
+    ecosystem: npm
+    package_id: esbuild
+    version: 0.28.2
+    scope: user
+    source: https://registry.npmjs.org/
+  - platform: linux
+    ecosystem: npm
+    package_id: esbuild
+    version: 0.28.2
+    scope: user
+    source: https://registry.npmjs.org/

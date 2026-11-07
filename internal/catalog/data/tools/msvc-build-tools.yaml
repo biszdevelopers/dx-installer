@@ -14,6 +14,13 @@ dependencies: []
 conflicts: []
 platforms:
   windows: [amd64]
+platform_alternatives:
+  macos:
+    - tool_id: clang
+      reason: Clang is the native C/C++ compiler here; its flags and ABI differ from MSVC.
+  linux:
+    - tool_id: clang
+      reason: Clang is a native C/C++ compiler here; it does not provide the MSVC ABI or Visual Studio workload.
 installers:
   - platform: windows
     manager: winget

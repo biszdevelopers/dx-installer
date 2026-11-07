@@ -13,6 +13,13 @@ dependencies: []
 conflicts: []
 platforms:
   linux: [amd64, arm64]
+platform_alternatives:
+  windows:
+    - tool_id: clang
+      reason: Clang can target RISC-V, but it does not include the GNU toolchain utilities, debugger, or target sysroot.
+  macos:
+    - tool_id: clang
+      reason: Clang can target RISC-V, but it does not include the GNU toolchain utilities, debugger, or target sysroot.
 installers:
   - platform: linux
     manager: apt

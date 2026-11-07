@@ -2,17 +2,19 @@ schema_version: 1
 id: seven-zip
 name: 7-Zip
 category: system.archive
-description: File archiver required to extract the Zephyr SDK archive on Windows.
+description: File archiver used to inspect and extract software archives.
 tags: [archive, extractor, windows]
 version:
   channel: stable
   upgrade_policy: never_automatically
-executables: [7z]
+executables: [7z, 7zz]
 version_args: [i]
 dependencies: []
 conflicts: []
 platforms:
   windows: [amd64]
+  macos: [amd64, arm64]
+  linux: [amd64, arm64]
 installers:
   - platform: windows
     manager: winget
@@ -24,3 +26,13 @@ installers:
     package_id: 7zip
     scope: user
     source: scoop-bucket
+  - platform: macos
+    manager: homebrew
+    package_id: sevenzip
+    scope: user
+    source: homebrew-core
+  - platform: linux
+    manager: homebrew
+    package_id: sevenzip
+    scope: user
+    source: homebrew-core

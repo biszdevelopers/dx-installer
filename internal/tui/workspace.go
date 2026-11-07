@@ -619,6 +619,11 @@ func (m *Model) catalogContent(width, height int, theme uiTheme) ([]uiLine, []ui
 		state := "Not installed"
 		if detected, exists := m.inventory.Tools[item.ID]; exists {
 			state = plainStateLabel(detected.State)
+			if detected.State == detection.Unsupported {
+				if alternatives := m.availablePlatformAlternatives(item); len(alternatives) > 0 {
+					state = "Use " + m.toolName(alternatives[0].ToolID)
+				}
+			}
 		}
 		rows[index] = table.Row{mark, item.Name, state}
 	}
@@ -701,7 +706,26 @@ func (m *Model) toolDetails(item tool.Manifest, theme uiTheme) []uiLine {
 	if dependencies := item.DependenciesFor(m.inventory.Platform.OS); len(dependencies) > 0 {
 		lines = append(lines, line("Dependencies: "+strings.Join(dependencies, ", ")))
 	}
-	lines = append(lines, line("Supported here: "+yesNo(item.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture))))
+	supportedHere := item.Supports(m.inventory.Platform.OS, m.inventory.Platform.Architecture)
+	alternatives := m.availablePlatformAlternatives(item)
+	if supportedHere {
+		lines = append(lines, line("Supported here: Yes"))
+	} else if len(alternatives) > 0 {
+		lines = append(lines, line("Exact tool supported here: No"), line("Native alternatives:"))
+		for alternativeIndex, alternative := range alternatives {
+			selected := m.selectedPlatformAlternative(item, alternative.ToolID)
+			label := "Select " + m.toolName(alternative.ToolID) + " instead"
+			if selected {
+				label = "Remove " + m.toolName(alternative.ToolID) + " alternative"
+			}
+			lines = append(lines,
+				line(m.toolName(alternative.ToolID)+": "+alternative.Reason),
+				uiLine{text: "[ " + label + " ]", action: "select-platform-alternative", index: alternativeIndex},
+			)
+		}
+	} else {
+		lines = append(lines, line("Supported here: No"))
+	}
 	if installer, ok := item.InstallerForPlatform(m.inventory.Platform.OS, m.inventory.Platform.Architecture, m.managerOrder()); ok {
 		lines = append(lines, line("Install method: "+string(installer.Manager)), line("Package: "+installer.PackageID), line("Source: "+installer.Source), line("Scope: "+string(installer.Scope)))
 	} else if artifact, ok := item.ArtifactFor(m.inventory.Platform.OS, m.inventory.Platform.Architecture); ok {
@@ -709,7 +733,14 @@ func (m *Model) toolDetails(item tool.Manifest, theme uiTheme) []uiLine {
 		if artifact.SizeEstimateNote != "" {
 			lines = append(lines, line("Download: "+artifact.SizeEstimateNote))
 		}
-	} else {
+	} else if installer, ok := item.RegistryInstallerForPlatform(m.inventory.Platform.OS); ok {
+		lines = append(lines,
+			line("Install method: "+string(installer.Ecosystem)+" registry"),
+			line("Package: "+installer.PackageID+" "+installer.Version),
+			line("Source: "+installer.Source),
+			line("Scope: "+string(installer.Scope)),
+		)
+	} else if len(alternatives) == 0 {
 		lines = append(lines, line("No installer is available for this machine."))
 	}
 	return lines

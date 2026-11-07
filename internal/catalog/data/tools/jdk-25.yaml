@@ -14,6 +14,10 @@ conflicts: []
 platforms:
   windows: [amd64, arm64]
   macos: [amd64, arm64]
+platform_alternatives:
+  linux:
+    - tool_id: openjdk-25
+      reason: OpenJDK 25 provides the same Java 25 toolchain through a different distribution.
 installers:
   - platform: windows
     manager: winget

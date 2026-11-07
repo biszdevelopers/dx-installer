@@ -14,9 +14,20 @@ dependencies: []
 conflicts: []
 platforms:
   windows: [amd64, arm64]
+  macos: [amd64, arm64]
+platform_alternatives:
+  linux:
+    - tool_id: dotnet-sdk-10
+      reason: The .NET 10 SDK includes this runtime and adds the build toolchain.
 installers:
   - platform: windows
     manager: winget
     package_id: Microsoft.DotNet.Runtime.10
     scope: system
     source: winget
+  - platform: macos
+    manager: homebrew
+    package_id: dotnet-runtime
+    kind: cask
+    scope: user
+    source: homebrew-cask
